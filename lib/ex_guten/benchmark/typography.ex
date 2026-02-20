@@ -114,8 +114,8 @@ defmodule ExGuten.Benchmark.Typography do
     warmup_run(scenario_fun, warmup)
     {total_us, _} = :timer.tc(fn -> iteration_run(scenario_fun, iterations) end)
 
-    us_per_iter = total_us / iterations
-    ips = 1_000_000.0 / us_per_iter
+    us_per_iter = total_us / (iterations * 1.0)
+    ips = if us_per_iter > 0.0, do: 1_000_000.0 / us_per_iter, else: 0.0
 
     {name,
      %{
