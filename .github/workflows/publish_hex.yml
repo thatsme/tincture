@@ -44,12 +44,8 @@ jobs:
           # Strip 'v' prefix if present (v0.1.0 → 0.1.0)
           TAG_VERSION="${GITHUB_REF_NAME#v}"
 
-          # Extract version cleanly using elixir (no mix project load → no ==> noise)
-          MIX_VERSION=$(elixir -e '
-            Mix.Project.config()
-            |> Keyword.fetch!(:version)
-            |> IO.puts()
-          ' --no-deps-check 2>/dev/null || echo "failed_to_extract")
+          # Extract version from @version in mix.exs
+          MIX_VERSION=$(grep -oP '@version\s+"\K[^"]+' mix.exs || echo "failed_to_extract")
 
           echo "Git tag version:   $TAG_VERSION"
           echo "mix.exs version:   $MIX_VERSION"
