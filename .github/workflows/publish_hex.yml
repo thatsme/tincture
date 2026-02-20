@@ -1,0 +1,54 @@
+name: Publish Hex
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: hex-publish
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.16.3"
+          otp-version: "26.2"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run tests
+        run: mix test
+
+      - name: Verify tag matches mix.exs version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MIX_VERSION="$(mix run -e 'IO.write(Mix.Project.config()[:version])')"
+
+          if [ "$TAG_VERSION" != "$MIX_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match mix.exs version ($MIX_VERSION)."
+            exit 1
+          fi
+
+      - name: Publish package to Hex.pm
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes
