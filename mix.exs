@@ -10,7 +10,10 @@ defmodule Tincture.MixProject do
       name: "Tincture",
       version: @version,
       description:
-        "Native, high-fidelity PDF generation for Elixir, distilled from the heritage of Joe Armstrong.",
+        "Typographic-quality PDF generation for Elixir with no runtime dependencies. " <>
+          "TeX hyphenation and Knuth-Plass line breaking, TrueType/OpenType embedding with " <>
+          "subsetting, tables and templates, interactive forms, AES-256 encryption, and " <>
+          "verified PDF/UA accessibility, PDF/A archival output and digital signatures.",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

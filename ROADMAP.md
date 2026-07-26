@@ -3,9 +3,37 @@
 What Tincture would need to be a defensible choice for enterprise document
 generation, and roughly in what order.
 
-Everything listed as missing here was checked against the source, not assumed.
-Where something is partially present that is said explicitly, because "we have
-forms" and "we have the forms you need" are different claims.
+Nothing here is assumed. Where something is missing it was checked against the
+source; where something is claimed done it was checked against a validator.
+Partial support is said to be partial, because "we have forms" and "we have the
+forms you need" are different claims.
+
+## At a glance
+
+**Done and independently verified**
+
+| | |
+|---|---|
+| Accessibility — PDF/UA-1 | veraPDF, 106/106 rules ([1](#1-accessibility--tagged-pdf-pdfua)) |
+| Archival — PDF/A-2b, 2u, 2a | veraPDF, up to 153/153 rules ([2](#2-archival--pdfa)) |
+| Digital signatures | `openssl cms -verify` ([3](#3-digital-signatures)) |
+| Telemetry | ([9](#9-operability)) |
+
+**Next, roughly in order**
+
+1. **Transparency and shading** — small, self-contained, immediately visible.
+2. **Benchmarks against alternatives** — there is still no answer to "how fast
+   is it" relative to ChromicPDF or elixir-pdf.
+3. **Object and cross-reference streams** — file size; content streams are
+   written uncompressed today.
+4. **Forms completed** — appearance streams for text and choice fields, which
+   would also let signed and archival documents carry form fields.
+5. **Signature timestamping and incremental updates** — proof of *when*, and
+   more than one signature per document.
+6. **Colour beyond RGB** — spot inks and ICC spaces, for print production.
+7. **Complex scripts** — the largest effort, and the narrowest audience unless
+   you are targeting those markets.
+8. **Reading PDFs** — probably a sibling library.
 
 ## Where it stands today
 
@@ -14,11 +42,12 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,224 tests, 88% coverage, clean Credo and Dialyzer, CI
-on four Elixir versions.
+signatures, telemetry. No required runtime dependencies. 1,224 tests, 89%
+coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
-person reads. What follows is what it does not yet cover.
+person reads, keeps, and has to be able to rely on. What follows is what it does
+not yet cover.
 
 ---
 
@@ -221,19 +250,24 @@ This is arguably a separate library. Listed because evaluators will ask, and
 
 ---
 
-## Suggested order
+## A note on the verified items
 
-1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
-2. **Transparency and shading** — small, self-contained, visible.
-3. ~~Tagged PDF~~ — done and validated against veraPDF.
-4. ~~PDF/A~~ — done and validated at 2a, alongside PDF/UA-1.
-5. ~~Digital signatures~~ — done. **Timestamping and incremental updates** remain.
-6. **Object and xref streams** — file size.
-7. **Forms completed** — appearance streams overlap with 5.
-8. **Colour** — needed for print production specifically.
-9. **Complex scripts** — largest effort, narrowest audience unless targeting
-   those markets.
-10. **Reading** — probably a sibling library.
+Compliance belongs to a *document*, not a library. Tincture provides the tools
+to produce a conforming file; whether yours conforms depends on how you use
+them. What validation established is narrower and more useful: that correct
+usage is not blocked by a defect in the output.
+
+It was worth doing. Running veraPDF and OpenSSL against the examples found five
+real defects that 1,200 tests had not — among them every content stream
+declaring a `/Length` one byte too large, and table header `/Scope` written
+where no reader would look for it. Each is recorded in
+[CHANGELOG.md](CHANGELOG.md).
+
+Two of those were things that looked like constraints and turned out to be bugs:
+links appeared to be forbidden in archival documents, and checkboxes likewise,
+until it emerged that Tincture was omitting an annotation flag in one case and
+over-setting `/NeedAppearances` in the other. A rule that bans working features
+is a bug in the rule.
 
 ## Contributing
 
