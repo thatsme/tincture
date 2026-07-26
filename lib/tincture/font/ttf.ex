@@ -110,8 +110,28 @@ defmodule Tincture.Font.TTF do
 
   @spec parse_basic_tables(binary()) :: {:ok, basic_metrics()} | :error
   def parse_basic_tables(data) when is_binary(data) do
+    # The GPOS guardrail counter lives in the process dictionary because it is
+    # incremented from seven places deep inside the GPOS pair/class parsers and
+    # read once here; threading it back through those `with` chains would mean
+    # reshaping the control flow of the code that produces kerning pairs.
+    #
+    # That is a tolerated smell, not a free one. The save/restore below makes it
+    # re-entrancy-safe: without it, a nested parse_basic_tables/1 call would
+    # zero an outer parse's accumulated count and silently under-report. No such
+    # nesting exists today - the only callers are in Tincture.PDF, neither
+    # reachable from inside the parse tree - so this guards a future caller
+    # rather than a present bug.
+    previous_skip_count = Process.get(@gpos_guardrail_skip_count_key)
     reset_gpos_guardrail_skip_count()
 
+    try do
+      parse_basic_tables_body(data)
+    after
+      restore_gpos_guardrail_skip_count(previous_skip_count)
+    end
+  end
+
+  defp parse_basic_tables_body(data) do
     with {:ok, table_records} <- parse_table_records(data),
          {:ok, head_table} <- fetch_table(data, table_records, "head"),
          {:ok, maxp_table} <- fetch_table(data, table_records, "maxp"),
@@ -1652,6 +1672,19 @@ defmodule Tincture.Font.TTF do
 
   defp reset_gpos_guardrail_skip_count do
     Process.put(@gpos_guardrail_skip_count_key, 0)
+    :ok
+  end
+
+  # nil means the key was absent before this parse, so remove it rather than
+  # leaving a zero behind and making the process dictionary grow by one key per
+  # process that ever parsed a font.
+  defp restore_gpos_guardrail_skip_count(nil) do
+    Process.delete(@gpos_guardrail_skip_count_key)
+    :ok
+  end
+
+  defp restore_gpos_guardrail_skip_count(previous_skip_count) do
+    Process.put(@gpos_guardrail_skip_count_key, previous_skip_count)
     :ok
   end
 
