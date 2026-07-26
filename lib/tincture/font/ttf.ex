@@ -6,9 +6,11 @@ defmodule Tincture.Font.TTF do
 
   alias Tincture.Font.Binary
   alias Tincture.Font.CFF
+  alias Tincture.Font.OpenType.Common
+  alias Tincture.Font.OpenType.GPOS
+  alias Tincture.Font.OpenType.GSUB
   alias Tincture.Font.TTF.Cmap
   alias Tincture.Font.TTF.Glyf
-  alias Tincture.Font.TTF.Layout
   alias Tincture.Font.TTF.Name
 
   @type basic_metrics :: %{
@@ -121,12 +123,12 @@ defmodule Tincture.Font.TTF do
     # nesting exists today - the only callers are in Tincture.PDF, neither
     # reachable from inside the parse tree - so this guards a future caller
     # rather than a present bug.
-    guardrail_scope = Layout.begin_guardrail_scope()
+    guardrail_scope = GPOS.begin_guardrail_scope()
 
     try do
       parse_basic_tables_body(data)
     after
-      Layout.end_guardrail_scope(guardrail_scope)
+      GPOS.end_guardrail_scope(guardrail_scope)
     end
   end
 
@@ -152,7 +154,7 @@ defmodule Tincture.Font.TTF do
            parse_advance_widths(hmtx_table, num_glyphs, number_of_h_metrics),
          {:ok, cmap_by_code} <- Cmap.parse_cmap_by_code(data, table_records),
          {:ok, cmap_variation_metadata} <- Cmap.parse_cmap_variation_metadata(data, table_records),
-         {:ok, layout_metadata} <- Layout.parse_layout_metadata(data, table_records, cmap_by_code),
+         {:ok, layout_metadata} <- parse_layout_metadata(data, table_records, cmap_by_code),
          {:ok, glyph_metrics} <-
            Glyf.parse_glyph_metrics(data, table_records, num_glyphs, index_to_loc_format) do
       metrics =
@@ -902,4 +904,34 @@ defmodule Tincture.Font.TTF do
   end
 
   defp read_s32(_data, _offset), do: :error
+
+  defp parse_layout_metadata(data, table_records, cmap_by_code) do
+    {gsub_scripts, gsub_features} =
+      Common.parse_layout_table_metadata(data, table_records, "GSUB")
+
+    {gpos_scripts, gpos_features} =
+      Common.parse_layout_table_metadata(data, table_records, "GPOS")
+
+    gsub_ligatures = GSUB.parse_gsub_ligatures(data, table_records, cmap_by_code)
+    gsub_ligatures_all = GSUB.parse_gsub_ligatures_all_scripts(data, table_records, cmap_by_code)
+
+    gsub_substitutions_all =
+      GSUB.parse_gsub_substitutions_all_scripts(data, table_records, cmap_by_code)
+
+    gpos_pair_kerns = GPOS.parse_gpos_pair_kerns(data, table_records, cmap_by_code)
+    gpos_guardrail_skips = GPOS.guardrail_skips()
+
+    {:ok,
+     %{
+       gsub_scripts: gsub_scripts,
+       gsub_features: gsub_features,
+       gsub_ligatures: gsub_ligatures,
+       gsub_ligatures_all: gsub_ligatures_all,
+       gsub_substitutions_all: gsub_substitutions_all,
+       gpos_scripts: gpos_scripts,
+       gpos_features: gpos_features,
+       gpos_pair_kerns: gpos_pair_kerns,
+       gpos_guardrail_skips: gpos_guardrail_skips
+     }}
+  end
 end

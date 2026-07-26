@@ -40,7 +40,7 @@
   # embedding cluster was extracted; serialize.ex now has no suppressed
   # warnings of its own.
   {"lib/tincture/font/ttf.ex", :pattern_match_cov},
-  {"lib/tincture/font/ttf/layout.ex", :pattern_match_cov},
+  {"lib/tincture/font/open_type/gpos.ex", :pattern_match_cov},
   {"lib/tincture/font/ttf/glyf.ex", :pattern_match_cov},
   {"lib/tincture/pdf/font_embed.ex", :pattern_match_cov},
   {"lib/tincture/pdf/font_embed.ex", :pattern_match}

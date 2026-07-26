@@ -12,10 +12,13 @@ defmodule Tincture.Font.GPOSCounterIsolationTest do
   """
   use ExUnit.Case, async: true
 
+  alias Tincture.Font.OpenType.GPOS
   alias Tincture.Font.TTF
-  alias Tincture.Font.TTF.Layout
 
-  @key {Layout, :gpos_guardrail_skip_count}
+  # Asked for rather than hardcoded: a literal {SomeModule, :key} silently stops
+  # matching when the counter moves, and every assertion below then passes
+  # against a key nothing writes.
+  @key GPOS.guardrail_scope_key()
 
   # Minimal but structurally valid TTF: enough tables for parse_basic_tables/1
   # to succeed. No GPOS table, so the counter stays at zero — these tests are
