@@ -1156,6 +1156,64 @@ defmodule Tincture do
   end
 
   @doc """
+  Sign a signature field, so the document can be shown not to have changed.
+
+  Place the field first with `signature_field/7`, then sign it:
+
+      pdf
+      |> Tincture.signature_field(50, 120, 220, 48, "signature")
+      |> Tincture.sign("signature",
+        private_key: key,
+        certificate: certificate,
+        reason: "I approve this document",
+        location: "Sheffield"
+      )
+
+  Unlike everything else in Tincture, this cannot take effect until the file
+  exists: a signature covers the finished bytes, including where every object
+  landed. So it is applied during `export/2` — the document merely records the
+  intent. See `Tincture.PDF.Sign` for how that works.
+
+  ## Options
+
+    * `:private_key` — required. A decoded key, as
+      `:public_key.pem_entry_decode/1` returns.
+    * `:certificate` — required. The signer's certificate, in DER.
+    * `:chain` — intermediate certificates in DER, for a verifier that does not
+      already hold them. Defaults to `[]`.
+    * `:digest` — `:sha256` (default), `:sha384` or `:sha512`.
+    * `:signing_time` — a `DateTime`. Defaults to now. Pass one explicitly to
+      make output reproducible.
+    * `:name`, `:reason`, `:location`, `:contact` — shown by the reader.
+    * `:reserved_bytes` — space set aside for the signature. Defaults to 16 kB,
+      enough for RSA-4096 with a chain. Export raises rather than truncates if
+      the signature does not fit.
+
+  ## Reading a key and certificate
+
+      [key_entry] = :public_key.pem_decode(File.read!("key.pem"))
+      key = :public_key.pem_entry_decode(key_entry)
+
+      [{:Certificate, certificate, _}] = :public_key.pem_decode(File.read!("cert.pem"))
+
+  ## What a signature here does and does not prove
+
+  It proves the document has not changed since it was signed, and who signed it
+  — as far as the certificate can be trusted. It does **not** prove *when*:
+  there is no timestamp authority, so the time is the signing machine's own
+  claim. Long-term validation needs an RFC 3161 timestamp, which Tincture does
+  not yet produce.
+
+  Signing one document twice, or signing after changing it, needs incremental
+  updates, which Tincture also does not yet produce — so one signature per
+  document.
+  """
+  @spec sign(PDF.t(), String.t(), keyword()) :: PDF.t()
+  def sign(%PDF{} = pdf, field_name, opts) when is_binary(field_name) and is_list(opts) do
+    PDF.set_signature(pdf, field_name, opts)
+  end
+
+  @doc """
   Declare a PDF/A conformance level, for a document that has to outlive its
   software.
 

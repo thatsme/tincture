@@ -135,6 +135,27 @@ against a rebuild.
     verapdf --flavour 2b  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf
 
+## [`signed.exs`](signed.exs) → [`output/signed.pdf`](output/signed.pdf)
+
+A supply agreement carrying a digital signature over the whole file. Mints a
+throwaway self-signed certificate so it runs anywhere.
+
+Shows:
+
+- **`Tincture.sign/3`**, and why signing is different: the signature covers the
+  finished bytes, so it cannot be computed until the file exists and then has to
+  be written back into it without moving anything.
+- **The `/ByteRange`**, printed by the script — the whole file except the
+  `<...>` holding the signature itself.
+
+Extract and check it yourself:
+
+    openssl cms -verify -binary -inform DER -in <extracted> -content <byte range>
+
+A self-signed certificate proves the document has not changed; it says nothing
+about *who* signed it that you did not already take on faith. And with no
+timestamp authority, nothing proves *when*.
+
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 
 Three pages of justified text, with the telemetry events printed as they fire:

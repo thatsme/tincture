@@ -5,6 +5,7 @@ defmodule Tincture.PDF do
 
   alias Tincture.Font
   alias Tincture.Font.TTF
+  alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
   require Logger
 
@@ -149,6 +150,7 @@ defmodule Tincture.PDF do
           mcid_counters: %{optional(pos_integer()) => non_neg_integer()},
           language: String.t() | nil,
           pdf_a: {2 | 3, :b | :u | :a} | nil,
+          signature: map() | nil,
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
           form_fields: [form_field()],
@@ -169,6 +171,7 @@ defmodule Tincture.PDF do
             mcid_counters: %{},
             language: nil,
             pdf_a: nil,
+            signature: nil,
             bookmarks: [],
             annotations: %{},
             form_fields: [],
@@ -340,6 +343,63 @@ defmodule Tincture.PDF do
           "unknown PDF/A level: #{inspect(other)}. " <>
             "Expected one of :a2b, :a2u, :a2a, :a3b, :a3u, :a3a."
   end
+
+  @doc """
+  Record the intent to sign a signature field.
+
+  The signature itself cannot be computed here: it covers the finished file,
+  so it is applied during `Tincture.export/2`.
+  """
+  @spec set_signature(t(), String.t(), keyword()) :: t()
+  def set_signature(%__MODULE__{} = pdf, field_name, opts) when is_binary(field_name) do
+    field = Enum.find(pdf.form_fields, &(&1.name == field_name and &1.type == :signature))
+
+    unless field do
+      names =
+        pdf.form_fields
+        |> Enum.filter(&(&1.type == :signature))
+        |> Enum.map_join(", ", &inspect(&1.name))
+
+      raise ArgumentError,
+            "no signature field named #{inspect(field_name)}. " <>
+              if(names == "",
+                do: "Add one with signature_field/7 before signing.",
+                else: "Known signature fields: #{names}."
+              )
+    end
+
+    if pdf.signature do
+      raise ArgumentError,
+            "this document is already being signed as #{inspect(pdf.signature.field_name)}. " <>
+              "Signing more than one field needs incremental updates, which Tincture " <>
+              "does not yet produce."
+    end
+
+    signature = %{
+      field_name: field_name,
+      private_key: Keyword.fetch!(opts, :private_key),
+      certificate: Keyword.fetch!(opts, :certificate),
+      chain: Keyword.get(opts, :chain, []),
+      digest: normalize_digest(Keyword.get(opts, :digest, :sha256)),
+      signing_time: Keyword.get_lazy(opts, :signing_time, fn -> DateTime.utc_now() end),
+      reserved_bytes: Keyword.get(opts, :reserved_bytes, Sign.default_reserved_bytes()),
+      name: Keyword.get(opts, :name),
+      reason: Keyword.get(opts, :reason),
+      location: Keyword.get(opts, :location),
+      contact: Keyword.get(opts, :contact)
+    }
+
+    %__MODULE__{pdf | signature: signature}
+  end
+
+  defp normalize_digest(digest) when digest in [:sha256, :sha384, :sha512], do: digest
+
+  defp normalize_digest(other),
+    do:
+      raise(
+        ArgumentError,
+        "digest must be :sha256, :sha384 or :sha512, got: #{inspect(other)}"
+      )
 
   @doc """
   Whether this document carries logical structure.

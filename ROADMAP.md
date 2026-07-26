@@ -13,8 +13,8 @@ Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
-encryption, tagged PDF for accessibility, PDF/A archival output, telemetry.
-No required runtime dependencies. 1,205 tests, 88% coverage, clean Credo and Dialyzer, CI
+encryption, tagged PDF for accessibility, PDF/A archival output, digital
+signatures, telemetry. No required runtime dependencies. 1,224 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -88,20 +88,36 @@ What remains:
 
 ## 3. Digital signatures
 
-**Status: absent.** No `/Sig`, no `/ByteRange`.
+**Status: done, and verified against OpenSSL.** `Tincture.sign/3` produces a
+detached PKCS#7 signature covering the whole file, in a `/ByteRange` a verifier
+can reproduce. `examples/output/signed.pdf` verifies with:
 
-Required wherever a document has to be provably unaltered — contracts,
-invoices in jurisdictions with e-invoicing mandates, anything with a legal
-counterparty.
+    openssl cms -verify -binary -inform DER -in <extracted> -content <byte range>
 
-Needs: a signature field and dictionary, a `/ByteRange` covering the file
-either side of the signature, PKCS#7/CMS detached signatures, and ideally
-PAdES with an RFC 3161 timestamp for long-term validity. `:public_key` and
-`:crypto` provide the primitives, so this stays dependency-free.
+OTP ships no CMS encoder, so `Tincture.PDF.CMS` builds the `SignedData`
+structure in DER directly — still no third-party dependencies, since `:crypto`
+and `:public_key` are OTP applications.
 
-The awkward part is that the signature covers bytes of the finished file, so
-export has to reserve space, compute the digest, then patch — the first thing
-here that cannot be a pure transformation.
+Signing breaks the pure-transformation model that holds everywhere else:
+a signature covers the finished bytes including where objects landed, so
+`export/2` reserves space, measures the real offsets, signs, and patches the
+result back without moving anything. See `Tincture.PDF.Sign`.
+
+What remains:
+
+- **Timestamps (RFC 3161).** A signature proves the document has not changed,
+  and who signed it as far as the certificate is trusted. It does not prove
+  *when*: the time is the signing machine's own claim. Long-term validation
+  (PAdES B-LT, B-LTA) needs a timestamp authority, which means an HTTP client
+  and therefore a dependency decision.
+- **Incremental updates**, without which a document can carry only one
+  signature and cannot be counter-signed or amended after signing.
+- **Signature appearances.** The widget carries no appearance stream, so a
+  signed field is invisible in a static render and a signed document is
+  currently rejected by the PDF/A check for that reason. Signed archival
+  documents (PAdES over PDF/A) need this.
+- **PAdES subfilters.** `/adbe.pkcs7.detached` is the widely supported form;
+  `/ETSI.CAdES.detached` is what the European regulation names.
 
 ## 4. Colour beyond RGB
 
@@ -211,7 +227,7 @@ This is arguably a separate library. Listed because evaluators will ask, and
 2. **Transparency and shading** — small, self-contained, visible.
 3. ~~Tagged PDF~~ — done and validated against veraPDF.
 4. ~~PDF/A~~ — done and validated at 2a, alongside PDF/UA-1.
-5. **Digital signatures** — self-contained but touches export.
+5. ~~Digital signatures~~ — done. **Timestamping and incremental updates** remain.
 6. **Object and xref streams** — file size.
 7. **Forms completed** — appearance streams overlap with 5.
 8. **Colour** — needed for print production specifically.

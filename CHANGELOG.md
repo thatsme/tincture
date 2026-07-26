@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   This is not a conformance check and does not claim to be — Tincture sees the
   document it built, not the file a validator sees.
+- **Digital signatures.** `Tincture.sign/3` produces a detached PKCS#7
+  signature covering the whole file, verified against OpenSSL rather than only
+  against itself. `Tincture.PDF.CMS` builds the CMS `SignedData` structure in
+  DER, since OTP ships no encoder for it; `:crypto` and `:public_key` are OTP
+  applications, so there are still no third-party dependencies.
+
+  Signing is the one thing in Tincture that is not a pure transformation: a
+  signature covers the finished bytes, so `export/2` reserves space, measures
+  the real offsets, signs, and patches the result back without moving anything.
+
+  No timestamp authority yet, so a signature proves the document has not
+  changed — not when it was signed.
 - **PDF/A, verified.** `Tincture.set_pdf_a/2` produces archival output:
   `examples/output/archival.pdf` passes veraPDF 1.30.2 at PDF/A-2b, 2u and
   **2a**, and PDF/UA-1 simultaneously. Adds an sRGB output intent, XMP carrying

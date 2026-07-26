@@ -29,6 +29,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.ICC
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
+  alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
   alias Tincture.Telemetry
 
@@ -68,10 +69,17 @@ defmodule Tincture.PDF.Serialize do
     {outlines_ref, outline_objects} =
       build_outline_objects(pdf.bookmarks, page_object_refs, outlines_start_id)
 
-    form_fields_start_id = outlines_start_id + length(outline_objects)
+    signature_start_id = outlines_start_id + length(outline_objects)
+
+    {signature_ref, signature_objects} = build_signature_objects(pdf, signature_start_id)
+
+    form_fields_start_id = signature_start_id + length(signature_objects)
 
     {form_field_refs, widget_refs, form_field_objects} =
-      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id)
+      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
+        signature_field: pdf.signature && pdf.signature.field_name,
+        signature_ref: signature_ref
+      })
 
     structure_start_id = form_fields_start_id + length(form_field_objects)
 
@@ -157,6 +165,7 @@ defmodule Tincture.PDF.Serialize do
           embedded_font_objects ++
           image_objects ++
           outline_objects ++
+          signature_objects ++
           form_field_objects ++
           structure_objects ++ output_intent_objects ++ metadata_objects
     ]
@@ -171,7 +180,18 @@ defmodule Tincture.PDF.Serialize do
           {base_object_bodies ++ [info_body], info_id}
       end
 
-    build_pdf(object_bodies, info_ref, pdf.encryption)
+    binary = build_pdf(object_bodies, info_ref, pdf.encryption)
+
+    case pdf.signature do
+      nil -> binary
+      signature -> Sign.apply_signature(binary, signature)
+    end
+  end
+
+  defp build_signature_objects(%PDF{signature: nil}, _start_id), do: {nil, []}
+
+  defp build_signature_objects(%PDF{signature: signature}, start_id) do
+    {start_id, [Sign.placeholder_dictionary(signature)]}
   end
 
   defp page_object_id(index), do: 3 + index * 2
@@ -529,7 +549,13 @@ defmodule Tincture.PDF.Serialize do
         ""
       end
 
-    " /AcroForm << /Fields [#{fields}]#{need_appearances}" <>
+    # /SigFlags 3 is SignaturesExist and AppendOnly: it tells a reader the form
+    # contains a signature and must only ever be changed by appending, since
+    # rewriting the file would break the byte range the signature covers.
+    signature_flags =
+      if Enum.any?(form_fields, &(&1.type == :signature)), do: " /SigFlags 3", else: ""
+
+    " /AcroForm << /Fields [#{fields}]#{need_appearances}#{signature_flags}" <>
       " /DA #{Object.format_text(default_appearance_string(form_fields))}" <>
       " /DR << /Font << #{acro_form_font_resources(form_fields)} >> >> >>"
   end
@@ -768,9 +794,11 @@ defmodule Tincture.PDF.Serialize do
     " /Annots [#{Enum.join(inline ++ indirect, " ")}]"
   end
 
-  defp build_form_field_objects([], _page_object_refs, _start_id), do: {[], [], []}
+  defp build_form_field_objects([], _page_object_refs, _start_id, _signing), do: {[], [], []}
 
-  defp build_form_field_objects(form_fields, page_object_refs, start_id) do
+  defp build_form_field_objects(form_fields, page_object_refs, start_id, signing) do
+    form_fields = Enum.map(form_fields, &attach_signature_ref(&1, signing))
+
     {built, _next_id} =
       Enum.map_reduce(form_fields, start_id, &build_form_field(&1, page_object_refs, &2))
 
@@ -780,6 +808,16 @@ defmodule Tincture.PDF.Serialize do
       Enum.flat_map(built, & &1.objects)
     }
   end
+
+  defp attach_signature_ref(%{type: :signature, name: name} = field, %{
+         signature_field: name,
+         signature_ref: reference
+       })
+       when is_integer(reference) do
+    Map.put(field, :signature_ref, reference)
+  end
+
+  defp attach_signature_ref(field, _signing), do: field
 
   # A radio group is the one field that cannot be a single object: the value
   # lives on the parent and each button is its own annotation, so it becomes a
@@ -886,6 +924,7 @@ defmodule Tincture.PDF.Serialize do
       annotation_border_entry_for(field.border) <>
       " /DA #{Object.format_text(field_appearance_string(field))}" <>
       field_value_entries(field) <>
+      signature_value_entry(field) <>
       max_length_entry(field) <>
       options_entry(field) <>
       button_action_entry(field) <>
@@ -893,6 +932,11 @@ defmodule Tincture.PDF.Serialize do
       appearance_entry <>
       tooltip_entry(field) <> " >>"
   end
+
+  defp signature_value_entry(%{signature_ref: reference}) when is_integer(reference),
+    do: " /V #{reference} 0 R"
+
+  defp signature_value_entry(_field), do: ""
 
   defp field_type_name(:text), do: "/Tx"
   defp field_type_name(:checkbox), do: "/Btn"

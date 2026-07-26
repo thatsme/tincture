@@ -54,7 +54,9 @@ defmodule Tincture.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :xmerl],
+      # OTP applications, not third-party dependencies: :crypto for encryption
+      # and digests, :public_key for parsing certificates and RSA signing.
+      extra_applications: [:logger, :xmerl, :crypto, :public_key],
       mod: {Tincture.Application, []}
     ]
   end
@@ -82,6 +84,7 @@ defmodule Tincture.MixProject do
         "run examples/accessible.exs",
         "run examples/compliant.exs",
         "run examples/archival.exs",
+        "run examples/signed.exs",
         "run examples/telemetry.exs"
       ],
       check: [
