@@ -67,6 +67,22 @@ defmodule Tincture.PDF do
             required(:target) => link_target(),
             required(:border) => annotation_border()
           }
+  @type form_field_type :: :text | :checkbox | :choice
+  @type form_field ::
+          %{
+            required(:type) => form_field_type(),
+            required(:name) => String.t(),
+            required(:page_number) => pos_integer(),
+            required(:rect) => {number(), number(), number(), number()},
+            required(:value) => String.t() | boolean(),
+            required(:flags) => non_neg_integer(),
+            required(:font) => String.t(),
+            required(:size) => number(),
+            required(:border) => annotation_border(),
+            optional(:max_length) => pos_integer(),
+            optional(:tooltip) => String.t(),
+            optional(:options) => [String.t()]
+          }
   @type op ::
           text_op()
           | text_rotated_op()
@@ -96,6 +112,7 @@ defmodule Tincture.PDF do
           embedded_fonts: %{optional(String.t()) => embedded_font()},
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
+          form_fields: [form_field()],
           metadata: %{optional(atom()) => String.t()},
           operations: [op()]
         }
@@ -109,6 +126,7 @@ defmodule Tincture.PDF do
             embedded_fonts: %{},
             bookmarks: [],
             annotations: %{},
+            form_fields: [],
             metadata: %{},
             operations: []
 
@@ -461,6 +479,154 @@ defmodule Tincture.PDF do
     raise ArgumentError,
           "border must be :none or {horizontal, vertical, width}, got: #{inspect(other)}"
   end
+
+  # Field flag bits from the PDF specification, table 226. Bit numbering is
+  # 1-based there, so ReadOnly is bit 1 and the value is 1 <<< 0.
+  @field_flag_read_only 1
+  @field_flag_required 2
+  @field_flag_no_export 4
+  @field_flag_multiline 4096
+  @field_flag_password 8192
+  @field_flag_combo 131_072
+  @field_flag_edit 262_144
+  @field_flag_sort 524_288
+
+  @spec add_form_field(
+          t(),
+          form_field_type(),
+          String.t(),
+          {number(), number(), number(), number()},
+          keyword()
+        ) :: t()
+  def add_form_field(%__MODULE__{} = pdf, type, name, {x1, y1, x2, y2}, opts)
+      when type in [:text, :checkbox, :choice] and is_binary(name) and is_list(opts) do
+    if name == "" do
+      raise ArgumentError, "form field name must not be empty"
+    end
+
+    page_number = Keyword.get(opts, :page, pdf.current_page)
+
+    unless Map.has_key?(pdf.pages, page_number) do
+      raise ArgumentError, "unknown page: #{page_number}"
+    end
+
+    if Enum.any?(pdf.form_fields, &(&1.name == name)) do
+      raise ArgumentError,
+            "duplicate form field name: #{inspect(name)}. Field names address values in the " <>
+              "filled document, so they must be unique."
+    end
+
+    field = %{
+      type: type,
+      name: name,
+      page_number: page_number,
+      # PDF wants lower-left / upper-right, so normalise rather than emitting a
+      # rectangle a viewer would treat as empty.
+      rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
+      value: normalize_field_value(type, Keyword.get(opts, :value)),
+      flags: field_flags(type, opts),
+      font: Keyword.get(opts, :font, "Helvetica"),
+      size: normalize_field_size(Keyword.get(opts, :size, 0)),
+      border: normalize_annotation_border(Keyword.get(opts, :border, :none))
+    }
+
+    field =
+      field
+      |> maybe_put_field(:max_length, normalize_max_length(Keyword.get(opts, :max_length)))
+      |> maybe_put_field(:tooltip, Keyword.get(opts, :tooltip))
+      |> maybe_put_field(:options, normalize_choice_options(type, Keyword.get(opts, :options)))
+
+    %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
+  end
+
+  defp maybe_put_field(field, _key, nil), do: field
+  defp maybe_put_field(field, key, value), do: Map.put(field, key, value)
+
+  defp normalize_field_value(:checkbox, nil), do: false
+  defp normalize_field_value(:checkbox, value) when is_boolean(value), do: value
+
+  defp normalize_field_value(:checkbox, other),
+    do: raise(ArgumentError, "checkbox value must be a boolean, got: #{inspect(other)}")
+
+  defp normalize_field_value(_type, nil), do: ""
+  defp normalize_field_value(_type, value) when is_binary(value), do: value
+
+  defp normalize_field_value(type, other),
+    do: raise(ArgumentError, "#{type} field value must be a string, got: #{inspect(other)}")
+
+  # A size of 0 means "auto": the viewer picks a size that fits the box. That
+  # is the sane default for a field whose height the caller chose.
+  #
+  # Whole sizes stay integers so the /DA string reads "0 Tf" rather than
+  # "0.0 Tf" - both are legal, but the integer form is what every other
+  # generator emits and what a human reading the PDF expects.
+  defp normalize_field_size(value) when is_integer(value) and value >= 0, do: value
+
+  defp normalize_field_size(value) when is_float(value) and value >= 0 do
+    if value == Float.round(value), do: trunc(value), else: value
+  end
+
+  defp normalize_field_size(other),
+    do: raise(ArgumentError, "font size must be >= 0 (0 means auto), got: #{inspect(other)}")
+
+  defp normalize_max_length(nil), do: nil
+  defp normalize_max_length(value) when is_integer(value) and value > 0, do: value
+
+  defp normalize_max_length(other),
+    do: raise(ArgumentError, "max_length must be a positive integer, got: #{inspect(other)}")
+
+  defp normalize_choice_options(:choice, options) when is_list(options) and options != [] do
+    Enum.map(options, fn
+      option when is_binary(option) ->
+        option
+
+      other ->
+        raise ArgumentError, "choice options must be strings, got: #{inspect(other)}"
+    end)
+  end
+
+  defp normalize_choice_options(:choice, other),
+    do:
+      raise(
+        ArgumentError,
+        "a choice field needs a non-empty :options list, got: #{inspect(other)}"
+      )
+
+  defp normalize_choice_options(_type, nil), do: nil
+
+  defp normalize_choice_options(type, _options),
+    do: raise(ArgumentError, "#{type} fields do not take :options")
+
+  defp field_flags(type, opts) do
+    base =
+      0
+      |> flag_if(Keyword.get(opts, :read_only, false), @field_flag_read_only)
+      |> flag_if(Keyword.get(opts, :required, false), @field_flag_required)
+      |> flag_if(Keyword.get(opts, :no_export, false), @field_flag_no_export)
+
+    type_flags(type, base, opts)
+  end
+
+  defp type_flags(:text, base, opts) do
+    base
+    |> flag_if(Keyword.get(opts, :multiline, false), @field_flag_multiline)
+    |> flag_if(Keyword.get(opts, :password, false), @field_flag_password)
+  end
+
+  defp type_flags(:choice, base, opts) do
+    base
+    |> flag_if(Keyword.get(opts, :dropdown, true), @field_flag_combo)
+    |> flag_if(Keyword.get(opts, :editable, false), @field_flag_edit)
+    |> flag_if(Keyword.get(opts, :sort, false), @field_flag_sort)
+  end
+
+  defp type_flags(:checkbox, base, _opts), do: base
+
+  defp flag_if(flags, true, bit), do: Bitwise.bor(flags, bit)
+  defp flag_if(flags, false, _bit), do: flags
+
+  defp flag_if(_flags, other, _bit),
+    do: raise(ArgumentError, "form field flags must be booleans, got: #{inspect(other)}")
 
   @spec set_metadata(t(), map() | keyword()) :: t()
   def set_metadata(%__MODULE__{} = pdf, metadata) when is_map(metadata) or is_list(metadata) do

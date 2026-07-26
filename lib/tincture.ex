@@ -273,6 +273,97 @@ defmodule Tincture do
   end
 
   @doc """
+  Add a fillable text field.
+
+  The field is a widget on the current page and an entry in the document's
+  interactive form. `name` addresses the field's value in the filled document,
+  so it must be unique.
+
+  ## Options
+
+    * `:value` — the initial value. Defaults to empty.
+    * `:size` — font size. Defaults to `0`, meaning auto-size: the viewer
+      fits the text to the box, which is usually what you want for a field
+      whose height you chose.
+    * `:font` — defaults to `"Helvetica"`.
+    * `:multiline` — allow line breaks. Defaults to `false`.
+    * `:password` — mask the value as it is typed. Defaults to `false`.
+    * `:max_length` — maximum characters accepted.
+    * `:read_only`, `:required`, `:no_export` — field flags, all `false` by
+      default.
+    * `:tooltip` — hover text.
+    * `:border` — `:none` (default) or `{horizontal, vertical, width}`.
+    * `:page` — which page to place the widget on. Defaults to the current
+      page.
+
+  ## Examples
+
+      pdf
+      |> Tincture.text_field(72, 700, 300, 24, "full_name", tooltip: "Your full name")
+      |> Tincture.text_field(72, 640, 300, 80, "notes", multiline: true)
+
+  """
+  @spec text_field(PDF.t(), number(), number(), number(), number(), String.t(), keyword()) ::
+          PDF.t()
+  def text_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             is_binary(name) and is_list(opts) do
+    PDF.add_form_field(pdf, :text, name, {x, y, x + width, y + height}, opts)
+  end
+
+  @doc """
+  Add a checkbox.
+
+  Checkboxes are square, so a single `size` gives both dimensions.
+
+  ## Options
+
+    * `:value` — `true` for checked. Defaults to `false`.
+    * `:read_only`, `:required`, `:no_export` — field flags.
+    * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+
+  ## Examples
+
+      Tincture.checkbox(pdf, 72, 700, 14, "accept_terms", value: false)
+
+  """
+  @spec checkbox(PDF.t(), number(), number(), number(), String.t(), keyword()) :: PDF.t()
+  def checkbox(%PDF{} = pdf, x, y, size, name, opts \\ [])
+      when is_number(x) and is_number(y) and is_number(size) and is_binary(name) and
+             is_list(opts) do
+    PDF.add_form_field(pdf, :checkbox, name, {x, y, x + size, y + size}, opts)
+  end
+
+  @doc """
+  Add a choice field — a dropdown by default, or a list box.
+
+  ## Options
+
+    * `:options` — **required**, the list of choices.
+    * `:value` — the initially selected choice.
+    * `:dropdown` — `true` (default) for a combo box, `false` for a list box.
+    * `:editable` — allow a value outside the list. Defaults to `false`.
+    * `:sort` — present the options sorted. Defaults to `false`.
+    * `:read_only`, `:required`, `:no_export`, `:tooltip`, `:border`,
+      `:page`, `:font`, `:size` — as for `text_field/7`.
+
+  ## Examples
+
+      Tincture.choice_field(pdf, 72, 700, 200, 24, "country",
+        options: ["Italy", "Norway", "Japan"],
+        value: "Italy"
+      )
+
+  """
+  @spec choice_field(PDF.t(), number(), number(), number(), number(), String.t(), keyword()) ::
+          PDF.t()
+  def choice_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             is_binary(name) and is_list(opts) do
+    PDF.add_form_field(pdf, :choice, name, {x, y, x + width, y + height}, opts)
+  end
+
+  @doc """
   Set the current font name and size.
   """
   @spec set_font(PDF.t(), String.t(), number()) :: PDF.t()

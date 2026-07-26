@@ -44,6 +44,11 @@ defmodule Tincture.PDF.Serialize do
     {outlines_ref, outline_objects} =
       build_outline_objects(pdf.bookmarks, page_object_refs, outlines_start_id)
 
+    form_fields_start_id = outlines_start_id + length(outline_objects)
+
+    {form_field_refs, form_field_objects} =
+      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id)
+
     kids =
       page_numbers
       |> Enum.with_index()
@@ -63,9 +68,11 @@ defmodule Tincture.PDF.Serialize do
         resources = resource_dictionary(font_resources, xobject_resources)
 
         annots =
-          pdf
-          |> PDF.page_annotations(page_number)
-          |> annotations_entry(page_object_refs)
+          annotations_entry(
+            PDF.page_annotations(pdf, page_number),
+            widget_refs_for_page(form_field_refs, page_number),
+            page_object_refs
+          )
 
         page_body =
           "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots} >>"
@@ -76,9 +83,10 @@ defmodule Tincture.PDF.Serialize do
       end)
 
     base_object_bodies = [
-      catalog_object_body(outlines_ref),
+      catalog_object_body(outlines_ref, form_field_refs, pdf.form_fields),
       "<< /Type /Pages /Kids [#{kids}] /Count #{page_count} >>"
-      | page_objects ++ embedded_font_objects ++ image_objects ++ outline_objects
+      | page_objects ++
+          embedded_font_objects ++ image_objects ++ outline_objects ++ form_field_objects
     ]
 
     {object_bodies, info_ref} =
@@ -97,11 +105,52 @@ defmodule Tincture.PDF.Serialize do
   defp page_object_id(index), do: 3 + index * 2
   defp content_object_id(index), do: page_object_id(index) + 1
 
-  defp catalog_object_body(nil), do: "<< /Type /Catalog /Pages 2 0 R >>"
+  defp catalog_object_body(outlines_ref, form_field_refs, form_fields) do
+    outlines =
+      case outlines_ref do
+        nil -> ""
+        id -> " /Outlines #{id} 0 R /PageMode /UseOutlines"
+      end
 
-  defp catalog_object_body(outlines_ref) when is_integer(outlines_ref) do
-    "<< /Type /Catalog /Pages 2 0 R /Outlines #{outlines_ref} 0 R /PageMode /UseOutlines >>"
+    "<< /Type /Catalog /Pages 2 0 R#{outlines}#{acro_form_entry(form_field_refs, form_fields)} >>"
   end
+
+  defp acro_form_entry([], _form_fields), do: ""
+
+  defp acro_form_entry(form_field_refs, form_fields) do
+    fields = Enum.map_join(form_field_refs, " ", fn {_name, {id, _page}} -> "#{id} 0 R" end)
+
+    # /NeedAppearances tells the viewer to build each field's appearance from
+    # its /DA string. Generating appearance streams here instead would mean
+    # laying out and rendering the value of every field at export time, and
+    # getting it wrong shows up as an invisible or clipped value rather than an
+    # error. Every mainstream viewer honours the flag.
+    #
+    # /DR is the resource dictionary the /DA strings resolve font names
+    # against; without it a viewer has no font to render the value with.
+    " /AcroForm << /Fields [#{fields}] /NeedAppearances true" <>
+      " /DA #{Object.format_text(default_appearance_string(form_fields))}" <>
+      " /DR << /Font << #{acro_form_font_resources(form_fields)} >> >> >>"
+  end
+
+  # The document-level default appearance, used for any field that does not
+  # override it.
+  defp default_appearance_string(_form_fields), do: "/Helv 0 Tf 0 g"
+
+  defp acro_form_font_resources(form_fields) do
+    form_fields
+    |> Enum.map(& &1.font)
+    |> Enum.uniq()
+    |> Enum.map_join(" ", fn font_name ->
+      "#{acro_form_font_alias(font_name)} << /Type /Font /Subtype /Type1 " <>
+        "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+    end)
+  end
+
+  # /Helv is the conventional alias for Helvetica in an AcroForm resource
+  # dictionary; anything else gets a name derived from the font.
+  defp acro_form_font_alias("Helvetica"), do: "/Helv"
+  defp acro_form_font_alias(font_name), do: "/" <> Object.sanitize_name(font_name)
 
   defp build_outline_objects([], _page_object_refs, _start_id), do: {nil, []}
 
@@ -268,11 +317,101 @@ defmodule Tincture.PDF.Serialize do
   # array rather than as indirect objects. The specification permits either,
   # and keeping them direct means adding a link does not renumber every object
   # that follows it.
-  defp annotations_entry([], _page_object_refs), do: ""
+  defp annotations_entry([], [], _page_object_refs), do: ""
 
-  defp annotations_entry(annotations, page_object_refs) do
-    entries = Enum.map_join(annotations, " ", &annotation_dictionary(&1, page_object_refs))
-    " /Annots [#{entries}]"
+  defp annotations_entry(annotations, widget_refs, page_object_refs) do
+    # Link annotations are written inline; form widgets have to be indirect,
+    # because the catalog's /AcroForm /Fields array references the very same
+    # dictionaries and an array cannot hold two copies of one object.
+    inline = Enum.map(annotations, &annotation_dictionary(&1, page_object_refs))
+    indirect = Enum.map(widget_refs, fn id -> "#{id} 0 R" end)
+    " /Annots [#{Enum.join(inline ++ indirect, " ")}]"
+  end
+
+  defp build_form_field_objects([], _page_object_refs, _start_id), do: {[], []}
+
+  defp build_form_field_objects(form_fields, page_object_refs, start_id) do
+    form_fields
+    |> Enum.with_index(start_id)
+    |> Enum.map(fn {field, id} ->
+      {{field.name, {id, field.page_number}},
+       form_field_object_body(field, Map.fetch!(page_object_refs, field.page_number))}
+    end)
+    |> Enum.unzip()
+  end
+
+  # A form field and its on-page widget are one object here. The specification
+  # allows splitting them, but that is only needed when one field has several
+  # widgets (the same value shown on several pages), which this API cannot
+  # express.
+  defp form_field_object_body(field, page_ref) do
+    {x1, y1, x2, y2} = field.rect
+
+    rect =
+      "[#{Object.num(x1)} #{Object.num(y1)} #{Object.num(x2)} #{Object.num(y2)}]"
+
+    "<< /Type /Annot /Subtype /Widget /FT #{field_type_name(field.type)}" <>
+      " /T #{Object.format_text(field.name)}" <>
+      " /Rect #{rect} /P #{page_ref} 0 R" <>
+      " /F 4" <>
+      flags_entry(field.flags) <>
+      annotation_border_entry_for(field.border) <>
+      " /DA #{Object.format_text(field_appearance_string(field))}" <>
+      field_value_entries(field) <>
+      max_length_entry(field) <>
+      options_entry(field) <>
+      tooltip_entry(field) <> " >>"
+  end
+
+  defp field_type_name(:text), do: "/Tx"
+  defp field_type_name(:checkbox), do: "/Btn"
+  defp field_type_name(:choice), do: "/Ch"
+
+  defp flags_entry(0), do: ""
+  defp flags_entry(flags), do: " /Ff #{flags}"
+
+  defp annotation_border_entry_for(:none), do: " /Border [0 0 0]"
+
+  defp annotation_border_entry_for({horizontal, vertical, width}),
+    do: " /Border [#{Object.num(horizontal)} #{Object.num(vertical)} #{Object.num(width)}]"
+
+  # A size of 0 means auto-size: the viewer fits the text to the box.
+  defp field_appearance_string(field) do
+    "#{acro_form_font_alias(field.font)} #{Object.num(field.size)} Tf 0 g"
+  end
+
+  defp field_value_entries(%{type: :checkbox, value: checked}) do
+    # A checkbox's states are named. /Yes for on is the near-universal
+    # convention; /Off for the unchecked state is required by the spec.
+    state = if checked, do: "/Yes", else: "/Off"
+    " /V #{state} /DV #{state} /AS #{state}"
+  end
+
+  defp field_value_entries(%{value: ""}), do: ""
+
+  defp field_value_entries(%{value: value}) when is_binary(value) do
+    " /V #{Object.format_text(value)} /DV #{Object.format_text(value)}"
+  end
+
+  defp max_length_entry(%{max_length: max_length}) when is_integer(max_length),
+    do: " /MaxLen #{max_length}"
+
+  defp max_length_entry(_field), do: ""
+
+  defp options_entry(%{options: options}) when is_list(options) do
+    entries = Enum.map_join(options, " ", &Object.format_text/1)
+    " /Opt [#{entries}]"
+  end
+
+  defp options_entry(_field), do: ""
+
+  defp tooltip_entry(%{tooltip: tooltip}) when is_binary(tooltip),
+    do: " /TU #{Object.format_text(tooltip)}"
+
+  defp tooltip_entry(_field), do: ""
+
+  defp widget_refs_for_page(form_field_refs, page_number) do
+    for {_name, {id, field_page}} <- form_field_refs, field_page == page_number, do: id
   end
 
   defp annotation_dictionary(
