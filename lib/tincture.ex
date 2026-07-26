@@ -92,6 +92,126 @@ defmodule Tincture do
   end
 
   @doc """
+  Add a clickable link over a rectangular region of the current page.
+
+  `target` is either a URL string (or `{:url, url}`) for an external link, or
+  `{:page, page_number}` for an internal cross-reference.
+
+  Coordinates are in PDF user space, with the origin at the bottom-left of the
+  page — the same space `text_at/4` and `rectangle/5` use. The rectangle is
+  given as `x`, `y`, `width`, `height`; corners are normalised, so a negative
+  width or height still produces a valid region rather than a dead link.
+
+  Linking does not draw anything. Use `text_link/5` to draw text and make it
+  clickable in one call, or pair this with your own `rectangle/5` and
+  `set_fill_color/2` calls.
+
+  ## Options
+
+    * `:page` — which page to attach the link to. Defaults to the current page.
+    * `:border` — `:none` (default) or `{horizontal, vertical, width}`. The
+      default suppresses the black rectangle most viewers would otherwise draw
+      around every link.
+
+  ## Examples
+
+      pdf
+      |> Tincture.link(72, 700, 120, 14, "https://elixir-lang.org")
+
+      # Internal cross-reference to page 3.
+      Tincture.link(pdf, 72, 680, 120, 14, {:page, 3})
+
+      # Attach a link to a page other than the current one.
+      Tincture.link(pdf, 72, 660, 120, 14, "https://hex.pm", page: 1)
+
+  """
+  @spec link(PDF.t(), number(), number(), number(), number(), PDF.link_target() | String.t()) ::
+          PDF.t()
+  def link(%PDF{} = pdf, x, y, width, height, target) do
+    link(pdf, x, y, width, height, target, [])
+  end
+
+  @spec link(
+          PDF.t(),
+          number(),
+          number(),
+          number(),
+          number(),
+          PDF.link_target() | String.t(),
+          keyword()
+        ) :: PDF.t()
+  def link(%PDF{} = pdf, x, y, width, height, target, opts)
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             is_list(opts) do
+    PDF.add_link(pdf, {x, y, x + width, y + height}, target, opts)
+  end
+
+  @doc """
+  Draw text at X/Y and make it clickable.
+
+  The link rectangle is measured from the text using the current font, so it
+  covers exactly the drawn glyphs. Takes the same options as `link/7`, plus:
+
+    * `:color` — an `{r, g, b}` fill colour to draw the text in. The colour
+      change is wrapped in a save/restore of the graphics state, so it does not
+      leak into later drawing. Defaults to leaving the colour alone, so links
+      are not silently recoloured.
+
+  ## Examples
+
+      pdf
+      |> Tincture.set_font("Helvetica", 12)
+      |> Tincture.text_link(72, 700, "Elixir", "https://elixir-lang.org")
+
+      # Conventional blue link.
+      Tincture.text_link(pdf, 72, 680, "Hex", "https://hex.pm", color: {0.0, 0.3, 0.8})
+
+  """
+  @spec text_link(PDF.t(), number(), number(), String.t(), PDF.link_target() | String.t()) ::
+          PDF.t()
+  def text_link(%PDF{} = pdf, x, y, text, target) do
+    text_link(pdf, x, y, text, target, [])
+  end
+
+  @spec text_link(
+          PDF.t(),
+          number(),
+          number(),
+          String.t(),
+          PDF.link_target() | String.t(),
+          keyword()
+        ) :: PDF.t()
+  def text_link(%PDF{} = pdf, x, y, text, target, opts)
+      when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
+    {font_name, font_size} = pdf.current_font
+    width = Font.text_width(font_name, font_size, text)
+
+    # Approximate the drawn extent from the font size: PDF has no notion of a
+    # text bounding box at draw time, and ascender/descender metrics are not
+    # available for every registered font.
+    ascent = font_size * 0.75
+    descent = font_size * 0.25
+
+    {drawn, link_opts} =
+      case Keyword.pop(opts, :color) do
+        {nil, rest} ->
+          {text_at(pdf, x, y, text), rest}
+
+        {{_r, _g, _b} = rgb, rest} ->
+          drawn =
+            pdf
+            |> save_state()
+            |> set_fill_color(rgb)
+            |> text_at(x, y, text)
+            |> restore_state()
+
+          {drawn, rest}
+      end
+
+    link(drawn, x, y - descent, width, ascent + descent, target, link_opts)
+  end
+
+  @doc """
   Set the current font name and size.
   """
   @spec set_font(PDF.t(), String.t(), number()) :: PDF.t()

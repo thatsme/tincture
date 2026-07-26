@@ -49,8 +49,13 @@ defmodule Tincture.PDF.Serialize do
         content_length = IO.iodata_length(content_stream)
         resources = resource_dictionary(font_resources, xobject_resources)
 
+        annots =
+          pdf
+          |> PDF.page_annotations(page_number)
+          |> annotations_entry(page_object_refs)
+
         page_body =
-          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{num(page_width)} #{num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R >>"
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{num(page_width)} #{num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots} >>"
 
         content_body = ["<< /Length #{content_length} >>\nstream\n", content_stream, "endstream"]
 
@@ -489,6 +494,53 @@ defmodule Tincture.PDF.Serialize do
       object_id = image_object_ids |> Map.fetch!(image_id) |> Map.fetch!(:main)
       "/Im#{image_id} #{object_id} 0 R"
     end)
+  end
+
+  # Annotation dictionaries are emitted directly inside the page's /Annots
+  # array rather than as indirect objects. The specification permits either,
+  # and keeping them direct means adding a link does not renumber every object
+  # that follows it.
+  defp annotations_entry([], _page_object_refs), do: ""
+
+  defp annotations_entry(annotations, page_object_refs) do
+    entries = Enum.map_join(annotations, " ", &annotation_dictionary(&1, page_object_refs))
+    " /Annots [#{entries}]"
+  end
+
+  defp annotation_dictionary(
+         %{type: :link, rect: {x1, y1, x2, y2}, target: target, border: border},
+         page_object_refs
+       ) do
+    rect = "[#{num(x1)} #{num(y1)} #{num(x2)} #{num(y2)}]"
+
+    "<< /Type /Annot /Subtype /Link /Rect #{rect} #{annotation_border_entry(border)} " <>
+      "#{link_target_entry(target, page_object_refs)} >>"
+  end
+
+  # A zero-width border is the sane default: viewers otherwise draw a black box
+  # around every link.
+  defp annotation_border_entry(:none), do: "/Border [0 0 0]"
+
+  defp annotation_border_entry({horizontal, vertical, width}),
+    do: "/Border [#{num(horizontal)} #{num(vertical)} #{num(width)}]"
+
+  defp link_target_entry({:url, url}, _page_object_refs) do
+    "/A << /S /URI /URI #{format_pdf_text(url)} >>"
+  end
+
+  defp link_target_entry({:page, page_number}, page_object_refs) do
+    case Map.fetch(page_object_refs, page_number) do
+      {:ok, object_id} ->
+        # /XYZ with null coordinates means "top of the page, keep the current
+        # zoom", the least surprising behaviour for a cross-reference.
+        "/Dest [#{object_id} 0 R /XYZ null null null]"
+
+      :error ->
+        # Page links may be created before their target page exists, so this is
+        # the first point at which a dangling reference can be detected.
+        raise ArgumentError,
+              "link points at page #{page_number}, which does not exist in the document"
+    end
   end
 
   defp resource_dictionary(font_resources, xobject_resources) do

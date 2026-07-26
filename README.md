@@ -1,8 +1,10 @@
 # Tincture
 
-Typographic-quality PDF generation for Elixir.
+Native, high-fidelity PDF generation for Elixir, distilled from the heritage of Joe Armstrong.
 
-Tincture is a port of [erlguten](https://github.com/hwatkins/erlguten), Joe Armstrong's Erlang PDF library, reimagined for modern Elixir. It aims to produce professional-grade PDF documents — from simple one-pagers to complex multi-page layouts with sophisticated typesetting.
+Tincture is a **fork of [ex_guten](https://github.com/hwatkins/ex_guten)** by Hugh Watkins (MIT), which is itself an Elixir port of Joe Armstrong's Erlang [erlguten](https://github.com/CarlWright/NGerlguten). It aims to produce professional-grade PDF documents — from simple one-pagers to complex multi-page layouts with sophisticated typesetting.
+
+Most of the engine — the TrueType/OpenType parser, the Knuth-Plass line breaker, the TeX hyphenation port, the PDF object serialiser — is Hugh Watkins' work, carried forward here. See [Heritage](#heritage) and [NOTICE](NOTICE) for the full attribution chain.
 
 ## Why?
 
@@ -10,13 +12,24 @@ The Elixir ecosystem lacks a native PDF generation library with real typographic
 
 ## Heritage
 
-ErlGuten was originally written by Joe Armstrong (co-creator of Erlang) as a system for producing typographic-quality PDF from XML or programmatic input. The name references Gutenberg, the father of printing. Tincture preserves this philosophy while bringing idiomatic Elixir APIs, modern tooling, and Hex package distribution.
+Tincture is the fourth link in a chain, and none of it started here:
+
+| | | |
+|---|---|---|
+| **erlguten** | Joe Armstrong | The original Erlang typesetting system, named for Gutenberg. Armstrong designed the typographic model, the box/glue layout approach and the PDF object assembly that Tincture still follows. |
+| **[NGerlguten](https://github.com/CarlWright/NGerlguten)** | Carl Wright | The maintained continuation, which carried erlguten forward with font handling and additional layout work. Last released 2013. |
+| **[ex_guten](https://github.com/hwatkins/ex_guten)** | Hugh Watkins, MIT, 2026 | The Elixir port Tincture forks from. Its struct-based (non-`gen_server`) architecture, TrueType/OpenType embedding, Knuth-Plass implementation and parity suite against Armstrong's original `eg_test` documents are all retained here. |
+| **Tincture** | this repository | Continues the line. |
+
+The git history is intentionally preserved rather than squashed, so Hugh Watkins' original commits remain attributable in the log. His copyright notice is retained in [LICENSE](LICENSE), and [NOTICE](NOTICE) records the full chain along with the provenance of the bundled font metrics and hyphenation data under `priv/`.
+
+Tincture is an independent continuation. It is not endorsed by, affiliated with, or maintained by any of the above authors.
 
 ## Quick Start
 
 ```elixir
 # Add to mix.exs
-{:tincture, "~> 0.1.1"}
+{:tincture, "~> 0.1.0"}
 ```
 
 ```elixir
@@ -82,10 +95,11 @@ File.write!("hello.pdf", pdf)
 - [x] PNG image embedding (alpha channel support, `Tincture.image_png/6`)
 - [x] TrueType font embedding baseline (`Tincture.register_ttf_font/3`)
 - [x] OpenType font embedding baseline (`Tincture.register_otf_font/3`)
-- [x] Baseline embedded font subset modes (`subset: :ascii_basic | :used_text` opt-in on `register_ttf_font/4`, `register_otf_font/4`)
+- [x] Embedded font subsetting, **on by default** (`subset: :used_text`; also `:ascii_basic` and `:none`). Typically cuts an embedded font by 70-90%.
 - [x] Unicode/UTF-8 PDF string encoding (UTF-16BE hex for non-ASCII text)
 - [x] PDF metadata (`Tincture.set_metadata/2`)
 - [x] PDF bookmarks / table of contents (`Tincture.add_bookmark/3`)
+- [x] Hyperlinks and annotations — external URLs and internal page targets (`Tincture.link/6`, `Tincture.text_link/5`)
 - [x] `kd_test1`-style commercial bill parity fixture with logo (`test/kd_test1_parity_test.exs`)
 
 ## Architecture
@@ -126,7 +140,7 @@ Tincture is organized into layers, each usable independently:
 
 ## Design Decisions
 
-**Structs over gen_server:** The original erlguten uses a `gen_server` process to hold PDF state. Tincture uses immutable structs with a pipeline API (`|>`) instead, which is more idiomatic Elixir and easier to test.
+**Structs over gen_server:** The original erlguten uses a `gen_server` process to hold PDF state. ex_guten replaced that with immutable structs and a pipeline API (`|>`), which is more idiomatic Elixir and easier to test; Tincture keeps that design.
 
 **Layered architecture:** Each layer can be used independently. Need just raw PDF output? Use `Tincture.PDF` directly. Need full typesetting? Use the top-level `Tincture` API.
 
@@ -135,7 +149,7 @@ Tincture is organized into layers, each usable independently:
 ## Development
 
 ```bash
-git clone https://github.com/hwatkins/tincture.git
+git clone https://github.com/thatsme/tincture.git
 cd tincture
 mix deps.get
 mix test
@@ -193,7 +207,9 @@ mix run scripts/render_markdown_showcase.exs path/to/input.md tmp/markdown_from_
 ## Acknowledgments
 
 - **Joe Armstrong** — Original erlguten author and Erlang co-creator
-- **CarlWright** — NGerlguten fork maintainer
+- **Carl Wright** — NGerlguten maintainer, who kept erlguten alive
+- **Hugh Watkins** — Author of ex_guten, the Elixir port Tincture forks from and
+  the source of most of the engine in this repository
 - **The TeX community** — Hyphenation algorithms and typesetting principles
 
 ## License

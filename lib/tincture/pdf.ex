@@ -58,6 +58,15 @@ defmodule Tincture.PDF do
           }
   @type image_op :: {:image, number(), number(), number(), number(), pos_integer()}
   @type bookmark :: %{required(:title) => String.t(), required(:page_number) => pos_integer()}
+  @type link_target :: {:url, String.t()} | {:page, pos_integer()}
+  @type annotation_border :: :none | {number(), number(), number()}
+  @type annotation ::
+          %{
+            required(:type) => :link,
+            required(:rect) => {number(), number(), number(), number()},
+            required(:target) => link_target(),
+            required(:border) => annotation_border()
+          }
   @type op ::
           text_op()
           | text_rotated_op()
@@ -86,6 +95,7 @@ defmodule Tincture.PDF do
           next_image_id: pos_integer(),
           embedded_fonts: %{optional(String.t()) => embedded_font()},
           bookmarks: [bookmark()],
+          annotations: %{required(pos_integer()) => [annotation()]},
           metadata: %{optional(atom()) => String.t()},
           operations: [op()]
         }
@@ -98,6 +108,7 @@ defmodule Tincture.PDF do
             next_image_id: 1,
             embedded_fonts: %{},
             bookmarks: [],
+            annotations: %{},
             metadata: %{},
             operations: []
 
@@ -383,6 +394,72 @@ defmodule Tincture.PDF do
     else
       raise ArgumentError, "unknown page: #{page_number}"
     end
+  end
+
+  @spec page_annotations(t(), pos_integer()) :: [annotation()]
+  def page_annotations(%__MODULE__{} = pdf, page_number)
+      when is_integer(page_number) and page_number > 0 do
+    Map.get(pdf.annotations, page_number, [])
+  end
+
+  @spec add_link(t(), {number(), number(), number(), number()}, link_target(), keyword()) :: t()
+  def add_link(%__MODULE__{} = pdf, {x1, y1, x2, y2}, target, opts \\ [])
+      when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_list(opts) do
+    annotation = %{
+      type: :link,
+      # PDF requires the rectangle in lower-left / upper-right order, so
+      # normalise rather than emitting a rect a viewer would treat as empty.
+      rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
+      target: normalize_link_target(pdf, target),
+      border: normalize_annotation_border(Keyword.get(opts, :border, :none))
+    }
+
+    page_number = Keyword.get(opts, :page, pdf.current_page)
+
+    unless Map.has_key?(pdf.pages, page_number) do
+      raise ArgumentError, "unknown page: #{page_number}"
+    end
+
+    existing = page_annotations(pdf, page_number)
+    annotations = Map.put(pdf.annotations, page_number, existing ++ [annotation])
+    %__MODULE__{pdf | annotations: annotations}
+  end
+
+  defp normalize_link_target(%__MODULE__{}, {:url, url})
+       when is_binary(url) and byte_size(url) > 0 do
+    {:url, url}
+  end
+
+  # Deliberately not checked against the existing pages here: linking forward to
+  # a page you have not added yet is the common case (a table of contents is
+  # written before the pages it points at). The reference is resolved at export,
+  # once every page exists.
+  defp normalize_link_target(%__MODULE__{}, {:page, page_number})
+       when is_integer(page_number) and page_number > 0 do
+    {:page, page_number}
+  end
+
+  defp normalize_link_target(%__MODULE__{} = pdf, url) when is_binary(url) do
+    normalize_link_target(pdf, {:url, url})
+  end
+
+  defp normalize_link_target(%__MODULE__{}, other) do
+    raise ArgumentError,
+          "link target must be a URL string, {:url, url}, or {:page, page_number}, got: " <>
+            inspect(other)
+  end
+
+  defp normalize_annotation_border(:none), do: :none
+
+  defp normalize_annotation_border({horizontal, vertical, width})
+       when is_number(horizontal) and is_number(vertical) and is_number(width) and
+              horizontal >= 0 and vertical >= 0 and width >= 0 do
+    {horizontal, vertical, width}
+  end
+
+  defp normalize_annotation_border(other) do
+    raise ArgumentError,
+          "border must be :none or {horizontal, vertical, width}, got: #{inspect(other)}"
   end
 
   @spec set_metadata(t(), map() | keyword()) :: t()
