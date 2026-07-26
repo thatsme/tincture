@@ -35,11 +35,11 @@
   # CFF / cmap / loca / glyf parser fallbacks. Each guards a malformed-font path
   # where preceding clauses already cover every shape Dialyzer can infer from
   # the parse pipeline. Font files are untrusted input, so these stay.
+  #
+  # These moved from pdf/serialize.ex to pdf/font_embed.ex when the font
+  # embedding cluster was extracted; serialize.ex now has no suppressed
+  # warnings of its own.
   {"lib/tincture/font/ttf.ex", :pattern_match_cov},
-  {"lib/tincture/pdf/serialize.ex", :pattern_match_cov},
-
-  # nondecreasing_list?([]) — a total predicate. Current callers only pass the
-  # `loca` offset table, which is never empty, but "the empty list is
-  # nondecreasing" is the correct base case and cheap to keep.
-  {"lib/tincture/pdf/serialize.ex", :pattern_match}
+  {"lib/tincture/pdf/font_embed.ex", :pattern_match_cov},
+  {"lib/tincture/pdf/font_embed.ex", :pattern_match}
 ]
