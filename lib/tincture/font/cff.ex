@@ -27,6 +27,8 @@ defmodule Tincture.Font.CFF do
 
   import Bitwise
 
+  alias Tincture.Font.Binary
+
   @typedoc """
   A decoded INDEX.
 
@@ -279,4 +281,244 @@ defmodule Tincture.Font.CFF do
   def nondecreasing?([_single]), do: true
   def nondecreasing?([left, right | rest]) when left <= right, do: nondecreasing?([right | rest])
   def nondecreasing?(_list), do: false
+
+  @doc false
+  # Older TTF-side callers want just the objects and the trailing binary, not
+  # the offsets and sizes the subsetting path needs.
+  def parse_index_pair(data) do
+    case parse_index(data) do
+      {:ok, %{objects: objects, rest: rest}} -> {:ok, {objects, rest}}
+      :error -> :error
+    end
+  end
+
+  def cff_sid_to_string(string_index, sid) when is_integer(sid) and sid >= 0 do
+    if sid < 391 do
+      cff_standard_sid_to_string(sid)
+    else
+      cff_string_index_sid_to_string(string_index, sid)
+    end
+  end
+
+  def cff_sid_to_string(_string_index, _sid), do: nil
+  defp cff_standard_sid_to_string(383), do: "Black"
+  defp cff_standard_sid_to_string(384), do: "Bold"
+  defp cff_standard_sid_to_string(385), do: "Book"
+  defp cff_standard_sid_to_string(386), do: "Light"
+  defp cff_standard_sid_to_string(387), do: "Medium"
+  defp cff_standard_sid_to_string(388), do: "Regular"
+  defp cff_standard_sid_to_string(389), do: "Roman"
+  defp cff_standard_sid_to_string(390), do: "Semibold"
+  defp cff_standard_sid_to_string(_sid), do: nil
+
+  defp cff_string_index_sid_to_string(string_index, sid)
+       when is_list(string_index) and is_integer(sid) and sid >= 391 do
+    index = sid - 391
+
+    case Enum.at(string_index, index) do
+      value when is_binary(value) ->
+        normalize_name_value(value)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp cff_string_index_sid_to_string(_string_index, _sid), do: nil
+
+  def fetch_cff_top_dict(data, table_records) do
+    with {:ok, %{top_dict: top_dict}} <- fetch_cff_metadata(data, table_records) do
+      {:ok, top_dict}
+    else
+      _ -> :error
+    end
+  end
+
+  def fetch_cff_metadata(data, table_records) do
+    case Map.fetch(table_records, "CFF ") do
+      {:ok, {offset, length}} ->
+        with {:ok, cff_table} <- Binary.slice(data, offset, length),
+             {:ok, cff_metadata} <- parse_cff_metadata(cff_table) do
+          {:ok, cff_metadata}
+        else
+          _ -> :error
+        end
+
+      :error ->
+        :error
+    end
+  end
+
+  defp parse_cff_metadata(
+         <<_major::8, _minor::8, header_size::8, _off_size::8, _::binary>> = cff_table
+       )
+       when header_size >= 4 do
+    if byte_size(cff_table) < header_size do
+      :error
+    else
+      <<_header::binary-size(header_size), body::binary>> = cff_table
+
+      with {:ok, {name_index, after_name}} <- parse_index_pair(body),
+           {:ok, {top_dict_index, after_top_dict}} <- parse_index_pair(after_name),
+           {:ok, {string_index, _after_string}} <- parse_index_pair(after_top_dict),
+           [top_dict | _rest] <- top_dict_index do
+        cff_name =
+          case name_index do
+            [first_name | _] when is_binary(first_name) -> first_name
+            _ -> nil
+          end
+
+        {:ok,
+         %{
+           top_dict: top_dict,
+           cff_name: cff_name,
+           string_index: string_index,
+           cff_table: cff_table
+         }}
+      else
+        _ -> :error
+      end
+    end
+  end
+
+  defp parse_cff_metadata(_), do: :error
+
+  # Delegates to Tincture.Font.CFF, which owns the INDEX container format and
+  # is shared with the subsetting path in Tincture.PDF.Serialize. Reading only
+  # needs the objects and the trailing binary; the byte offsets CFF also
+  # returns matter when rewriting a table, not when parsing one.
+  def extract_cff_operator_operand(top_dict, operator)
+      when is_binary(top_dict) and is_integer(operator) and operator >= 0 and operator <= 21 do
+    scan_cff_dict_for_operator_operand(top_dict, operator, [])
+  end
+
+  def extract_cff_operator_operand(_top_dict, _operator), do: :error
+
+  def extract_cff_operator_operands(top_dict, operator)
+      when is_binary(top_dict) and is_integer(operator) and operator >= 0 and operator <= 21 do
+    scan_cff_dict_for_operator_operands(top_dict, operator, [])
+  end
+
+  def extract_cff_operator_operands(_top_dict, _operator), do: :error
+
+  def extract_cff_escaped_operator_operand(top_dict, escaped_operator)
+      when is_binary(top_dict) and is_integer(escaped_operator) and escaped_operator >= 0 and
+             escaped_operator <= 255 do
+    scan_cff_dict_for_escaped_operator_operand(top_dict, escaped_operator, [])
+  end
+
+  def extract_cff_escaped_operator_operand(_top_dict, _escaped_operator), do: :error
+  defp scan_cff_dict_for_operator_operand(<<>>, _operator, _operands), do: :error
+
+  defp scan_cff_dict_for_operator_operand(
+         <<12, _escaped_op::8, rest::binary>>,
+         operator,
+         _operands
+       ) do
+    scan_cff_dict_for_operator_operand(rest, operator, [])
+  end
+
+  defp scan_cff_dict_for_operator_operand(<<op::8, rest::binary>>, operator, operands)
+       when op <= 21 do
+    if op == operator do
+      case Enum.reverse(operands) do
+        [value | _] -> {:ok, value}
+        _ -> :error
+      end
+    else
+      scan_cff_dict_for_operator_operand(rest, operator, [])
+    end
+  end
+
+  defp scan_cff_dict_for_operator_operand(dict_data, operator, operands) do
+    case parse_dict_number(dict_data) do
+      {:ok, number, rest} ->
+        scan_cff_dict_for_operator_operand(rest, operator, [number | operands])
+
+      :error ->
+        :error
+    end
+  end
+
+  defp scan_cff_dict_for_operator_operands(<<>>, _operator, _operands), do: :error
+
+  defp scan_cff_dict_for_operator_operands(
+         <<12, _escaped_op::8, rest::binary>>,
+         operator,
+         _operands
+       ) do
+    scan_cff_dict_for_operator_operands(rest, operator, [])
+  end
+
+  defp scan_cff_dict_for_operator_operands(<<op::8, rest::binary>>, operator, operands)
+       when op <= 21 do
+    if op == operator do
+      case Enum.reverse(operands) do
+        [] -> :error
+        values -> {:ok, values}
+      end
+    else
+      scan_cff_dict_for_operator_operands(rest, operator, [])
+    end
+  end
+
+  defp scan_cff_dict_for_operator_operands(dict_data, operator, operands) do
+    case parse_dict_number(dict_data) do
+      {:ok, number, rest} ->
+        scan_cff_dict_for_operator_operands(rest, operator, [number | operands])
+
+      :error ->
+        :error
+    end
+  end
+
+  defp scan_cff_dict_for_escaped_operator_operand(<<>>, _escaped_operator, _operands), do: :error
+
+  defp scan_cff_dict_for_escaped_operator_operand(
+         <<12, escaped_op::8, rest::binary>>,
+         escaped_operator,
+         operands
+       ) do
+    if escaped_op == escaped_operator do
+      case Enum.reverse(operands) do
+        [value | _] -> {:ok, value}
+        _ -> :error
+      end
+    else
+      scan_cff_dict_for_escaped_operator_operand(rest, escaped_operator, [])
+    end
+  end
+
+  defp scan_cff_dict_for_escaped_operator_operand(
+         <<operator::8, rest::binary>>,
+         escaped_operator,
+         _operands
+       )
+       when operator <= 21 do
+    scan_cff_dict_for_escaped_operator_operand(rest, escaped_operator, [])
+  end
+
+  defp scan_cff_dict_for_escaped_operator_operand(dict_data, escaped_operator, operands) do
+    case parse_dict_number(dict_data) do
+      {:ok, number, rest} ->
+        scan_cff_dict_for_escaped_operator_operand(rest, escaped_operator, [number | operands])
+
+      :error ->
+        :error
+    end
+  end
+
+  @doc """
+  Trim a string value read from a font table, returning nil when it is empty.
+
+  Font tables routinely carry padded or blank strings where a field is
+  unset; nil is more useful downstream than an empty binary.
+  """
+  @spec normalize_name_value(term()) :: String.t() | nil
+  def normalize_name_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
 end
