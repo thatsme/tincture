@@ -338,6 +338,103 @@ defmodule Tincture do
   end
 
   @doc """
+  Add a radio button group: one field, several buttons, at most one selected.
+
+  A radio group is the one field type that is not a single widget. The value
+  lives on the group and each button is its own widget, so buttons are given as
+  a list rather than added one at a time — a lone radio button is not a
+  meaningful thing to place.
+
+  Each button needs `:value`, `:x`, `:y` and `:size`. The `:value` is what the
+  field takes when that button is chosen, and is what appears in the filled
+  document. `"Off"` is reserved by the specification for "nothing selected" and
+  is rejected as a button value.
+
+  ## Options
+
+    * `:selected` — the `:value` of the initially selected button. Defaults to
+      none selected.
+    * `:allow_deselect` — let clicking the selected button turn it off again.
+      Defaults to `false`, which is what a radio group usually means.
+    * `:read_only`, `:required`, `:no_export` — field flags.
+    * `:tooltip`, `:border`, `:font`, `:size` — as for `text_field/7`.
+    * `:page` — the default page for buttons that do not name their own.
+
+  ## Examples
+
+      Tincture.radio_group(pdf, "delivery", [
+        [value: "standard", x: 72, y: 700, size: 12],
+        [value: "express", x: 72, y: 680, size: 12],
+        [value: "collect", x: 72, y: 660, size: 12]
+      ], selected: "standard")
+
+  """
+  @spec radio_group(PDF.t(), String.t(), [keyword()], keyword()) :: PDF.t()
+  def radio_group(%PDF{} = pdf, name, buttons, opts \\ [])
+      when is_binary(name) and is_list(buttons) and is_list(opts) do
+    PDF.add_radio_group(pdf, name, buttons, opts)
+  end
+
+  @doc """
+  Add a push button.
+
+  A push button holds no value — it exists to do something when clicked — so
+  `:action` is required.
+
+  ## Options
+
+    * `:action` — required. One of:
+      * `:reset` — clear every field in the form.
+      * `{:url, url}` — open a URL.
+      * `{:submit, url}` — submit the form's values to a URL.
+    * `:label` — the caption drawn on the button face.
+    * `:read_only`, `:required`, `:no_export` — field flags.
+    * `:tooltip`, `:border`, `:font`, `:size`, `:page` — as for `text_field/7`.
+
+  ## Examples
+
+      pdf
+      |> Tincture.push_button(72, 100, 90, 24, "submit", label: "Send",
+           action: {:submit, "https://example.com/apply"})
+      |> Tincture.push_button(180, 100, 90, 24, "reset", label: "Clear",
+           action: :reset)
+
+  """
+  @spec push_button(PDF.t(), number(), number(), number(), number(), String.t(), keyword()) ::
+          PDF.t()
+  def push_button(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             is_binary(name) and is_list(opts) do
+    PDF.add_form_field(pdf, :push_button, name, {x, y, x + width, y + height}, opts)
+  end
+
+  @doc """
+  Add a signature field: a place for someone to sign.
+
+  This reserves the field. Tincture does not yet *apply* a digital signature —
+  that needs a `/ByteRange` computed over the finished file — so the field is
+  left unsigned for a viewer to fill.
+
+  ## Options
+
+    * `:read_only`, `:required`, `:no_export` — field flags.
+    * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+
+  ## Examples
+
+      Tincture.signature_field(pdf, 72, 120, 220, 48, "signature",
+        tooltip: "Sign here")
+
+  """
+  @spec signature_field(PDF.t(), number(), number(), number(), number(), String.t(), keyword()) ::
+          PDF.t()
+  def signature_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             is_binary(name) and is_list(opts) do
+    PDF.add_form_field(pdf, :signature, name, {x, y, x + width, y + height}, opts)
+  end
+
+  @doc """
   Add a choice field — a dropdown by default, or a list box.
 
   ## Options

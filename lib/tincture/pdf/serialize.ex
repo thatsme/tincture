@@ -18,6 +18,7 @@ defmodule Tincture.PDF.Serialize do
 
   require Logger
 
+  alias Tincture.Font
   alias Tincture.PDF
   alias Tincture.PDF.Encrypt
   alias Tincture.PDF.FontEmbed
@@ -47,7 +48,7 @@ defmodule Tincture.PDF.Serialize do
 
     form_fields_start_id = outlines_start_id + length(outline_objects)
 
-    {form_field_refs, form_field_objects} =
+    {form_field_refs, widget_refs, form_field_objects} =
       build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id)
 
     kids =
@@ -71,7 +72,7 @@ defmodule Tincture.PDF.Serialize do
         annots =
           annotations_entry(
             PDF.page_annotations(pdf, page_number),
-            widget_refs_for_page(form_field_refs, page_number),
+            widget_refs_for_page(widget_refs, page_number),
             page_object_refs
           )
 
@@ -119,13 +120,17 @@ defmodule Tincture.PDF.Serialize do
   defp acro_form_entry([], _form_fields), do: ""
 
   defp acro_form_entry(form_field_refs, form_fields) do
-    fields = Enum.map_join(form_field_refs, " ", fn {_name, {id, _page}} -> "#{id} 0 R" end)
+    fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
-    # /NeedAppearances tells the viewer to build each field's appearance from
-    # its /DA string. Generating appearance streams here instead would mean
-    # laying out and rendering the value of every field at export time, and
-    # getting it wrong shows up as an invisible or clipped value rather than an
-    # error. Every mainstream viewer honours the flag.
+    # Button-like fields (checkbox, radio, push button) carry real appearance
+    # streams, because their appearance *is* their content: relying on
+    # /NeedAppearances leaves them invisible anywhere the renderer is not an
+    # interactive viewer - printing, thumbnails, server-side rasterising.
+    #
+    # Fields whose appearance is their typed value (text, choice) still defer to
+    # /NeedAppearances. Rendering those at export would mean laying out the value
+    # ourselves, and getting it wrong shows up as a clipped or invisible value
+    # rather than an error. Every mainstream viewer honours the flag.
     #
     # /DR is the resource dictionary the /DA strings resolve font names
     # against; without it a viewer has no font to render the value with.
@@ -365,23 +370,111 @@ defmodule Tincture.PDF.Serialize do
     " /Annots [#{Enum.join(inline ++ indirect, " ")}]"
   end
 
-  defp build_form_field_objects([], _page_object_refs, _start_id), do: {[], []}
+  defp build_form_field_objects([], _page_object_refs, _start_id), do: {[], [], []}
 
   defp build_form_field_objects(form_fields, page_object_refs, start_id) do
-    form_fields
-    |> Enum.with_index(start_id)
-    |> Enum.map(fn {field, id} ->
-      {{field.name, {id, field.page_number}},
-       form_field_object_body(field, Map.fetch!(page_object_refs, field.page_number))}
-    end)
-    |> Enum.unzip()
+    {built, _next_id} =
+      Enum.map_reduce(form_fields, start_id, &build_form_field(&1, page_object_refs, &2))
+
+    {
+      Enum.map(built, & &1.field_ref),
+      Enum.flat_map(built, & &1.widget_refs),
+      Enum.flat_map(built, & &1.objects)
+    }
   end
 
-  # A form field and its on-page widget are one object here. The specification
-  # allows splitting them, but that is only needed when one field has several
-  # widgets (the same value shown on several pages), which this API cannot
-  # express.
-  defp form_field_object_body(field, page_ref) do
+  # A radio group is the one field that cannot be a single object: the value
+  # lives on the parent and each button is its own annotation, so it becomes a
+  # parent plus a kid per button. Each kid also needs a pair of appearance
+  # streams, because a radio button's export value *is* the name of its "on"
+  # appearance state - there is nowhere else to record it.
+  defp build_form_field(%{type: :radio} = field, page_object_refs, id) do
+    {kids, next_id} =
+      Enum.map_reduce(field.widgets, id + 1, fn widget, kid_id ->
+        {{widget, kid_id, kid_id + 1, kid_id + 2}, kid_id + 3}
+      end)
+
+    # Object order must match the ids allocated above, since bodies are written
+    # sequentially from the same starting id.
+    kid_objects =
+      Enum.flat_map(kids, fn {widget, _kid_id, on_id, off_id} ->
+        page_ref = Map.fetch!(page_object_refs, widget.page_number)
+
+        [
+          radio_kid_object_body(field, widget, id, page_ref, on_id, off_id),
+          radio_appearance_object_body(widget, :on),
+          radio_appearance_object_body(widget, :off)
+        ]
+      end)
+
+    widget_refs =
+      Enum.map(kids, fn {widget, kid_id, _on_id, _off_id} -> {kid_id, widget.page_number} end)
+
+    built = %{
+      field_ref: id,
+      widget_refs: widget_refs,
+      objects: [radio_parent_object_body(field, kids) | kid_objects]
+    }
+
+    {built, next_id}
+  end
+
+  # A checkbox needs the same treatment as a radio button and for the same
+  # reason: without an /AP it is drawn only by viewers that honour
+  # /NeedAppearances, so it is invisible when printed, thumbnailed or
+  # rasterised server-side.
+  defp build_form_field(%{type: :checkbox} = field, page_object_refs, id) do
+    on_id = id + 1
+    off_id = id + 2
+    page_ref = Map.fetch!(page_object_refs, field.page_number)
+
+    built = %{
+      field_ref: id,
+      widget_refs: [{id, field.page_number}],
+      objects: [
+        form_field_object_body(field, page_ref, checkbox_appearance_entry(on_id, off_id)),
+        checkbox_appearance_object_body(field, :on),
+        checkbox_appearance_object_body(field, :off)
+      ]
+    }
+
+    {built, id + 3}
+  end
+
+  # A push button's face is entirely appearance - it has no value to render -
+  # so without a stream there is nothing to see at all.
+  defp build_form_field(%{type: :push_button} = field, page_object_refs, id) do
+    appearance_id = id + 1
+    page_ref = Map.fetch!(page_object_refs, field.page_number)
+
+    built = %{
+      field_ref: id,
+      widget_refs: [{id, field.page_number}],
+      objects: [
+        form_field_object_body(field, page_ref, " /AP << /N #{appearance_id} 0 R >>"),
+        push_button_appearance_object_body(field)
+      ]
+    }
+
+    {built, id + 2}
+  end
+
+  defp build_form_field(field, page_object_refs, id) do
+    built = %{
+      field_ref: id,
+      widget_refs: [{id, field.page_number}],
+      objects: [form_field_object_body(field, Map.fetch!(page_object_refs, field.page_number))]
+    }
+
+    {built, id + 1}
+  end
+
+  # For every other type the field and its on-page widget are one object. The
+  # specification allows splitting them, but that is only needed when one field
+  # has several widgets, which only a radio group has.
+  defp form_field_object_body(field, page_ref), do: form_field_object_body(field, page_ref, "")
+
+  defp form_field_object_body(field, page_ref, appearance_entry) do
     {x1, y1, x2, y2} = field.rect
 
     rect =
@@ -397,12 +490,18 @@ defmodule Tincture.PDF.Serialize do
       field_value_entries(field) <>
       max_length_entry(field) <>
       options_entry(field) <>
+      button_action_entry(field) <>
+      button_caption_entry(field) <>
+      appearance_entry <>
       tooltip_entry(field) <> " >>"
   end
 
   defp field_type_name(:text), do: "/Tx"
   defp field_type_name(:checkbox), do: "/Btn"
   defp field_type_name(:choice), do: "/Ch"
+  defp field_type_name(:radio), do: "/Btn"
+  defp field_type_name(:push_button), do: "/Btn"
+  defp field_type_name(:signature), do: "/Sig"
 
   defp flags_entry(0), do: ""
   defp flags_entry(flags), do: " /Ff #{flags}"
@@ -447,9 +546,172 @@ defmodule Tincture.PDF.Serialize do
 
   defp tooltip_entry(_field), do: ""
 
-  defp widget_refs_for_page(form_field_refs, page_number) do
-    for {_name, {id, field_page}} <- form_field_refs, field_page == page_number, do: id
+  defp widget_refs_for_page(widget_refs, page_number) do
+    for {id, widget_page} <- widget_refs, widget_page == page_number, do: id
   end
+
+  # The parent holds the value and the flags; it is a field, not an annotation,
+  # so it carries no /Rect and no /Subtype.
+  defp radio_parent_object_body(field, kids) do
+    kid_refs = Enum.map_join(kids, " ", fn {_widget, kid_id, _on, _off} -> "#{kid_id} 0 R" end)
+
+    "<< /FT /Btn /T #{Object.format_text(field.name)}" <>
+      flags_entry(field.flags) <>
+      radio_value_entries(field.value) <>
+      " /DA #{Object.format_text(field_appearance_string(field))}" <>
+      tooltip_entry(field) <>
+      " /Kids [#{kid_refs}] >>"
+  end
+
+  # A name object, not a string: the value names one of the kids' appearance
+  # states. /Off is the reserved name for "nothing selected".
+  defp radio_value_entries(""), do: " /V /Off /DV /Off"
+
+  defp radio_value_entries(value),
+    do: " /V /#{Object.sanitize_name(value)} /DV /#{Object.sanitize_name(value)}"
+
+  defp radio_kid_object_body(field, widget, parent_id, page_ref, on_id, off_id) do
+    {x1, y1, x2, y2} = widget.rect
+    rect = "[#{Object.num(x1)} #{Object.num(y1)} #{Object.num(x2)} #{Object.num(y2)}]"
+    on_state = "/" <> Object.sanitize_name(widget.export_value)
+    appearance_state = if field.value == widget.export_value, do: on_state, else: "/Off"
+
+    "<< /Type /Annot /Subtype /Widget /Parent #{parent_id} 0 R" <>
+      " /Rect #{rect} /P #{page_ref} 0 R /F 4" <>
+      annotation_border_entry_for(field.border) <>
+      " /MK << /BC [0] /BG [1] >>" <>
+      " /AS #{appearance_state}" <>
+      " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >> >>"
+  end
+
+  # A radio button's appearance has to be a real stream: the /AP /N keys are
+  # what name the export values, so there is nowhere else to put them. These
+  # are deliberately plain - a ring, and a dot when selected - because a viewer
+  # honouring /NeedAppearances may well replace them anyway.
+  defp radio_appearance_object_body(widget, state) do
+    {x1, y1, x2, y2} = widget.rect
+    size = min(x2 - x1, y2 - y1)
+    centre = size / 2
+    radius = centre - 0.5
+
+    content =
+      case state do
+        :off ->
+          ring_path(centre, centre, radius) <> "S\n"
+
+        :on ->
+          ring_path(centre, centre, radius) <>
+            "S\n" <> ring_path(centre, centre, radius * 0.5) <> "f\n"
+      end
+
+    form_xobject(size, size, "0 G 0 g 1 w\n" <> content, "")
+  end
+
+  # Four cubic beziers, the standard circle approximation.
+  @circle_kappa 0.5523
+  defp ring_path(cx, cy, r) do
+    k = r * @circle_kappa
+
+    Enum.map_join(
+      [
+        "#{Object.num(cx + r)} #{Object.num(cy)} m",
+        "#{Object.num(cx + r)} #{Object.num(cy + k)} #{Object.num(cx + k)} #{Object.num(cy + r)} #{Object.num(cx)} #{Object.num(cy + r)} c",
+        "#{Object.num(cx - k)} #{Object.num(cy + r)} #{Object.num(cx - r)} #{Object.num(cy + k)} #{Object.num(cx - r)} #{Object.num(cy)} c",
+        "#{Object.num(cx - r)} #{Object.num(cy - k)} #{Object.num(cx - k)} #{Object.num(cy - r)} #{Object.num(cx)} #{Object.num(cy - r)} c",
+        "#{Object.num(cx + k)} #{Object.num(cy - r)} #{Object.num(cx + r)} #{Object.num(cy - k)} #{Object.num(cx + r)} #{Object.num(cy)} c"
+      ],
+      "\n",
+      & &1
+    ) <> "\n"
+  end
+
+  defp checkbox_appearance_entry(on_id, off_id),
+    do: " /AP << /N << /Yes #{on_id} 0 R /Off #{off_id} 0 R >> >>"
+
+  defp checkbox_appearance_object_body(field, state) do
+    {x1, y1, x2, y2} = field.rect
+    size = min(x2 - x1, y2 - y1)
+
+    box = "0.5 0.5 #{Object.num(size - 1)} #{Object.num(size - 1)} re\nS\n"
+
+    tick =
+      case state do
+        :off ->
+          ""
+
+        :on ->
+          # A check mark as three points, stroked.
+          "#{Object.num(size * 0.22)} #{Object.num(size * 0.52)} m\n" <>
+            "#{Object.num(size * 0.42)} #{Object.num(size * 0.28)} l\n" <>
+            "#{Object.num(size * 0.78)} #{Object.num(size * 0.72)} l\n" <>
+            "S\n"
+      end
+
+    form_xobject(size, size, "0 G 0 g 1 w\n" <> box <> tick, "")
+  end
+
+  defp push_button_appearance_object_body(field) do
+    {x1, y1, x2, y2} = field.rect
+    width = x2 - x1
+    height = y2 - y1
+
+    face =
+      "0.93 0.93 0.94 rg\n0 0 #{Object.num(width)} #{Object.num(height)} re\nf\n" <>
+        "0.55 0.57 0.60 RG\n0.75 w\n" <>
+        "0.4 0.4 #{Object.num(width - 0.8)} #{Object.num(height - 0.8)} re\nS\n"
+
+    {caption, resources} = push_button_caption(field, width, height)
+    form_xobject(width, height, face <> caption, resources)
+  end
+
+  # The caption is centred, which needs its width - so it is measured with the
+  # same standard-font metrics the viewer will use.
+  defp push_button_caption(%{label: label} = field, width, height) when is_binary(label) do
+    size = if field.size == 0, do: min(height * 0.5, 12), else: field.size
+    text_width = Font.text_width(field.font, size, label)
+    x = max((width - text_width) / 2, 2)
+    y = (height - size * 0.72) / 2
+
+    caption =
+      "0 g\nBT\n/Helv #{Object.num(size)} Tf\n" <>
+        "#{Object.num(x)} #{Object.num(y)} Td\n" <>
+        "#{Object.format_text(label)} Tj\nET\n"
+
+    resources =
+      " /Font << /Helv << /Type /Font /Subtype /Type1" <>
+        " /BaseFont /#{Object.sanitize_name(field.font)} /Encoding /WinAnsiEncoding >> >>"
+
+    {caption, resources}
+  end
+
+  defp push_button_caption(_field, _width, _height), do: {"", ""}
+
+  defp form_xobject(width, height, content, resources) do
+    [
+      "<< /Type /XObject /Subtype /Form /BBox [0 0 #{Object.num(width)} #{Object.num(height)}]",
+      " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n",
+      content,
+      "endstream"
+    ]
+  end
+
+  defp button_action_entry(%{action: :reset}), do: " /A << /S /ResetForm >>"
+
+  defp button_action_entry(%{action: {:url, url}}),
+    do: " /A << /S /URI /URI #{Object.format_text(url)} >>"
+
+  defp button_action_entry(%{action: {:submit, url}}),
+    do:
+      " /A << /S /SubmitForm /F << /Type /Filespec /FS /URL /F #{Object.format_text(url)} >>" <>
+        " /Flags 4 >>"
+
+  defp button_action_entry(_field), do: ""
+
+  # /MK /CA is the caption a viewer draws on the button face.
+  defp button_caption_entry(%{label: label}) when is_binary(label),
+    do: " /MK << /CA #{Object.format_text(label)} >>"
+
+  defp button_caption_entry(_field), do: ""
 
   defp annotation_dictionary(
          %{type: :link, rect: {x1, y1, x2, y2}, target: target, border: border},

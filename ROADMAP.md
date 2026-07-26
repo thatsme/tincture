@@ -12,8 +12,8 @@ forms" and "we have the forms you need" are different claims.
 Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
-PNG images with alpha, hyperlinks, interactive forms, AES-256 encryption. No
-runtime dependencies. 1,053 tests, 88% coverage, clean Credo and Dialyzer, CI
+PNG images with alpha, interactive forms with every field type, AES-256
+encryption. No runtime dependencies. 1,098 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -94,18 +94,25 @@ shading types 2 and 3 for axial and radial gradients.
 
 ## 6. Forms, completed
 
-**Status: partial.** Text fields, checkboxes and choice fields exist. Missing:
-radio button groups, push buttons, signature fields, and generated appearance
-streams.
+**Status: the field set is complete; appearances are half done.** Text,
+checkbox, choice, radio group, push button and signature fields all exist, with
+reset, URL and submit actions.
 
-Tincture currently sets `/NeedAppearances true` and lets the viewer render
-field values. Every mainstream viewer honours this, but some do not, and a
-flattened form — one converted to static content — needs real appearance
-streams. That work overlaps with item 3, since a signature field is a form
-field.
+Button-like fields (checkbox, radio, push button) carry generated `/AP`
+appearance streams, so they render anywhere — printing, thumbnails,
+server-side rasterising — not only in an interactive viewer.
 
-Also missing: JavaScript actions for client-side validation, and form
-submission actions.
+Fields whose appearance is their typed value (text, choice) still rely on
+`/NeedAppearances true`. Every mainstream viewer honours it, but a *flattened*
+form — one converted to static content — needs those generated too, which means
+laying out and clipping the value at export time.
+
+Also missing: JavaScript actions for client-side validation, and per-field
+appearance customisation (`/MK` border and background colours).
+
+Field values can only use the standard 14 fonts, because `/DA` resolves against
+the AcroForm resource dictionary. Referencing an embedded font there is
+possible in principle and is not implemented.
 
 ## 7. Complex scripts
 

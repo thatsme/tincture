@@ -3,6 +3,7 @@ defmodule Tincture.PDF do
   Internal PDF state container.
   """
 
+  alias Tincture.Font
   alias Tincture.Font.TTF
   require Logger
 
@@ -68,7 +69,29 @@ defmodule Tincture.PDF do
             required(:target) => link_target(),
             required(:border) => annotation_border()
           }
-  @type form_field_type :: :text | :checkbox | :choice
+  @type form_field_type :: :text | :checkbox | :choice | :radio | :push_button | :signature
+  @typedoc """
+  What a push button does when clicked.
+
+  A push button holds no value, so an action is the only reason to have one.
+  """
+  @type button_action ::
+          :reset
+          | {:url, String.t()}
+          | {:submit, String.t()}
+  @typedoc """
+  One button within a radio group.
+
+  A radio group is a single field with several on-page widgets, one per choice.
+  `export_value` is the value the field takes when that button is the selected
+  one, and is what appears in the filled document.
+  """
+  @type radio_widget ::
+          %{
+            required(:export_value) => String.t(),
+            required(:page_number) => pos_integer(),
+            required(:rect) => {number(), number(), number(), number()}
+          }
   @type form_field ::
           %{
             required(:type) => form_field_type(),
@@ -82,7 +105,10 @@ defmodule Tincture.PDF do
             required(:border) => annotation_border(),
             optional(:max_length) => pos_integer(),
             optional(:tooltip) => String.t(),
-            optional(:options) => [String.t()]
+            optional(:options) => [String.t()],
+            optional(:widgets) => [radio_widget()],
+            optional(:action) => button_action(),
+            optional(:label) => String.t()
           }
   @type op ::
           text_op()
@@ -493,6 +519,13 @@ defmodule Tincture.PDF do
   @field_flag_combo 131_072
   @field_flag_edit 262_144
   @field_flag_sort 524_288
+  # Bit 15. Without it a viewer lets the user deselect the whole group by
+  # clicking the selected button, which is rarely what a radio group means.
+  @field_flag_no_toggle_to_off 16_384
+  # Bit 16 turns a /Btn field into a radio group, bit 17 into a push button.
+  # A field with neither is a checkbox.
+  @field_flag_radio 32_768
+  @field_flag_push_button 65_536
 
   @spec add_form_field(
           t(),
@@ -502,7 +535,8 @@ defmodule Tincture.PDF do
           keyword()
         ) :: t()
   def add_form_field(%__MODULE__{} = pdf, type, name, {x1, y1, x2, y2}, opts)
-      when type in [:text, :checkbox, :choice] and is_binary(name) and is_list(opts) do
+      when type in [:text, :checkbox, :choice, :push_button, :signature] and is_binary(name) and
+             is_list(opts) do
     if name == "" do
       raise ArgumentError, "form field name must not be empty"
     end
@@ -528,7 +562,7 @@ defmodule Tincture.PDF do
       rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
       value: normalize_field_value(type, Keyword.get(opts, :value)),
       flags: field_flags(type, opts),
-      font: Keyword.get(opts, :font, "Helvetica"),
+      font: normalize_field_font(Keyword.get(opts, :font, "Helvetica")),
       size: normalize_field_size(Keyword.get(opts, :size, 0)),
       border: normalize_annotation_border(Keyword.get(opts, :border, :none))
     }
@@ -538,9 +572,141 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:max_length, normalize_max_length(Keyword.get(opts, :max_length)))
       |> maybe_put_field(:tooltip, Keyword.get(opts, :tooltip))
       |> maybe_put_field(:options, normalize_choice_options(type, Keyword.get(opts, :options)))
+      |> maybe_put_field(:action, normalize_action(type, Keyword.get(opts, :action)))
+      |> maybe_put_field(:label, normalize_label(type, Keyword.get(opts, :label)))
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end
+
+  @doc """
+  Add a radio button group: one field, one widget per choice.
+
+  Unlike every other field type this is not one dictionary. The specification
+  models a radio group as a parent field holding the value, with a kid widget
+  for each button, and the button's export value is the name of its "on"
+  appearance state. Choosing a button sets the parent's value to that name.
+
+  `buttons` is a list of keyword lists, each needing `:value`, `:x`, `:y` and
+  `:size`, and optionally `:page`.
+  """
+  @spec add_radio_group(t(), String.t(), [keyword()], keyword()) :: t()
+  def add_radio_group(%__MODULE__{} = pdf, name, buttons, opts)
+      when is_binary(name) and is_list(buttons) and is_list(opts) do
+    if name == "" do
+      raise ArgumentError, "form field name must not be empty"
+    end
+
+    if buttons == [] do
+      raise ArgumentError, "a radio group needs at least one button"
+    end
+
+    if Enum.any?(pdf.form_fields, &(&1.name == name)) do
+      raise ArgumentError,
+            "duplicate form field name: #{inspect(name)}. Field names address values in the " <>
+              "filled document, so they must be unique."
+    end
+
+    widgets = Enum.map(buttons, &normalize_radio_widget(pdf, &1, opts))
+    export_values = Enum.map(widgets, & &1.export_value)
+
+    duplicates = export_values -- Enum.uniq(export_values)
+
+    if duplicates != [] do
+      raise ArgumentError,
+            "duplicate radio button value(s): #{inspect(Enum.uniq(duplicates))}. " <>
+              "A button's value identifies which one is selected, so they must be distinct."
+    end
+
+    selected = normalize_radio_selection(Keyword.get(opts, :selected), export_values)
+
+    flags =
+      opts
+      |> field_flags(:radio)
+      |> flag_if(Keyword.get(opts, :allow_deselect, false) == false, @field_flag_no_toggle_to_off)
+
+    field =
+      %{
+        type: :radio,
+        name: name,
+        # A radio group's own rectangle is meaningless - the kids carry the
+        # geometry - but the field shape requires one, so use the first kid's.
+        page_number: hd(widgets).page_number,
+        rect: hd(widgets).rect,
+        value: selected,
+        flags: flags,
+        font: normalize_field_font(Keyword.get(opts, :font, "Helvetica")),
+        size: normalize_field_size(Keyword.get(opts, :size, 0)),
+        border: normalize_annotation_border(Keyword.get(opts, :border, :none)),
+        widgets: widgets
+      }
+      |> maybe_put_field(:tooltip, Keyword.get(opts, :tooltip))
+
+    %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
+  end
+
+  defp normalize_radio_widget(pdf, button, opts) when is_list(button) do
+    value = Keyword.get(button, :value)
+
+    unless is_binary(value) and value != "" do
+      raise ArgumentError,
+            "each radio button needs a non-empty string :value, got: #{inspect(value)}"
+    end
+
+    if value == "Off" do
+      raise ArgumentError,
+            ~s(a radio button cannot use "Off" as its value: the specification reserves it ) <>
+              "for the state where nothing is selected"
+    end
+
+    x = fetch_number!(button, :x)
+    y = fetch_number!(button, :y)
+    size = fetch_number!(button, :size)
+
+    unless size > 0 do
+      raise ArgumentError, "radio button :size must be positive, got: #{inspect(size)}"
+    end
+
+    page_number = Keyword.get(button, :page, Keyword.get(opts, :page, pdf.current_page))
+
+    unless Map.has_key?(pdf.pages, page_number) do
+      raise ArgumentError, "unknown page: #{page_number}"
+    end
+
+    %{export_value: value, page_number: page_number, rect: {x, y, x + size, y + size}}
+  end
+
+  defp normalize_radio_widget(_pdf, other, _opts),
+    do:
+      raise(
+        ArgumentError,
+        "each radio button must be a keyword list with :value, :x, :y and :size, " <>
+          "got: #{inspect(other)}"
+      )
+
+  defp fetch_number!(button, key) do
+    case Keyword.get(button, key) do
+      value when is_number(value) ->
+        value
+
+      other ->
+        raise ArgumentError,
+              "radio button #{inspect(key)} must be a number, got: #{inspect(other)}"
+    end
+  end
+
+  defp normalize_radio_selection(nil, _export_values), do: ""
+
+  defp normalize_radio_selection(selected, export_values) when is_binary(selected) do
+    if selected in export_values do
+      selected
+    else
+      raise ArgumentError,
+            "selected radio value #{inspect(selected)} is not one of #{inspect(export_values)}"
+    end
+  end
+
+  defp normalize_radio_selection(other, _export_values),
+    do: raise(ArgumentError, ":selected must be a string, got: #{inspect(other)}")
 
   defp maybe_put_field(field, _key, nil), do: field
   defp maybe_put_field(field, key, value), do: Map.put(field, key, value)
@@ -550,6 +716,13 @@ defmodule Tincture.PDF do
 
   defp normalize_field_value(:checkbox, other),
     do: raise(ArgumentError, "checkbox value must be a boolean, got: #{inspect(other)}")
+
+  # Neither of these holds a value: a push button acts, and a signature field is
+  # filled by whoever signs it.
+  defp normalize_field_value(type, nil) when type in [:push_button, :signature], do: ""
+
+  defp normalize_field_value(type, _value) when type in [:push_button, :signature],
+    do: raise(ArgumentError, "#{type} fields do not take a :value")
 
   defp normalize_field_value(_type, nil), do: ""
   defp normalize_field_value(_type, value) when is_binary(value), do: value
@@ -563,6 +736,24 @@ defmodule Tincture.PDF do
   # Whole sizes stay integers so the /DA string reads "0 Tf" rather than
   # "0.0 Tf" - both are legal, but the integer form is what every other
   # generator emits and what a human reading the PDF expects.
+  # A field's value is rendered by the viewer from its /DA string, which
+  # resolves against the AcroForm resource dictionary - and that can only carry
+  # the standard 14 fonts. An embedded font named here would emit a font
+  # dictionary no viewer can resolve, so the value would silently not render.
+  defp normalize_field_font(font_name) when is_binary(font_name) do
+    if Font.standard_font?(font_name) do
+      font_name
+    else
+      raise ArgumentError,
+            "form fields can only use the standard 14 fonts, got: #{inspect(font_name)}. " <>
+              "A field's value is drawn by the viewer from the AcroForm resource dictionary, " <>
+              "which cannot reference an embedded font. Static text is unaffected."
+    end
+  end
+
+  defp normalize_field_font(other),
+    do: raise(ArgumentError, "form field font must be a string, got: #{inspect(other)}")
+
   defp normalize_field_size(value) when is_integer(value) and value >= 0, do: value
 
   defp normalize_field_size(value) when is_float(value) and value >= 0 do
@@ -600,6 +791,46 @@ defmodule Tincture.PDF do
   defp normalize_choice_options(type, _options),
     do: raise(ArgumentError, "#{type} fields do not take :options")
 
+  defp normalize_action(:push_button, nil),
+    do:
+      raise(
+        ArgumentError,
+        "a push button needs an :action - it holds no value, so without one it does nothing. " <>
+          "Use :reset, {:url, url} or {:submit, url}."
+      )
+
+  defp normalize_action(:push_button, :reset), do: :reset
+
+  defp normalize_action(:push_button, {kind, url})
+       when kind in [:url, :submit] and is_binary(url) and url != "",
+       do: {kind, url}
+
+  defp normalize_action(:push_button, other),
+    do:
+      raise(
+        ArgumentError,
+        "unsupported button action: #{inspect(other)}. " <>
+          "Expected :reset, {:url, url} or {:submit, url}."
+      )
+
+  defp normalize_action(_type, nil), do: nil
+
+  defp normalize_action(type, _action),
+    do: raise(ArgumentError, "#{type} fields do not take an :action")
+
+  defp normalize_label(:push_button, nil), do: nil
+  defp normalize_label(:push_button, label) when is_binary(label), do: label
+
+  defp normalize_label(:push_button, other),
+    do: raise(ArgumentError, "button :label must be a string, got: #{inspect(other)}")
+
+  defp normalize_label(_type, nil), do: nil
+
+  defp normalize_label(type, _label),
+    do: raise(ArgumentError, "#{type} fields do not take a :label")
+
+  defp field_flags(opts, type) when is_list(opts), do: field_flags(type, opts)
+
   defp field_flags(type, opts) do
     base =
       0
@@ -624,6 +855,9 @@ defmodule Tincture.PDF do
   end
 
   defp type_flags(:checkbox, base, _opts), do: base
+  defp type_flags(:radio, base, _opts), do: Bitwise.bor(base, @field_flag_radio)
+  defp type_flags(:push_button, base, _opts), do: Bitwise.bor(base, @field_flag_push_button)
+  defp type_flags(:signature, base, _opts), do: base
 
   defp flag_if(flags, true, bit), do: Bitwise.bor(flags, bit)
   defp flag_if(flags, false, _bit), do: flags

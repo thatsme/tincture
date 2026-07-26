@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The remaining form field types.** `Tincture.radio_group/4`,
+  `Tincture.push_button/7` and `Tincture.signature_field/7` complete the field
+  set. A radio group is the first field that is not a single object: the
+  specification models it as a parent field holding the value with a kid widget
+  per button, so the serialiser now emits multi-object fields.
+- **Generated appearance streams for button-like fields.** Radio buttons,
+  checkboxes and push buttons now carry real `/AP` streams. Previously they
+  relied entirely on `/NeedAppearances`, which only *interactive* viewers
+  honour — so a checkbox was invisible when printed, thumbnailed or rasterised
+  server-side, and a push button, whose face is nothing but appearance, showed
+  nothing at all. A radio button additionally cannot work without one, since
+  its export value *is* the name of its "on" appearance state.
 - `Tincture.Font.Context` — a measurement context pairing a document's embedded
   metrics with the static ones, so anything holding a document can measure any
   font that document can draw. The document-aware entry points build one
@@ -36,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Form fields now reject a non-standard font.** A field's value is rendered
+  by the viewer from its `/DA` string, which resolves against the AcroForm
+  resource dictionary — and that can only carry the standard 14. Naming an
+  embedded font there emitted a font dictionary no viewer could resolve, so the
+  value silently did not render. Static text is unaffected.
 - **Rich text no longer raises on an unknown font at construction.** It cannot:
   an embedded font is unresolvable until a document is known, and at that point
   indistinguishable from a typo. Tokens whose font could not be resolved carry
