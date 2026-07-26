@@ -98,9 +98,29 @@ defmodule Tincture.Typography do
               overflow?: false
   end
 
+  # Laying out estimated widths would produce a plausible-looking but wrong
+  # paragraph, so an unresolved font is an error here rather than a guess.
+  # Embedded fonts are unresolvable until a document is known, which is why
+  # `Tincture.text_paragraph/6` re-measures before it gets this far.
+  defp ensure_measured!(%RichText{} = rich) do
+    case RichText.unmeasured_fonts(rich) do
+      [] ->
+        :ok
+
+      fonts ->
+        raise ArgumentError,
+              "unknown font: #{Enum.join(fonts, ", ")}. " <>
+                "If these are embedded fonts, lay the text out through " <>
+                "Tincture.text_paragraph/6 or Tincture.Layout.Box.flow_text/7, which measure " <>
+                "against the document, or re-measure it yourself with " <>
+                "RichText.remeasure(rich, Tincture.Font.Context.from_pdf(pdf))."
+    end
+  end
+
   @spec layout_paragraph(RichText.t(), number(), [option()]) :: [Line.t()]
   def layout_paragraph(%RichText{} = rich, max_width, opts \\ [])
       when is_number(max_width) and max_width > 0 and is_list(opts) do
+    ensure_measured!(rich)
     align = Keyword.get(opts, :align, :left)
     line_break = normalize_line_break(Keyword.get(opts, :line_break, :greedy))
 

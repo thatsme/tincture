@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Embedded fonts could not be laid out.** Font embedding and the typography
+  engine — the library's two headline features — did not compose. Every layout
+  entry point measured through `Font.text_width/3`, which resolves only the
+  standard 14 fonts and AFM files on disk. An embedded TrueType font has no
+  AFM; its metrics are parsed at registration and live on the document, so a
+  pure function could never see them. `text_paragraph/6`, `Layout.Box.flow_text/7`,
+  `Layout.Table.render/6` with `:auto` columns and `text_link/6` all raised
+  `unknown font` for any embedded font. The metrics were parsed, correct, and
+  sitting unused: the drawing path had its own private copy of the measurement
+  code all along.
+
+### Added
+
+- `Tincture.Font.Context` — a measurement context pairing a document's embedded
+  metrics with the static ones, so anything holding a document can measure any
+  font that document can draw. The document-aware entry points build one
+  themselves, so laying out an embedded font now needs nothing extra:
+
+      Tincture.text_paragraph(pdf, 50, 700,
+        RichText.from_plain(terms, font: "Body", size: 10), 400, align: :justified)
+
+- `RichText.remeasure/2` and a `:context` option on `RichText.from_plain/2` and
+  `from_runs/2`, for laying text out through `Tincture.Typography` directly.
+- `RichText.unmeasured_fonts/1`, reporting which fonts are still estimates.
+
+### Changed
+
+- **Rich text no longer raises on an unknown font at construction.** It cannot:
+  an embedded font is unresolvable until a document is known, and at that point
+  indistinguishable from a typo. Tokens whose font could not be resolved carry
+  an estimated width and `measured?: false`, and `Typography.layout_paragraph/3`
+  refuses to lay those out — so a mistyped font name still fails loudly, with a
+  better message, at the point where the answer is actually knowable rather
+  than silently producing a plausible-looking but wrong paragraph.
+
 ## [0.1.0] — 2026-07-26
 
 First release under the Tincture name.

@@ -67,6 +67,7 @@ defmodule Tincture do
   import Bitwise
 
   alias Tincture.Font
+  alias Tincture.Font.Context
   alias Tincture.Font.UnicodeRanges
   alias Tincture.PDF
   alias Tincture.PDF.Ops
@@ -247,7 +248,7 @@ defmodule Tincture do
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
     {font_name, font_size} = pdf.current_font
-    width = Font.text_width(font_name, font_size, text)
+    width = text_width_for_font(pdf, font_name, font_size, text)
 
     # Approximate the drawn extent from the font size: PDF has no notion of a
     # text bounding box at draw time, and ascender/descender metrics are not
@@ -674,10 +675,10 @@ defmodule Tincture do
       {next_pdf, next_x, _prev_codepoint} =
         Enum.reduce(graphemes, {pdf, cursor_x, nil}, fn grapheme,
                                                         {acc_pdf, acc_x, prev_codepoint} ->
-          current_codepoint = kerning_codepoint_for_grapheme(grapheme)
+          current_codepoint = Context.kerning_codepoint(grapheme)
 
           kerning_units =
-            gpos_pair_kerning_units_for_pair(prev_codepoint, current_codepoint, gpos_pair_kerns)
+            Context.pair_kerning_units(prev_codepoint, current_codepoint, gpos_pair_kerns)
 
           draw_x = acc_x + kerning_units * size / units_per_em
           next_pdf = draw_fun.(acc_pdf, draw_x, y, grapheme)
@@ -967,6 +968,10 @@ defmodule Tincture do
     kerning = normalize_kerning_option(kerning)
 
     layout_opts = Keyword.drop(opts, [:rotate, :fallback_fonts, :bidi, :shaping, :kerning])
+
+    # Token widths are baked in at construction, where an embedded font cannot
+    # be resolved - its metrics live on this document. Re-measure before layout.
+    rich_text = RichText.remeasure(rich_text, Context.from_pdf(pdf))
 
     Typography.layout_paragraph(rich_text, max_width, layout_opts)
     |> Enum.reduce(pdf, fn %Line{} = line, acc_pdf ->
@@ -1646,231 +1651,11 @@ defmodule Tincture do
   defp code_page_ranges_all_zero?({0, 0}), do: true
   defp code_page_ranges_all_zero?(_ranges), do: false
 
+  # `set_font/3` does not validate, so a document can be drawing with a font
+  # nothing knows about. Estimating keeps that cosmetic rather than fatal.
   defp text_width_for_font(%PDF{} = pdf, font_name, size, text) do
-    if Font.font_available?(font_name) do
-      Font.text_width(font_name, size, text)
-    else
-      embedded_text_width(pdf, font_name, size, text)
-    end
-  end
-
-  defp embedded_text_width(%PDF{} = pdf, font_name, size, text) do
-    case Map.get(pdf.embedded_fonts, font_name) do
-      %{ttf_metrics: %{advance_widths: advance_widths, units_per_em: units_per_em} = ttf_metrics}
-      when is_list(advance_widths) and is_integer(units_per_em) and units_per_em > 0 ->
-        cmap_by_code = Map.get(ttf_metrics, :cmap_by_code, %{})
-        gpos_pair_kerns = Map.get(ttf_metrics, :gpos_pair_kerns, %{})
-        codepoints = String.to_charlist(text)
-
-        {base_units, kerning_codepoints} =
-          variation_aware_width_units(codepoints, ttf_metrics, advance_widths, cmap_by_code)
-
-        kerning_units = gpos_pair_kerning_units(kerning_codepoints, gpos_pair_kerns)
-        units = max(base_units + kerning_units, 0)
-
-        units * size / units_per_em
-
-      _ ->
-        String.length(text) * size * 0.6
-    end
-  end
-
-  defp variation_aware_width_units(codepoints, ttf_metrics, advance_widths, cmap_by_code)
-       when is_list(codepoints) and is_map(ttf_metrics) and is_list(advance_widths) and
-              is_map(cmap_by_code) do
-    cmap_non_default_uvs = Map.get(ttf_metrics, :cmap_non_default_uvs, %{})
-
-    do_variation_aware_width_units(
-      codepoints,
-      cmap_non_default_uvs,
-      advance_widths,
-      cmap_by_code,
-      0,
-      []
-    )
-  end
-
-  defp do_variation_aware_width_units(
-         [base_codepoint, selector_codepoint | rest],
-         cmap_non_default_uvs,
-         advance_widths,
-         cmap_by_code,
-         width_acc,
-         kerning_acc
-       ) do
-    if Unicode.variation_selector_codepoint?(selector_codepoint) and is_map(cmap_non_default_uvs) do
-      case Map.get(cmap_non_default_uvs, {base_codepoint, selector_codepoint}) do
-        glyph_id when is_integer(glyph_id) and glyph_id >= 0 ->
-          glyph_width = glyph_width_for_id(advance_widths, glyph_id)
-
-          do_variation_aware_width_units(
-            rest,
-            cmap_non_default_uvs,
-            advance_widths,
-            cmap_by_code,
-            width_acc + glyph_width,
-            [base_codepoint | kerning_acc]
-          )
-
-        _ ->
-          {next_width_acc, next_kerning_acc} =
-            add_codepoint_width_and_kerning(
-              base_codepoint,
-              advance_widths,
-              cmap_by_code,
-              width_acc,
-              kerning_acc
-            )
-
-          do_variation_aware_width_units(
-            [selector_codepoint | rest],
-            cmap_non_default_uvs,
-            advance_widths,
-            cmap_by_code,
-            next_width_acc,
-            next_kerning_acc
-          )
-      end
-    else
-      {next_width_acc, next_kerning_acc} =
-        add_codepoint_width_and_kerning(
-          base_codepoint,
-          advance_widths,
-          cmap_by_code,
-          width_acc,
-          kerning_acc
-        )
-
-      do_variation_aware_width_units(
-        [selector_codepoint | rest],
-        cmap_non_default_uvs,
-        advance_widths,
-        cmap_by_code,
-        next_width_acc,
-        next_kerning_acc
-      )
-    end
-  end
-
-  defp do_variation_aware_width_units(
-         [codepoint | rest],
-         cmap_non_default_uvs,
-         advance_widths,
-         cmap_by_code,
-         width_acc,
-         kerning_acc
-       ) do
-    {next_width_acc, next_kerning_acc} =
-      add_codepoint_width_and_kerning(
-        codepoint,
-        advance_widths,
-        cmap_by_code,
-        width_acc,
-        kerning_acc
-      )
-
-    do_variation_aware_width_units(
-      rest,
-      cmap_non_default_uvs,
-      advance_widths,
-      cmap_by_code,
-      next_width_acc,
-      next_kerning_acc
-    )
-  end
-
-  defp do_variation_aware_width_units(
-         [],
-         _cmap_non_default_uvs,
-         _advance_widths,
-         _cmap_by_code,
-         width_acc,
-         kerning_acc
-       ) do
-    {width_acc, Enum.reverse(kerning_acc)}
-  end
-
-  defp add_codepoint_width_and_kerning(
-         codepoint,
-         advance_widths,
-         cmap_by_code,
-         width_acc,
-         kerning_acc
-       ) do
-    if Unicode.zero_advance_codepoint?(codepoint) and
-         is_nil(mapped_glyph_id_for_codepoint(codepoint, cmap_by_code)) do
-      {width_acc, kerning_acc}
-    else
-      glyph_id = glyph_id_for_codepoint(codepoint, cmap_by_code)
-      glyph_width = glyph_width_for_id(advance_widths, glyph_id)
-
-      next_kerning_acc =
-        if Unicode.zero_advance_codepoint?(codepoint) do
-          kerning_acc
-        else
-          [codepoint | kerning_acc]
-        end
-
-      {width_acc + glyph_width, next_kerning_acc}
-    end
-  end
-
-  defp mapped_glyph_id_for_codepoint(codepoint, cmap_by_code)
-       when is_integer(codepoint) and is_map(cmap_by_code) do
-    case Map.get(cmap_by_code, codepoint) do
-      glyph_id when is_integer(glyph_id) and glyph_id >= 0 -> glyph_id
-      _ -> nil
-    end
-  end
-
-  defp glyph_id_for_codepoint(codepoint, cmap_by_code) when is_map(cmap_by_code) do
-    case Map.get(cmap_by_code, codepoint, if(codepoint <= 255, do: codepoint, else: 0)) do
-      glyph_id when is_integer(glyph_id) and glyph_id >= 0 -> glyph_id
-      _ -> 0
-    end
-  end
-
-  defp glyph_width_for_id(advance_widths, glyph_id) do
-    case Enum.fetch(advance_widths, glyph_id) do
-      {:ok, width} when is_integer(width) and width >= 0 -> width
-      _ -> 600
-    end
-  end
-
-  defp gpos_pair_kerning_units(codepoints, gpos_pair_kerns)
-       when is_list(codepoints) and is_map(gpos_pair_kerns) and map_size(gpos_pair_kerns) > 0 do
-    codepoints
-    |> Enum.chunk_every(2, 1, :discard)
-    |> Enum.reduce(0, fn
-      [left, right], acc ->
-        case Map.get(gpos_pair_kerns, {left, right}) do
-          adjustment when is_integer(adjustment) -> acc + adjustment
-          _ -> acc
-        end
-
-      _other, acc ->
-        acc
-    end)
-  end
-
-  defp gpos_pair_kerning_units(_codepoints, _gpos_pair_kerns), do: 0
-
-  defp gpos_pair_kerning_units_for_pair(left, right, gpos_pair_kerns)
-       when is_integer(left) and is_integer(right) and is_map(gpos_pair_kerns) do
-    case Map.get(gpos_pair_kerns, {left, right}) do
-      adjustment when is_integer(adjustment) -> adjustment
-      _ -> 0
-    end
-  end
-
-  defp gpos_pair_kerning_units_for_pair(_left, _right, _gpos_pair_kerns), do: 0
-
-  defp kerning_codepoint_for_grapheme(grapheme) when is_binary(grapheme) do
-    grapheme
-    |> String.to_charlist()
-    |> Enum.find(fn codepoint ->
-      not Unicode.zero_advance_codepoint?(codepoint) and
-        not Unicode.variation_selector_codepoint?(codepoint)
-    end)
+    pdf
+    |> Context.from_pdf()
+    |> Context.text_width(font_name, size, text, on_unknown: :estimate)
   end
 end

@@ -1,7 +1,7 @@
 defmodule Tincture.Typography.LineBreak do
   @moduledoc false
 
-  alias Tincture.Font
+  alias Tincture.Font.Context
   alias Tincture.Typography.Hyphen
 
   @type option ::
@@ -10,16 +10,18 @@ defmodule Tincture.Typography.LineBreak do
           | {:locale_resolver, (String.t() -> atom())}
           | {:hyphen_left_min, pos_integer()}
           | {:hyphen_right_min, pos_integer()}
+          | {:context, Context.t()}
 
   @spec break_text(String.t(), String.t(), number(), number(), [option()]) :: [String.t()]
   def break_text(text, font_name, font_size, max_width, opts \\ [])
       when is_binary(text) and is_binary(font_name) and is_number(font_size) and font_size > 0 and
              is_number(max_width) and max_width > 0 and is_list(opts) do
     words = String.split(text, ~r/\s+/, trim: true)
+    context = Keyword.get(opts, :context) || Context.new()
 
     {lines, current} =
       Enum.reduce(words, {[], ""}, fn word, {acc_lines, acc_current} ->
-        add_word(word, acc_lines, acc_current, font_name, font_size, max_width, opts)
+        add_word(word, acc_lines, acc_current, font_name, font_size, max_width, opts, context)
       end)
 
     case current do
@@ -28,8 +30,8 @@ defmodule Tincture.Typography.LineBreak do
     end
   end
 
-  defp add_word(word, lines, "", font_name, font_size, max_width, opts) do
-    case split_word(word, font_name, font_size, max_width, opts) do
+  defp add_word(word, lines, "", font_name, font_size, max_width, opts, context) do
+    case split_word(word, font_name, font_size, max_width, opts, context) do
       [] ->
         {lines, ""}
 
@@ -41,31 +43,31 @@ defmodule Tincture.Typography.LineBreak do
     end
   end
 
-  defp add_word(word, lines, current, font_name, font_size, max_width, opts) do
+  defp add_word(word, lines, current, font_name, font_size, max_width, opts, context) do
     candidate = current <> " " <> word
 
-    if fits?(candidate, font_name, font_size, max_width) do
+    if fits?(candidate, font_name, font_size, max_width, context) do
       {lines, candidate}
     else
-      add_word(word, lines ++ [current], "", font_name, font_size, max_width, opts)
+      add_word(word, lines ++ [current], "", font_name, font_size, max_width, opts, context)
     end
   end
 
-  defp split_word(word, font_name, font_size, max_width, opts) do
-    if fits?(word, font_name, font_size, max_width) do
+  defp split_word(word, font_name, font_size, max_width, opts, context) do
+    if fits?(word, font_name, font_size, max_width, context) do
       [word]
     else
       if Keyword.get(opts, :hyphenate, true) do
         locale = resolve_locale(word, opts)
         hyphen_opts = hyphen_options(opts)
-        split_by_hyphenation(word, font_name, font_size, max_width, locale, hyphen_opts)
+        split_by_hyphenation(word, font_name, font_size, max_width, locale, hyphen_opts, context)
       else
-        hard_split(word, font_name, font_size, max_width)
+        hard_split(word, font_name, font_size, max_width, context)
       end
     end
   end
 
-  defp split_by_hyphenation(word, font_name, font_size, max_width, locale, hyphen_opts) do
+  defp split_by_hyphenation(word, font_name, font_size, max_width, locale, hyphen_opts, context) do
     parts = Hyphen.hyphenate(word, locale, hyphen_opts)
 
     if length(parts) > 1 do
@@ -76,37 +78,38 @@ defmodule Tincture.Typography.LineBreak do
           if idx < length(parts) - 1, do: part <> "-", else: part
         end)
 
-      pack_fragments(fragments, font_name, font_size, max_width, [])
+      pack_fragments(fragments, font_name, font_size, max_width, [], context)
     else
-      hard_split(word, font_name, font_size, max_width)
+      hard_split(word, font_name, font_size, max_width, context)
     end
   end
 
-  defp pack_fragments([], _font_name, _font_size, _max_width, acc), do: Enum.reverse(acc)
+  defp pack_fragments([], _font_name, _font_size, _max_width, acc, _context),
+    do: Enum.reverse(acc)
 
-  defp pack_fragments([fragment | rest], font_name, font_size, max_width, acc) do
+  defp pack_fragments([fragment | rest], font_name, font_size, max_width, acc, context) do
     case acc do
       [current | tail] ->
         candidate = current <> fragment
 
-        if fits?(candidate, font_name, font_size, max_width) do
-          pack_fragments(rest, font_name, font_size, max_width, [candidate | tail])
+        if fits?(candidate, font_name, font_size, max_width, context) do
+          pack_fragments(rest, font_name, font_size, max_width, [candidate | tail], context)
         else
-          pack_fragments(rest, font_name, font_size, max_width, [fragment | acc])
+          pack_fragments(rest, font_name, font_size, max_width, [fragment | acc], context)
         end
 
       [] ->
-        pack_fragments(rest, font_name, font_size, max_width, [fragment])
+        pack_fragments(rest, font_name, font_size, max_width, [fragment], context)
     end
   end
 
-  defp hard_split(word, font_name, font_size, max_width) do
+  defp hard_split(word, font_name, font_size, max_width, context) do
     word
     |> String.graphemes()
     |> Enum.reduce({[], ""}, fn grapheme, {parts, current} ->
       candidate = current <> grapheme
 
-      if current == "" or fits?(candidate, font_name, font_size, max_width) do
+      if current == "" or fits?(candidate, font_name, font_size, max_width, context) do
         {parts, candidate}
       else
         {parts ++ [current], grapheme}
@@ -120,8 +123,8 @@ defmodule Tincture.Typography.LineBreak do
     end)
   end
 
-  defp fits?(string, font_name, font_size, max_width) do
-    Font.text_width(font_name, font_size, string) <= max_width
+  defp fits?(string, font_name, font_size, max_width, context) do
+    Context.text_width(context, font_name, font_size, string) <= max_width
   end
 
   defp hyphen_options(opts) do

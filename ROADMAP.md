@@ -13,7 +13,7 @@ Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, hyperlinks, interactive forms, AES-256 encryption. No
-runtime dependencies. 1,011 tests, 88% coverage, clean Credo and Dialyzer, CI
+runtime dependencies. 1,053 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a

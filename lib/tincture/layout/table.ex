@@ -23,7 +23,7 @@ defmodule Tincture.Layout.Table do
   controls vertical alignment when a row's cells differ in height.
   """
 
-  alias Tincture.Font
+  alias Tincture.Font.Context
   alias Tincture.PDF
 
   @type row :: [term()]
@@ -68,7 +68,19 @@ defmodule Tincture.Layout.Table do
     padding = resolve_padding(opts)
     font_size = resolve_font_size(opts)
     row_height = resolve_row_height(opts, font_size, padding)
-    widths = resolve_widths(column_spec, normalized_rows, column_count, opts, padding, font_size)
+    context = Context.from_pdf(pdf)
+
+    widths =
+      resolve_widths(
+        column_spec,
+        normalized_rows,
+        column_count,
+        opts,
+        padding,
+        font_size,
+        context
+      )
+
     border? = Keyword.get(opts, :border, true)
     valign = resolve_valign(opts)
     font = Keyword.get(opts, :font, "Helvetica")
@@ -147,7 +159,7 @@ defmodule Tincture.Layout.Table do
     {rows, column_count}
   end
 
-  defp resolve_widths(widths, _rows, column_count, _opts, _padding, _font_size)
+  defp resolve_widths(widths, _rows, column_count, _opts, _padding, _font_size, _context)
        when is_list(widths) do
     unless length(widths) == column_count do
       raise ArgumentError, "column width count must match row column count"
@@ -160,7 +172,7 @@ defmodule Tincture.Layout.Table do
     Enum.map(widths, &(&1 * 1.0))
   end
 
-  defp resolve_widths(:auto, rows, column_count, opts, padding, font_size) do
+  defp resolve_widths(:auto, rows, column_count, opts, padding, font_size, context) do
     font = Keyword.get(opts, :font, "Helvetica")
     min_col_width = Keyword.get(opts, :min_col_width, 20)
 
@@ -174,7 +186,7 @@ defmodule Tincture.Layout.Table do
         max_text_width =
           Enum.reduce(rows, 0.0, fn row, acc ->
             cell = row |> Enum.at(col) |> to_string()
-            max(acc, Font.text_width(font, font_size, cell))
+            max(acc, Context.text_width(context, font, font_size, cell))
           end)
 
         max(max_text_width + padding * 2, min_col_width * 1.0)
@@ -194,7 +206,7 @@ defmodule Tincture.Layout.Table do
     end
   end
 
-  defp resolve_widths(other, _rows, _column_count, _opts, _padding, _font_size) do
+  defp resolve_widths(other, _rows, _column_count, _opts, _padding, _font_size, _context) do
     raise ArgumentError, "unsupported column spec: #{inspect(other)}"
   end
 

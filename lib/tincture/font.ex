@@ -26,6 +26,10 @@ defmodule Tincture.Font do
     standard_font?(font_name) or match?({:ok, _}, afm(font_name))
   end
 
+  # Resolves the standard 14 fonts and AFM files only. An embedded TrueType
+  # font has no AFM - its metrics are parsed at registration and live on the
+  # document - so this raises for one. To measure any font a document knows,
+  # go through `Tincture.Font.Context`, which falls back to here.
   @spec text_width(String.t(), number(), String.t()) :: float()
   def text_width(font_name, size, text)
       when is_binary(font_name) and is_number(size) and size > 0 and is_binary(text) do

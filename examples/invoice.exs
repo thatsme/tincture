@@ -187,18 +187,18 @@ pdf =
   |> Tincture.set_font("Sans", 8)
   |> Tincture.text_at(margin, terms_y + 22, "PAYMENT TERMS")
   |> Tincture.set_fill_color(ink)
-  |> Tincture.set_font("Times-Roman", 9.5)
+  |> Tincture.set_font("Body", 9.5)
 
-# NOTE: this paragraph has to use a standard-14 font. The typography engine
-# measures text through Font.text_width/3, which knows only the built-in
-# metrics and AFM files - it cannot measure an embedded TTF, so passing
-# font: "Body" here raises `unknown font: Body`.
+# The typography engine measures against the document, so this paragraph is
+# justified and hyphenated using Georgia's real metrics. Rich text built this
+# way carries provisional widths until text_paragraph/6 re-measures it, which
+# is why no font context has to be passed here.
 {pdf, _lines} =
   {Tincture.text_paragraph(
      pdf,
      margin,
      terms_y,
-     RichText.from_plain(terms, font: "Times-Roman", size: 9.5),
+     RichText.from_plain(terms, font: "Body", size: 9.5),
      content_w - 150,
      align: :justified,
      line_break: :optimal,
@@ -216,9 +216,9 @@ pdf =
   |> Tincture.set_fill_color(muted)
   |> Tincture.set_font("Sans", 8)
   |> Tincture.text_at(margin, pay_y + 20, "PAY ONLINE")
-  # text_link measures the string to size the clickable rectangle, so it has
-  # the same standard-14-only restriction.
-  |> Tincture.set_font("Helvetica", 10)
+  # The clickable rectangle is measured from the drawn string, in whatever font
+  # is current - embedded or not.
+  |> Tincture.set_font("Body", 10)
   |> Tincture.text_link(
     margin,
     pay_y,

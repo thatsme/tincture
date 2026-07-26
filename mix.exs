@@ -12,6 +12,7 @@ defmodule Tincture.MixProject do
       description:
         "Native, high-fidelity PDF generation for Elixir, distilled from the heritage of Joe Armstrong.",
       elixir: "~> 1.16",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       source_url: @source_url,
       homepage_url: @source_url,
@@ -44,6 +45,11 @@ defmodule Tincture.MixProject do
       ]
     ]
   end
+
+  # Test-only fixtures live in test/support so they compile once rather than
+  # being required from test_helper.exs, which Elixir 1.19 warns about.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   # Run "mix help compile.app" to learn about applications.
   def application do

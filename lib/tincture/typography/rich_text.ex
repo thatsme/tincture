@@ -25,7 +25,7 @@ defmodule Tincture.Typography.RichText do
   losing its styling.
   """
 
-  alias Tincture.Font
+  alias Tincture.Font.Context
 
   defmodule Run do
     @moduledoc """
@@ -48,6 +48,11 @@ defmodule Tincture.Typography.RichText do
   defmodule Word do
     @moduledoc """
     A single word token, carrying the width it measured to in its run's font.
+
+    `measured?` is false when the font could not be resolved at the time the
+    token was built — the width is then a rough estimate from the point size.
+    An embedded font is unresolvable until the document is known, so this is
+    normal for text built ahead of layout; `RichText.remeasure/2` resolves it.
     """
 
     @type t :: %__MODULE__{
@@ -55,14 +60,16 @@ defmodule Tincture.Typography.RichText do
             font: String.t(),
             size: number(),
             style: atom() | nil,
-            width: number()
+            width: number(),
+            measured?: boolean()
           }
 
     defstruct text: "",
               font: "Helvetica",
               size: 12,
               style: nil,
-              width: 0
+              width: 0,
+              measured?: true
   end
 
   defmodule Space do
@@ -76,14 +83,16 @@ defmodule Tincture.Typography.RichText do
             font: String.t(),
             size: number(),
             style: atom() | nil,
-            width: number()
+            width: number(),
+            measured?: boolean()
           }
 
     defstruct text: " ",
               font: "Helvetica",
               size: 12,
               style: nil,
-              width: 0
+              width: 0,
+              measured?: true
   end
 
   defmodule Break do
@@ -105,6 +114,30 @@ defmodule Tincture.Typography.RichText do
   defstruct runs: [],
             tokens: []
 
+  @doc """
+  Build rich text from a single plain string.
+
+  ## Options
+
+    * `:font` — font name. Defaults to `"Helvetica"`.
+    * `:size` — point size. Defaults to `12`.
+    * `:style` — an arbitrary style tag carried through to the tokens.
+    * `:context` — a `t:Tincture.Font.Context.t/0` used to measure. Needed only
+      to measure an **embedded** font up front, since embedded metrics live on
+      the document rather than being globally resolvable. The document-aware
+      entry points — `Tincture.text_paragraph/6`, `Tincture.Layout.Box.flow_text/7`
+      — re-measure against their own document anyway, so this is usually
+      unnecessary.
+
+  ## Examples
+
+      RichText.from_plain("Hello world", font: "Times-Roman", size: 11)
+
+      # Measuring an embedded font outside a layout call.
+      context = Tincture.Font.Context.from_pdf(pdf)
+      RichText.from_plain("Hello", font: "Body", size: 11, context: context)
+
+  """
   @spec from_plain(String.t(), keyword()) :: t()
   def from_plain(text, opts \\ []) when is_binary(text) and is_list(opts) do
     run = %Run{
@@ -114,11 +147,16 @@ defmodule Tincture.Typography.RichText do
       style: Keyword.get(opts, :style)
     }
 
-    from_runs([run])
+    from_runs([run], opts)
   end
 
-  @spec from_runs([Run.t()]) :: t()
-  def from_runs(runs) when is_list(runs) do
+  @doc """
+  Build rich text from a list of styled runs.
+
+  Accepts a `:context` option, as `from_plain/2` does.
+  """
+  @spec from_runs([Run.t()], keyword()) :: t()
+  def from_runs(runs, opts \\ []) when is_list(runs) and is_list(opts) do
     normalized =
       runs
       |> Enum.map(fn
@@ -126,11 +164,45 @@ defmodule Tincture.Typography.RichText do
         map when is_map(map) -> struct!(Run, map)
       end)
 
+    context = Keyword.get(opts, :context) || Context.new()
+
     %__MODULE__{
       runs: normalized,
-      tokens: tokenize_runs(normalized)
+      tokens: tokenize_runs(normalized, context)
     }
   end
+
+  @doc """
+  Recompute every token width against a measurement context.
+
+  Token widths are baked in when the rich text is built, so text built without
+  a context has measured its embedded fonts wrongly — or failed to measure them
+  at all. The document-aware layout functions call this for you; it exists
+  publicly for code that lays out text through `Tincture.Typography` directly.
+
+      rich
+      |> RichText.remeasure(Tincture.Font.Context.from_pdf(pdf))
+      |> Tincture.Typography.layout_paragraph(450, align: :justified)
+
+  Structure is preserved exactly — only widths change — so this is safe to
+  apply to text that has already been through a layout pass.
+  """
+  @spec remeasure(t(), Context.t()) :: t()
+  def remeasure(%__MODULE__{} = rich, %Context{} = context) do
+    %__MODULE__{rich | tokens: Enum.map(rich.tokens, &remeasure_token(&1, context))}
+  end
+
+  defp remeasure_token(%Word{} = token, context) do
+    {width, measured?} = measure(token.text, token.font, token.size, context)
+    %Word{token | width: width, measured?: measured?}
+  end
+
+  defp remeasure_token(%Space{} = token, context) do
+    {width, measured?} = measure(token.text, token.font, token.size, context)
+    %Space{token | width: width, measured?: measured?}
+  end
+
+  defp remeasure_token(%Break{} = token, _context), do: token
 
   @spec from_tokens([token()]) :: t()
   def from_tokens(tokens) when is_list(tokens) do
@@ -165,10 +237,10 @@ defmodule Tincture.Typography.RichText do
     from_runs(runs)
   end
 
-  defp tokenize_runs(runs) do
+  defp tokenize_runs(runs, context) do
     {tokens, current_word} =
       Enum.reduce(runs, {[], nil}, fn run, {acc_tokens, acc_word} ->
-        tokenize_run(run, acc_tokens, acc_word)
+        tokenize_run(run, acc_tokens, acc_word, context)
       end)
 
     maybe_emit_word(tokens, current_word)
@@ -217,7 +289,7 @@ defmodule Tincture.Typography.RichText do
   defp maybe_emit_run(runs, nil), do: runs
   defp maybe_emit_run(runs, %Run{} = run), do: runs ++ [run]
 
-  defp tokenize_run(%Run{} = run, tokens, current_word) do
+  defp tokenize_run(%Run{} = run, tokens, current_word, context) do
     run.text
     |> String.to_charlist()
     |> Enum.reduce({tokens, current_word}, fn ch, {acc_tokens, acc_word} ->
@@ -229,21 +301,23 @@ defmodule Tincture.Typography.RichText do
         ch == ?\s or ch == ?\t ->
           tokens_with_word = maybe_emit_word(acc_tokens, acc_word)
           space_text = <<ch::utf8>>
-          {tokens_with_word ++ [space_token(space_text, run)], nil}
+          {tokens_with_word ++ [space_token(space_text, run, context)], nil}
 
         true ->
           part = <<ch::utf8>>
 
           case acc_word do
             nil ->
-              {acc_tokens, word_token(part, run)}
+              {acc_tokens, word_token(part, run, context)}
 
             %Word{} = word ->
               if same_style?(word, run) do
-                {acc_tokens,
-                 %Word{word | text: word.text <> part, width: width(word.text <> part, run)}}
+                grown = word.text <> part
+                {grown_width, measured?} = width(grown, run, context)
+
+                {acc_tokens, %Word{word | text: grown, width: grown_width, measured?: measured?}}
               else
-                {acc_tokens ++ [word], word_token(part, run)}
+                {acc_tokens ++ [word], word_token(part, run, context)}
               end
           end
       end
@@ -253,23 +327,29 @@ defmodule Tincture.Typography.RichText do
   defp maybe_emit_word(tokens, nil), do: tokens
   defp maybe_emit_word(tokens, %Word{} = word), do: tokens ++ [word]
 
-  defp word_token(text, %Run{} = run) do
+  defp word_token(text, %Run{} = run, context) do
+    {width, measured?} = width(text, run, context)
+
     %Word{
       text: text,
       font: run.font,
       size: run.size,
       style: run.style,
-      width: width(text, run)
+      width: width,
+      measured?: measured?
     }
   end
 
-  defp space_token(text, %Run{} = run) do
+  defp space_token(text, %Run{} = run, context) do
+    {width, measured?} = width(text, run, context)
+
     %Space{
       text: text,
       font: run.font,
       size: run.size,
       style: run.style,
-      width: width(text, run)
+      width: width,
+      measured?: measured?
     }
   end
 
@@ -277,7 +357,31 @@ defmodule Tincture.Typography.RichText do
     word.font == run.font and word.size == run.size and word.style == run.style
   end
 
-  defp width(text, %Run{} = run) do
-    Font.text_width(run.font, run.size, text)
+  defp width(text, %Run{} = run, context) do
+    measure(text, run.font, run.size, context)
+  end
+
+  defp measure(text, font, size, %Context{} = context) do
+    case Context.measure(context, font, size, text) do
+      {:ok, width} -> {width, true}
+      {:unresolved, estimate} -> {estimate, false}
+    end
+  end
+
+  @doc """
+  The font names whose widths are still estimates, because no context supplied
+  so far could resolve them.
+
+  Empty for text that is ready to lay out.
+  """
+  @spec unmeasured_fonts(t()) :: [String.t()]
+  def unmeasured_fonts(%__MODULE__{tokens: tokens}) do
+    tokens
+    |> Enum.reject(fn
+      %Break{} -> true
+      token -> token.measured?
+    end)
+    |> Enum.map(& &1.font)
+    |> Enum.uniq()
   end
 end

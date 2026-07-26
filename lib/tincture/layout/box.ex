@@ -19,6 +19,7 @@ defmodule Tincture.Layout.Box do
   **top** edge — text flows downward from there.
   """
 
+  alias Tincture.Font.Context
   alias Tincture.PDF
   alias Tincture.Typography
   alias Tincture.Typography.LayoutResult
@@ -65,6 +66,11 @@ defmodule Tincture.Layout.Box do
     end
 
     layout_opts = Keyword.drop(opts, [:rotate])
+
+    # Widths were measured when the rich text was built, which may have been
+    # before this document existed - and embedded font metrics live on the
+    # document. Re-measuring here is what lets an embedded font be laid out.
+    rich_text = RichText.remeasure(rich_text, Context.from_pdf(pdf))
     line_height = resolve_line_height(rich_text, layout_opts)
     max_lines = floor(height / line_height)
 
