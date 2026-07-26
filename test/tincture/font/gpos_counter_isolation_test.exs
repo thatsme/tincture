@@ -13,8 +13,9 @@ defmodule Tincture.Font.GPOSCounterIsolationTest do
   use ExUnit.Case, async: true
 
   alias Tincture.Font.TTF
+  alias Tincture.Font.TTF.Layout
 
-  @key {TTF, :gpos_guardrail_skip_count}
+  @key {Layout, :gpos_guardrail_skip_count}
 
   # Minimal but structurally valid TTF: enough tables for parse_basic_tables/1
   # to succeed. No GPOS table, so the counter stays at zero — these tests are
