@@ -149,7 +149,19 @@ defmodule Tincture.Font.TTF.Name do
   defp decode_name_string(_raw, _platform_id, _encoding_id), do: nil
 
   defp safe_unicode_decode(raw, source_encoding) do
-    :unicode.characters_to_binary(raw, source_encoding, :utf8)
+    case :unicode.characters_to_binary(raw, source_encoding, :utf8) do
+      decoded when is_binary(decoded) ->
+        decoded
+
+      # :unicode signals malformed input by *returning* {:error, converted,
+      # rest} or {:incomplete, converted, rest} rather than raising, so the
+      # rescue below never sees it. A name record with an odd byte count or a
+      # lone surrogate lands here; returning nil lets the caller fall through
+      # to the next record instead of propagating a tuple into code that
+      # expects a binary.
+      _malformed ->
+        nil
+    end
   rescue
     _ -> nil
   end
