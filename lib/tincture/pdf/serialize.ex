@@ -1,5 +1,20 @@
 defmodule Tincture.PDF.Serialize do
-  @moduledoc false
+  @moduledoc """
+  Turns a `Tincture.PDF` document into PDF bytes.
+
+  `export/1` assembles the object graph — catalog, page tree, content
+  streams, resources, annotations, outlines — then writes the cross-reference
+  table and trailer.
+
+  Font embedding is a large enough concern to live on its own in
+  `Tincture.PDF.FontEmbed`, which this module calls once and then treats as a
+  set of object references. Image XObjects, the object table and the page
+  structure are handled here.
+
+  Content streams are deflate-compressed, and text is encoded according to the
+  font it is drawn with: literal or UTF-16BE for simple fonts, glyph indices
+  for composite ones. See `Tincture.PDF.Object` for the string encoding rules.
+  """
 
   require Logger
 

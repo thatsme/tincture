@@ -1,5 +1,37 @@
 defmodule Tincture.Layout.Template do
-  @moduledoc false
+  @moduledoc """
+  Page templates: margins, columns, headers, footers and pagination.
+
+  A template describes the shape of a page once; `render_document/4` then
+  flows text through as many copies of it as the content needs, numbering them
+  as it goes.
+
+      template =
+        Template.new(page_size: :a4, margins: {50, 50, 50, 50}, columns: 2)
+        |> Template.with_header("Quarterly Report", size: 14)
+        |> Template.with_footer("Page {page} of {total}")
+
+      {pdf, result} = Template.render_document(Tincture.new(), template, rich_text)
+
+  `{page}` and `{total}` in a header or footer are substituted per page. When
+  the total is not supplied it resolves to each page's own number, because the
+  real total is not known until pagination finishes — pass `:page_total`
+  explicitly if the document's length is known in advance.
+
+  `render_document/4` stops at `:max_pages` (50 by default) and reports what
+  did not fit, so runaway content cannot generate an unbounded document.
+
+  ## XML templates
+
+  `parse_xml/1` and `render_xml_document/3` build the same thing from markup,
+  for cases where the layout is authored outside the code:
+
+      <document page_size="a4" margins="50,50,50,50" columns="2">
+        <header font="Helvetica-Bold" size="14">Quarterly Report</header>
+        <footer size="9">Page {page} of {total}</footer>
+        <body font="Times-Roman" size="11">...</body>
+      </document>
+  """
 
   alias Tincture.Layout.Box
   alias Tincture.Layout.Box.FlowResult
@@ -11,7 +43,9 @@ defmodule Tincture.Layout.Template do
   @type box :: {float(), float(), float(), float()}
 
   defmodule Slot do
-    @moduledoc false
+    @moduledoc """
+    A header or footer: its text, font and size.
+    """
 
     @type t :: %__MODULE__{
             text: String.t(),
@@ -25,7 +59,9 @@ defmodule Tincture.Layout.Template do
   end
 
   defmodule RenderResult do
-    @moduledoc false
+    @moduledoc """
+    The outcome of rendering one templated page.
+    """
 
     @type t :: %__MODULE__{
             body_flow: FlowResult.t(),
@@ -39,7 +75,13 @@ defmodule Tincture.Layout.Template do
   end
 
   defmodule DocumentResult do
-    @moduledoc false
+    @moduledoc """
+    The outcome of a paginated render.
+
+    `pages_used` is how many pages were produced. `overflow?` is true when the
+    content ran past `:max_pages`, in which case `spill_text` holds what never
+    made it onto a page.
+    """
 
     @type t :: %__MODULE__{
             page_results: [RenderResult.t()],

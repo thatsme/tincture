@@ -1,6 +1,67 @@
 defmodule Tincture do
   @moduledoc """
-  Public API for building PDF documents.
+  Typographic-quality PDF generation, in pure Elixir.
+
+  A document is an immutable struct threaded through a pipeline. Nothing is
+  written until `export/1`, so a document can be built, inspected and tested
+  before any bytes exist.
+
+      Tincture.new()
+      |> Tincture.page_size(:a4)
+      |> Tincture.set_font("Helvetica", 12)
+      |> Tincture.text_at(72, 700, "Hello")
+      |> Tincture.export()
+
+  ## Coordinates
+
+  PDF user space has its origin at the **bottom-left** of the page, with y
+  increasing upwards — the opposite of most screen coordinate systems. A y of
+  700 on A4 is near the top. All positions and sizes are in points (1/72
+  inch), so A4 is 595 x 842 and US Letter is 612 x 792.
+
+  ## Text
+
+  `text_at/4` draws a single string at a point. For anything that needs to
+  wrap, use `text_paragraph/6`, which runs the typography engine: TeX
+  hyphenation and Knuth-Plass line breaking, the same global optimisation TeX
+  uses, rather than greedy first-fit.
+
+      rich = Tincture.Typography.RichText.from_plain(body, font: "Times-Roman", size: 11)
+
+      Tincture.text_paragraph(pdf, 72, 700, rich, 450,
+        align: :justified,
+        line_break: :optimal
+      )
+
+  For multi-page documents with headers, footers and page numbering, see
+  `Tincture.Layout.Template`.
+
+  ## Fonts
+
+  The 14 standard PDF fonts are always available by name. TrueType and
+  OpenType fonts are embedded with `register_ttf_font/4` and
+  `register_otf_font/4`, and are **subsetted by default** — only the glyphs
+  the document draws are embedded, which typically cuts an embedded font by
+  70-90%.
+
+  ## Architecture
+
+  Each layer is usable on its own; the one above it is a convenience.
+
+  ```mermaid
+  flowchart TD
+      A["Tincture<br/>drawing, text, links, images"] --> B
+      B["Tincture.Layout<br/>boxes, tables, page templates"] --> C
+      C["Tincture.Typography<br/>hyphenation, line breaking, kerning"] --> D
+      D["Tincture.PDF<br/>document state, fonts, serialisation"] --> E
+      E["Tincture.Font<br/>TrueType, OpenType, CFF parsing"]
+  ```
+
+  ## Zero runtime dependencies
+
+  No Chrome, no wkhtmltopdf, no NIFs, no ports. The whole pipeline — font
+  parsing, subsetting, hyphenation, line breaking, PDF serialisation — is
+  Elixir and Erlang/OTP. It runs anywhere the BEAM runs.
   """
 
   import Bitwise

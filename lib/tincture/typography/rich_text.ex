@@ -1,10 +1,36 @@
 defmodule Tincture.Typography.RichText do
-  @moduledoc false
+  @moduledoc """
+  Styled text, ready for layout.
+
+  The typography engine works on rich text rather than plain strings, because
+  line breaking has to know the width of every word, and width depends on the
+  font and size of the run it belongs to.
+
+  Most callers want `from_plain/2`:
+
+      RichText.from_plain("Hello world", font: "Times-Roman", size: 11)
+
+  Use `from_runs/1` when a paragraph mixes styles — a bold lead-in followed by
+  regular body text is one paragraph, not two, and must break across lines as
+  a unit:
+
+      RichText.from_runs([
+        %RichText.Run{text: "Warning: ", font: "Helvetica-Bold", size: 11},
+        %RichText.Run{text: "this operation cannot be undone.", font: "Helvetica", size: 11}
+      ])
+
+  Internally the runs are tokenised into words, spaces and breaks, which is
+  what the line breaker consumes. `from_tokens/1` accepts that form directly
+  and exists so text spilling from one page can continue on the next without
+  losing its styling.
+  """
 
   alias Tincture.Font
 
   defmodule Run do
-    @moduledoc false
+    @moduledoc """
+    A span of text sharing one font, size and style.
+    """
 
     @type t :: %__MODULE__{
             text: String.t(),
@@ -20,7 +46,9 @@ defmodule Tincture.Typography.RichText do
   end
 
   defmodule Word do
-    @moduledoc false
+    @moduledoc """
+    A single word token, carrying the width it measured to in its run's font.
+    """
 
     @type t :: %__MODULE__{
             text: String.t(),
@@ -38,7 +66,10 @@ defmodule Tincture.Typography.RichText do
   end
 
   defmodule Space do
-    @moduledoc false
+    @moduledoc """
+    An inter-word space. The line breaker stretches and shrinks these when
+    justifying, which is why they are tokens rather than part of the words.
+    """
 
     @type t :: %__MODULE__{
             text: String.t(),
@@ -56,7 +87,9 @@ defmodule Tincture.Typography.RichText do
   end
 
   defmodule Break do
-    @moduledoc false
+    @moduledoc """
+    An explicit line or paragraph break.
+    """
 
     @type t :: %__MODULE__{kind: :line}
     defstruct kind: :line

@@ -90,10 +90,65 @@ defmodule Tincture.MixProject do
 
   defp docs do
     [
-      main: "readme",
-      extras: ["README.md"],
+      main: "Tincture",
+      extras: ["README.md", "NOTICE", "LICENSE"],
       source_ref: "v#{@version}",
-      source_url: @source_url
+      source_url: @source_url,
+      # Mermaid is rendered client-side; ExDoc ships no diagram support itself.
+      before_closing_body_tag: &before_closing_body_tag/1,
+      groups_for_modules: [
+        Layout: [
+          Tincture.Layout.Template,
+          Tincture.Layout.Box,
+          Tincture.Layout.Table
+        ],
+        Typography: [
+          Tincture.Typography,
+          Tincture.Typography.RichText,
+          Tincture.Typography.Hyphen
+        ],
+        # The font layer is public because a caller may legitimately want to
+        # inspect a font without generating a PDF, and because each module
+        # documents one on-disk format.
+        "Font formats": [
+          Tincture.Font.Binary,
+          Tincture.Font.CFF,
+          Tincture.Font.TTF,
+          Tincture.Font.TTF.Cmap,
+          Tincture.Font.TTF.Glyf,
+          Tincture.Font.TTF.Name,
+          Tincture.Font.UnicodeRanges,
+          Tincture.Font.OpenType.Common,
+          Tincture.Font.OpenType.GPOS,
+          Tincture.Font.OpenType.GSUB
+        ],
+        "PDF internals": [
+          Tincture.PDF,
+          Tincture.PDF.Object,
+          Tincture.PDF.Serialize,
+          Tincture.PDF.FontEmbed
+        ]
+      ]
     ]
   end
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        for (const pre of document.querySelectorAll("pre code.mermaid")) {
+          const div = document.createElement("div");
+          div.className = "mermaid";
+          div.textContent = pre.textContent;
+          pre.parentNode.replaceWith(div);
+        }
+
+        mermaid.initialize({startOnLoad: true});
+      });
+    </script>
+    """
+  end
+
+  defp before_closing_body_tag(_format), do: ""
 end

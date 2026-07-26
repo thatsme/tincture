@@ -1,5 +1,44 @@
 defmodule Tincture.Typography do
-  @moduledoc false
+  @moduledoc """
+  Paragraph layout: hyphenation, line breaking and justification.
+
+  This is the part Tincture inherits most directly from Joe Armstrong's
+  erlguten, and the reason the library exists rather than wrapping a browser.
+
+  ## Line breaking
+
+  Two strategies, chosen with the `:line_break` option:
+
+    * `:greedy` — fill each line as far as it goes, then break. Fast, and what
+      most PDF libraries do.
+    * `:optimal` — Knuth-Plass. Considers the paragraph as a whole and
+      minimises total badness, so a tight line early on can be relaxed to
+      avoid a much worse one later. This is what TeX does, and it is visibly
+      better in justified text.
+
+  The optimal breaker models text as boxes, glue and penalties, and scores
+  candidate breaks on fitness class, hyphenation, consecutive hyphens, and
+  widows and orphans — all tunable per call.
+
+  ## Hyphenation
+
+  TeX hyphenation patterns, for `:en_gb`, `:da_dk`, `:fi_fi`, `:nb_no` and
+  `:sv_se`. See `Tincture.Typography.Hyphen`.
+
+  ## Example
+
+      rich = RichText.from_plain(body, font: "Times-Roman", size: 11)
+
+      Typography.layout_paragraph(rich, 450,
+        align: :justified,
+        line_break: :optimal,
+        widow_penalty: 150,
+        orphan_penalty: 150
+      )
+
+  Returns positioned `Line` structs. Most callers reach this through
+  `Tincture.text_paragraph/6` rather than calling it directly.
+  """
 
   alias Tincture.Typography.RichText
   alias Tincture.Typography.RichText.Break
@@ -22,7 +61,9 @@ defmodule Tincture.Typography do
           | {:consecutive_hyphen_penalty, number()}
 
   defmodule Line do
-    @moduledoc false
+    @moduledoc """
+    One laid-out line: its text, its tokens, its measured width and its position.
+    """
 
     @type t :: %__MODULE__{
             text: String.t(),
@@ -40,7 +81,9 @@ defmodule Tincture.Typography do
   end
 
   defmodule LayoutResult do
-    @moduledoc false
+    @moduledoc """
+    Laid-out lines, plus whatever did not fit within the line limit.
+    """
 
     @type t :: %__MODULE__{
             lines: [Line.t()],

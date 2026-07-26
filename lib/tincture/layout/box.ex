@@ -1,5 +1,23 @@
 defmodule Tincture.Layout.Box do
-  @moduledoc false
+  @moduledoc """
+  Text flow within a bounded region, and across several of them.
+
+  `flow_text/7` fills one box and reports what did not fit. `flow_across_boxes/4`
+  threads a single body of text through a list of boxes in order, which is how
+  multi-column layouts work: each column is a box, and text continues into the
+  next when one fills.
+
+      columns = [{50, 700, 240, 600}, {310, 700, 240, 600}]
+
+      {pdf, result} = Box.flow_across_boxes(pdf, rich_text, columns, line_height: 14)
+
+      if result.overflow? do
+        # result.spill_text is what did not fit in any box
+      end
+
+  Boxes are `{x, y, width, height}` in PDF user space, with `y` at the box's
+  **top** edge — text flows downward from there.
+  """
 
   alias Tincture.PDF
   alias Tincture.Typography
@@ -15,7 +33,12 @@ defmodule Tincture.Layout.Box do
   @type box :: {number(), number(), number(), number()}
 
   defmodule FlowResult do
-    @moduledoc false
+    @moduledoc """
+    What `flow_text/7` and `flow_across_boxes/4` managed to place.
+
+    `overflow?` is true when the text did not fit, and `spill_text` is what was
+    left over — pass it to another box, or another page.
+    """
 
     @type t :: %__MODULE__{
             box_results: [LayoutResult.t()],

@@ -1,5 +1,27 @@
 defmodule Tincture.Layout.Table do
-  @moduledoc false
+  @moduledoc """
+  Tabular layout with headers, borders and automatic column widths.
+
+  Pass `:auto` for the column spec to size columns from their content, or a
+  list of explicit widths in points.
+
+      rows = [
+        ["Item", "Qty", "Total"],
+        ["Widget", "2", "$40.00"],
+        ["Gadget", "1", "$15.00"]
+      ]
+
+      {pdf, result} =
+        Table.render(pdf, 50, 700, :auto, rows,
+          header_rows: 1,
+          header_font: "Helvetica-Bold",
+          table_width: 500
+        )
+
+  Cell text is escaped, so values containing parentheses or backslashes cannot
+  break the content stream. Cells wrap within their column, and `:valign`
+  controls vertical alignment when a row's cells differ in height.
+  """
 
   alias Tincture.Font
   alias Tincture.PDF
@@ -19,7 +41,9 @@ defmodule Tincture.Layout.Table do
           | {:min_col_width, number()}
 
   defmodule RenderResult do
-    @moduledoc false
+    @moduledoc """
+    Where a rendered table ended, so the next element can be placed below it.
+    """
 
     @type t :: %__MODULE__{
             widths: [float()],

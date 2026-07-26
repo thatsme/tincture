@@ -1,5 +1,25 @@
 defmodule Tincture.Font.TTF do
-  @moduledoc false
+  @moduledoc """
+  Reads the metrics and metadata a PDF needs out of a font file.
+
+  `parse_basic_tables/1` takes the bytes of a TrueType or OpenType font and
+  returns everything the rest of the library needs to lay text out and embed
+  the font: units per em, glyph count, advance widths, the bounding box,
+  style flags, the character map, kerning pairs and ligatures.
+
+  This module is a coordinator. It reads the sfnt table directory and hands
+  each table to the module that understands that format:
+
+    * `Tincture.Font.TTF.Cmap` — codepoint to glyph mapping
+    * `Tincture.Font.TTF.Glyf` — outlines and the `loca` offset table
+    * `Tincture.Font.TTF.Name` — family and style names
+    * `Tincture.Font.CFF` — PostScript outlines, for OpenType/CFF fonts
+    * `Tincture.Font.OpenType.GPOS` and `.GSUB` — kerning and ligatures
+
+  Font files are untrusted input. Every parser returns `:error` rather than
+  raising, and a table that is present but malformed fails the parse instead
+  of producing wrong metrics.
+  """
 
   import Bitwise
   require Logger

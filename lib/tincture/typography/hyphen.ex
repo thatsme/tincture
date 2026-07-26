@@ -1,5 +1,21 @@
 defmodule Tincture.Typography.Hyphen do
-  @moduledoc false
+  @moduledoc """
+  TeX hyphenation.
+
+  Splits a word into the points where a line break may fall, using Liang's
+  pattern algorithm — the same approach TeX uses, with the same pattern files.
+
+      Hyphen.hyphenate("typography", :en_gb)
+      #=> ["ty", "po", "graphy"]
+
+  Supported locales: `:en_gb`, `:da_dk`, `:fi_fi`, `:nb_no`, `:sv_se`. The
+  pattern files are bundled under `priv/hyphen/`; see `NOTICE` for their
+  provenance.
+
+  The line breaker uses this to find candidate breaks inside long words, which
+  is what lets justified text avoid the rivers of whitespace that greedy
+  breaking without hyphenation produces in narrow columns.
+  """
 
   @type locale :: :en_gb | :da_dk | :fi_fi | :nb_no | :sv_se
   @type option :: {:left_min, pos_integer()} | {:right_min, pos_integer()}
