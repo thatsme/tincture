@@ -62,6 +62,7 @@ defmodule Tincture.PDF do
   @type image_op :: {:image, number(), number(), number(), number(), pos_integer()}
   @type begin_marked_content_op :: {:begin_marked_content, String.t(), non_neg_integer()}
   @type end_marked_content_op :: {:end_marked_content}
+  @type begin_artifact_op :: {:begin_artifact}
   @type bookmark :: %{required(:title) => String.t(), required(:page_number) => pos_integer()}
   @type link_target :: {:url, String.t()} | {:page, pos_integer()}
   @type annotation_border :: :none | {number(), number(), number()}
@@ -132,6 +133,7 @@ defmodule Tincture.PDF do
           | color_op()
           | image_op()
           | begin_marked_content_op()
+          | begin_artifact_op()
           | end_marked_content_op()
 
   @type t :: %__MODULE__{
@@ -244,6 +246,30 @@ defmodule Tincture.PDF do
       |> put_structure_option(:scope, normalize_scope(tag, Keyword.get(opts, :scope)))
 
     %__MODULE__{pdf | structure_stack: [element | pdf.structure_stack]}
+  end
+
+  @doc """
+  Open an artifact: content that is decoration rather than meaning.
+
+  Rules, borders, background shading and repeating page furniture carry no
+  information a reader needs. In a tagged document every operator must be
+  either tagged or marked as an artifact — content that is neither is a
+  conformance failure, and is read out as stray noise.
+
+  An artifact has no structure element and no marked-content id; it exists only
+  to say "skip this".
+  """
+  @spec begin_artifact(t()) :: t()
+  def begin_artifact(%__MODULE__{} = pdf) do
+    append_current_op(pdf, {:begin_artifact})
+  end
+
+  @doc """
+  Close the innermost open artifact.
+  """
+  @spec end_artifact(t()) :: t()
+  def end_artifact(%__MODULE__{} = pdf) do
+    append_current_op(pdf, {:end_marked_content})
   end
 
   @doc """

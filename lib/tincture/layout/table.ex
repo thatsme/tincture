@@ -87,44 +87,26 @@ defmodule Tincture.Layout.Table do
     header_font = Keyword.get(opts, :header_font, "Helvetica-Bold")
     header_rows = max(Keyword.get(opts, :header_rows, 0), 0)
 
+    tag? = resolve_tagging(opts, pdf)
+
+    layout = %{
+      x: x * 1.0,
+      y: y * 1.0,
+      widths: widths,
+      row_height: row_height,
+      padding: padding,
+      font_size: font_size,
+      valign: valign,
+      font: font,
+      header_font: header_font,
+      header_rows: header_rows,
+      border?: border?,
+      tag?: tag?
+    }
+
     rendered_pdf =
-      normalized_rows
-      |> Enum.with_index()
-      |> Enum.reduce(pdf, fn {row, row_index}, acc_pdf ->
-        row_top = y * 1.0 - row_index * row_height
-        row_bottom = row_top - row_height
-
-        {row_pdf, _cursor_x} =
-          row
-          |> Enum.with_index()
-          |> Enum.reduce({acc_pdf, x * 1.0}, fn {cell, col_index}, {row_acc_pdf, cursor_x} ->
-            width = Enum.at(widths, col_index)
-
-            with_border =
-              if border? do
-                Tincture.rectangle(row_acc_pdf, cursor_x, row_bottom, width, row_height)
-              else
-                row_acc_pdf
-              end
-
-            cell_text = to_string(cell)
-
-            with_text =
-              if cell_text == "" do
-                with_border
-              else
-                font_name = if row_index < header_rows, do: header_font, else: font
-                text_y = text_baseline_y(row_bottom, row_height, font_size, padding, valign)
-
-                with_border
-                |> Tincture.set_font(font_name, font_size)
-                |> Tincture.text_at(cursor_x + padding, text_y, cell_text)
-              end
-
-            {with_text, cursor_x + width}
-          end)
-
-        row_pdf
+      maybe_tag(pdf, tag?, :table, [], fn tagged_pdf ->
+        render_rows(tagged_pdf, normalized_rows, layout)
       end)
 
     result = %RenderResult{
@@ -137,6 +119,110 @@ defmodule Tincture.Layout.Table do
 
     {rendered_pdf, result}
   end
+
+  # Header rows are wrapped in /THead and the rest in /TBody, which is what
+  # lets a reader repeat headers when a table is spoken row by row.
+  defp render_rows(pdf, rows, %{tag?: false} = layout) do
+    draw_rows(pdf, Enum.with_index(rows), layout)
+  end
+
+  defp render_rows(pdf, rows, %{header_rows: 0} = layout) do
+    indexed = Enum.with_index(rows)
+
+    maybe_tag(pdf, true, :tbody, [], &draw_rows(&1, indexed, layout))
+  end
+
+  defp render_rows(pdf, rows, layout) do
+    indexed = Enum.with_index(rows)
+    {head, body} = Enum.split(indexed, layout.header_rows)
+
+    pdf
+    |> maybe_tag(true, :thead, [], &draw_rows(&1, head, layout))
+    |> maybe_tag(body != [], :tbody, [], &draw_rows(&1, body, layout))
+  end
+
+  defp draw_rows(pdf, indexed_rows, layout) do
+    Enum.reduce(indexed_rows, pdf, fn {row, row_index}, acc_pdf ->
+      maybe_tag(acc_pdf, layout.tag?, :tr, [], &draw_row(&1, row, row_index, layout))
+    end)
+  end
+
+  defp draw_row(pdf, row, row_index, layout) do
+    {row_pdf, _cursor_x} =
+      row
+      |> Enum.with_index()
+      |> Enum.reduce({pdf, layout.x}, fn {cell, col_index}, {row_acc_pdf, cursor_x} ->
+        width = Enum.at(layout.widths, col_index)
+        {next_pdf, _} = draw_cell(row_acc_pdf, cell, row_index, cursor_x, width, layout)
+        {next_pdf, cursor_x + width}
+      end)
+
+    row_pdf
+  end
+
+  defp draw_cell(pdf, cell, row_index, cursor_x, width, layout) do
+    row_top = layout.y - row_index * layout.row_height
+    row_bottom = row_top - layout.row_height
+
+    # A border is decoration, so in a tagged document it is an artifact rather
+    # than untagged content - which would otherwise be read out as noise.
+    with_border =
+      if layout.border? do
+        maybe_artifact(pdf, layout.tag?, fn acc ->
+          Tincture.rectangle(acc, cursor_x, row_bottom, width, layout.row_height)
+        end)
+      else
+        pdf
+      end
+
+    cell_text = to_string(cell)
+
+    with_text =
+      if cell_text == "" do
+        with_border
+      else
+        header? = row_index < layout.header_rows
+        font_name = if header?, do: layout.header_font, else: layout.font
+
+        text_y =
+          text_baseline_y(
+            row_bottom,
+            layout.row_height,
+            layout.font_size,
+            layout.padding,
+            layout.valign
+          )
+
+        {cell_tag, cell_opts} = if header?, do: {:th, [scope: :column]}, else: {:td, []}
+
+        maybe_tag(with_border, layout.tag?, cell_tag, cell_opts, fn acc ->
+          acc
+          |> Tincture.set_font(font_name, layout.font_size)
+          |> Tincture.text_at(cursor_x + layout.padding, text_y, cell_text)
+        end)
+      end
+
+    {with_text, cursor_x + width}
+  end
+
+  # Defaults to tagging only when the caller is already tagging. A table is the
+  # one element that most needs structure, but adding it to a document with no
+  # other structure produces a tree containing nothing else, which reads worse
+  # than no tagging at all.
+  defp resolve_tagging(opts, pdf) do
+    case Keyword.get(opts, :tag, :auto) do
+      :auto -> PDF.tagged?(pdf) or pdf.structure_stack != []
+      true -> true
+      false -> false
+      other -> raise ArgumentError, ":tag must be true, false or :auto, got: #{inspect(other)}"
+    end
+  end
+
+  defp maybe_tag(pdf, false, _tag, _opts, fun), do: fun.(pdf)
+  defp maybe_tag(pdf, true, tag, opts, fun), do: Tincture.tag(pdf, tag, opts, fun)
+
+  defp maybe_artifact(pdf, false, fun), do: fun.(pdf)
+  defp maybe_artifact(pdf, true, fun), do: Tincture.artifact(pdf, fun)
 
   defp normalize_rows([]), do: raise(ArgumentError, "rows must not be empty")
 

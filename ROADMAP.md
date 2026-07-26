@@ -37,9 +37,8 @@ What remains:
 - **Validation.** Nothing here has been checked against veraPDF or PAC, so
   Tincture makes no PDF/UA conformance claim. Until a document is validated,
   "tagged" and "conformant" are different words.
-- **Tagging the layout helpers.** `Layout.Table.render/6` draws a whole grid in
-  one call, so a tagged table has to be built by hand today, as
-  `examples/accessible.exs` does. The helpers should emit their own structure.
+- **Tagging the remaining layout helpers.** `Layout.Table.render/6` now emits
+  its own structure. `Layout.Template` and `Layout.Box` do not.
 - `/Tabs /S` on pages, so tab order follows structure rather than annotation
   order.
 - Automatic alt text prompting: nothing forces a `:figure` to carry `:alt`,
@@ -181,8 +180,8 @@ This is arguably a separate library. Listed because evaluators will ask, and
 
 1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
 2. **Transparency and shading** — small, self-contained, visible.
-3. ~~Tagged PDF~~ — structure done. **Validating it** against veraPDF, and
-   tagging the layout helpers, remain.
+3. ~~Tagged PDF~~ — structure done, tables included. **Validating it** against
+   veraPDF remains.
 4. **PDF/A** — mostly constraints, and partly depends on 3.
 5. **Digital signatures** — self-contained but touches export.
 6. **Object and xref streams** — file size.

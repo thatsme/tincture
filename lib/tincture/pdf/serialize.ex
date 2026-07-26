@@ -983,6 +983,9 @@ defmodule Tincture.PDF.Serialize do
       {:begin_marked_content, tag, mcid} ->
         "/#{tag} <</MCID #{mcid}>> BDC\n"
 
+      {:begin_artifact} ->
+        "/Artifact BMC\n"
+
       {:end_marked_content} ->
         "EMC\n"
 

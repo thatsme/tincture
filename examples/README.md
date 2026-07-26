@@ -75,9 +75,10 @@ Shows:
 - **`Tincture.set_language/2`**, without which a screen reader guesses the
   pronunciation.
 
-The table is drawn by hand rather than with `Layout.Table`, because that helper
-draws a grid in one call and a tagged table needs each cell wrapped
-individually. Tagging the layout helpers is on the roadmap.
+The table comes from `Layout.Table`, which tags itself — rows, cells, header
+scope and artifact borders — when the document is being tagged. The row rules
+are marked with `Tincture.artifact/2`, so a reader skips them instead of
+announcing them as content.
 
 This produces structure, not certified conformance — see the note the script
 prints.

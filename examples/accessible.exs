@@ -9,6 +9,9 @@ Code.require_file("support/fonts.exs", __DIR__)
 #
 # Nothing here changes what the page looks like. That is the point: tagging is
 # invisible until something needs to read the document rather than display it.
+#
+# The table is built with Layout.Table, which tags itself when the document is
+# being tagged - rows, cells, header scope and artifact borders included.
 
 alias Tincture.Typography.RichText
 
@@ -105,12 +108,11 @@ pdf =
       end)
 
     # --- table ------------------------------------------------------------
-    # Drawn by hand rather than with Layout.Table, because a tagged table needs
-    # each cell wrapped individually and the table helper draws a whole grid in
-    # one call. Tagging the helper's output is on the roadmap.
+    # Layout.Table tags itself. Inside a tagged document it emits /Table,
+    # /THead, /TBody, /TR and /TH or /TD per cell, gives header cells a /Scope
+    # so a reader knows which cells they govern, and marks its own borders as
+    # artifacts. None of that has to be written here.
     table_top = page_h - 290
-    row_height = 26
-    col_x = [margin, margin + 250, margin + 380]
 
     pdf =
       Tincture.tag(pdf, :section, [title: "Revenue by region"], fn pdf ->
@@ -122,55 +124,36 @@ pdf =
             |> Tincture.text_at(margin, table_top + 24, "REVENUE BY REGION")
           end)
 
-        Tincture.tag(pdf, :table, fn pdf ->
-          # Header row. :scope tells a reader which cells each header governs,
-          # which is what lets it announce "South West, Revenue, 742,300"
-          # instead of reading a bare number.
-          pdf =
-            Tincture.tag(pdf, :tr, fn pdf ->
-              [{"Region", 0}, {"Revenue (GBP)", 1}, {"Change", 2}]
-              |> Enum.reduce(pdf, fn {heading, col}, acc ->
-                Tincture.tag(acc, :th, [scope: :column], fn acc ->
-                  acc
-                  |> Tincture.set_fill_color(muted)
-                  |> Tincture.set_font(sans, 8)
-                  |> Tincture.text_at(Enum.at(col_x, col), table_top, String.upcase(heading))
-                end)
-              end)
-            end)
+        # Graphics state persists, and the heading above left the fill colour on
+        # the accent. Table.render draws text in whatever colour is current.
+        pdf = Tincture.set_fill_color(pdf, ink)
 
-          pdf =
-            pdf
-            |> Tincture.set_stroke_color(rule)
-            |> Tincture.line(margin, table_top - 8, page_w - margin, table_top - 8)
-            |> Tincture.stroke()
+        table_rows =
+          [["Region", "Revenue (GBP)", "Change"]] ++
+            Enum.map(rows, fn {region, revenue, change} -> [region, revenue, change] end)
 
-          rows
-          |> Enum.with_index()
-          |> Enum.reduce(pdf, fn {{region, revenue, change}, index}, acc ->
-            y = table_top - 26 - index * row_height
+        {pdf, table} =
+          Tincture.Layout.Table.render(pdf, margin, table_top + 8, [250, 130, 115], table_rows,
+            header_rows: 1,
+            font: body,
+            header_font: sans,
+            font_size: 10,
+            padding: 7,
+            border: false,
+            table_width: content_w
+          )
 
-            acc =
-              Tincture.tag(acc, :tr, fn acc ->
-                # The region name is itself a header for its row.
-                acc
-                |> Tincture.tag(:th, [scope: :row], fn acc ->
-                  acc
-                  |> Tincture.set_fill_color(ink)
-                  |> Tincture.set_font(body, 10.5)
-                  |> Tincture.text_at(Enum.at(col_x, 0), y, region)
-                end)
-                |> Tincture.tag(:td, fn acc ->
-                  Tincture.text_at(acc, Enum.at(col_x, 1), y, revenue)
-                end)
-                |> Tincture.tag(:td, fn acc ->
-                  Tincture.text_at(acc, Enum.at(col_x, 2), y, change)
-                end)
-              end)
+        # Rules are decoration: an artifact, so a screen reader skips them
+        # rather than announcing them as content.
+        Tincture.artifact(pdf, fn pdf ->
+          0..table.rows
+          |> Enum.reduce(pdf, fn index, acc ->
+            y = table_top + 8 - index * table.row_height
 
             acc
             |> Tincture.set_stroke_color(rule)
-            |> Tincture.line(margin, y - 9, page_w - margin, y - 9)
+            |> Tincture.set_line_width(0.75)
+            |> Tincture.line(margin, y, page_w - margin, y)
             |> Tincture.stroke()
           end)
         end)

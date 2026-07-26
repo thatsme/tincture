@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This produces the structure; it does not *certify* PDF/UA. Conformance is a
   validation exercise against a checker such as veraPDF or PAC, which enforces
   further rules a library cannot check on your behalf.
+- **`Tincture.Layout.Table.render/6` tags itself.** Inside a tagged document it
+  emits `/Table`, `/THead`, `/TBody`, `/TR` and a `/TH` or `/TD` per cell, gives
+  header cells a `/Scope`, and marks its own borders as artifacts. It could not
+  be tagged by hand, because it draws the whole grid in one call. Controlled by
+  `:tag`, which defaults to `:auto` — tagging only when the caller is already
+  tagging, since a structure tree containing nothing but a table reads worse
+  than none at all.
+- **`Tincture.artifact/2`**, marking decoration — rules, borders, page furniture
+  — as content to skip. In a tagged document every operator must be either
+  tagged or an artifact; anything that is neither is announced as stray noise.
 - **Telemetry.** Three spans — `[:tincture, :export]`, `[:tincture, :page]` and
   `[:tincture, :font, :embed]` — covering document duration and size, per-page
   timing, and per-font embedding with source and embedded sizes so subsetting is

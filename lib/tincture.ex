@@ -1106,6 +1106,42 @@ defmodule Tincture do
   end
 
   @doc """
+  Mark a block of drawing as an artifact: decoration, not meaning.
+
+  Rules, borders, background shading, page furniture — content a sighted reader
+  parses as visual structure and a screen reader should skip entirely. In a
+  tagged document every operator must be either tagged or marked as an
+  artifact; anything that is neither is read out as stray noise and fails
+  conformance.
+
+      pdf
+      |> Tincture.artifact(fn pdf ->
+        pdf
+        |> Tincture.set_stroke_color({0.85, 0.86, 0.88})
+        |> Tincture.line(50, 700, 545, 700)
+        |> Tincture.stroke()
+      end)
+
+  `Tincture.Layout.Table.render/6` does this for its own borders when it is
+  tagging.
+  """
+  @spec artifact(PDF.t(), (PDF.t() -> PDF.t())) :: PDF.t()
+  def artifact(%PDF{} = pdf, fun) when is_function(fun, 1) do
+    pdf
+    |> PDF.begin_artifact()
+    |> fun.()
+    |> case do
+      %PDF{} = marked ->
+        PDF.end_artifact(marked)
+
+      other ->
+        raise ArgumentError,
+              "the function passed to artifact/2 must return a %Tincture.PDF{}, " <>
+                "got: #{inspect(other)}"
+    end
+  end
+
+  @doc """
   Set the document's natural language, as a BCP 47 tag such as `"en-GB"`.
 
   Without it a screen reader has to guess which language to pronounce the text
