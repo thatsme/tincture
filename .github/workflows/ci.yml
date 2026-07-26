@@ -15,7 +15,7 @@ jobs:
   # pinned to a single version. Dialyzer and coverage live here too, since a PLT
   # is expensive to build and neither result varies across versions.
   lint:
-    name: Lint (Elixir ${{ env.ELIXIR_VERSION }})
+    name: Lint (Elixir 1.19.5 / OTP 28.1)
     runs-on: ubuntu-latest
     env:
       ELIXIR_VERSION: "1.19.5"
