@@ -44,3 +44,7 @@ tincture-*.tar
 .env
 .env.*
 !.env.example
+
+# Generated documents from examples and manual checks.
+/output/*
+!/output/.gitkeep

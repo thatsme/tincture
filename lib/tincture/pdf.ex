@@ -16,9 +16,10 @@ defmodule Tincture.PDF do
           | {:enforce_embedding_permissions, boolean()}
   @type text_op :: {:text_at, number(), number(), String.t(), font()}
   @type text_rotated_op :: {:text_at_rotated, number(), number(), number(), String.t(), font()}
-  @type draw_op :: {:line, number(), number(), number(), number()}
-  @type rect_op :: {:rectangle, number(), number(), number(), number()}
-  @type circle_op :: {:circle, number(), number(), number()}
+  @type paint :: :stroke | :fill | :fill_even_odd | :fill_and_stroke | :none
+  @type draw_op :: {:line, number(), number(), number(), number(), paint()}
+  @type rect_op :: {:rectangle, number(), number(), number(), number(), paint()}
+  @type circle_op :: {:circle, number(), number(), number(), paint()}
   @type move_to_op :: {:move_to, number(), number()}
   @type line_to_op :: {:line_to, number(), number()}
   @type bezier_op :: {:bezier, number(), number(), number(), number(), number(), number()}

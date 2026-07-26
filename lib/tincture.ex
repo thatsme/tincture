@@ -80,6 +80,8 @@ defmodule Tincture do
   alias Tincture.Unicode
 
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
+  @typedoc "How a shape is painted. See `rectangle/6`."
+  @type paint :: PDF.paint()
   @type rich_text :: RichText.t()
   @type paragraph_option ::
           {:align, :left | :center | :right | :justified}
@@ -724,25 +726,48 @@ defmodule Tincture do
   @doc """
   Draw a stroked line between two points.
   """
-  @spec line(PDF.t(), number(), number(), number(), number()) :: PDF.t()
-  def line(%PDF{} = pdf, x1, y1, x2, y2) do
-    Ops.line(pdf, x1, y1, x2, y2)
+  @spec line(PDF.t(), number(), number(), number(), number(), paint()) :: PDF.t()
+  def line(%PDF{} = pdf, x1, y1, x2, y2, paint \\ :stroke) do
+    Ops.line(pdf, x1, y1, x2, y2, paint)
   end
 
   @doc """
-  Draw a stroked rectangle.
+  Draw a rectangle.
+
+  ## Painting
+
+  `paint` selects how the shape is painted, and defaults to `:stroke`:
+
+    * `:stroke` — outline only
+    * `:fill` — filled with the current fill colour
+    * `:fill_even_odd` — filled using the even-odd rule
+    * `:fill_and_stroke` — both
+    * `:none` — emit the path without painting, to be painted by a later
+      `fill/1` or `stroke/1`
+
+  A PDF path-painting operator also *ends* the path, so a shape can be painted
+  once. Calling `fill/1` after a shape that already stroked itself does
+  nothing, because there is no longer a path to fill.
+
+  ## Examples
+
+      # A filled band across the top of the page.
+      pdf
+      |> Tincture.set_fill_color({0.06, 0.35, 0.55})
+      |> Tincture.rectangle(0, 746, 595, 96, :fill)
+
   """
-  @spec rectangle(PDF.t(), number(), number(), number(), number()) :: PDF.t()
-  def rectangle(%PDF{} = pdf, x, y, width, height) do
-    Ops.rectangle(pdf, x, y, width, height)
+  @spec rectangle(PDF.t(), number(), number(), number(), number(), paint()) :: PDF.t()
+  def rectangle(%PDF{} = pdf, x, y, width, height, paint \\ :stroke) do
+    Ops.rectangle(pdf, x, y, width, height, paint)
   end
 
   @doc """
-  Draw a stroked circle.
+  Draw a circle. See `rectangle/6` for the `paint` modes.
   """
-  @spec circle(PDF.t(), number(), number(), number()) :: PDF.t()
-  def circle(%PDF{} = pdf, cx, cy, radius) do
-    Ops.circle(pdf, cx, cy, radius)
+  @spec circle(PDF.t(), number(), number(), number(), paint()) :: PDF.t()
+  def circle(%PDF{} = pdf, cx, cy, radius, paint \\ :stroke) do
+    Ops.circle(pdf, cx, cy, radius, paint)
   end
 
   @doc """

@@ -587,14 +587,16 @@ defmodule Tincture.PDF.Serialize do
 
         "BT\n/#{font_ref} #{Object.num(size)} Tf\n#{Object.num(a)} #{Object.num(b)} #{Object.num(c)} #{Object.num(d)} #{Object.num(x)} #{Object.num(y)} Tm\n#{encoded_text} Tj\nET\n"
 
-      {:line, x1, y1, x2, y2} ->
-        "#{Object.num(x1)} #{Object.num(y1)} m\n#{Object.num(x2)} #{Object.num(y2)} l\nS\n"
+      {:line, x1, y1, x2, y2, paint} ->
+        "#{Object.num(x1)} #{Object.num(y1)} m\n#{Object.num(x2)} #{Object.num(y2)} l\n" <>
+          paint_operator(paint)
 
-      {:rectangle, x, y, width, height} ->
-        "#{Object.num(x)} #{Object.num(y)} #{Object.num(width)} #{Object.num(height)} re\nS\n"
+      {:rectangle, x, y, width, height, paint} ->
+        "#{Object.num(x)} #{Object.num(y)} #{Object.num(width)} #{Object.num(height)} re\n" <>
+          paint_operator(paint)
 
-      {:circle, cx, cy, radius} ->
-        bezier_circle(cx, cy, radius)
+      {:circle, cx, cy, radius, paint} ->
+        bezier_circle(cx, cy, radius) <> paint_operator(paint)
 
       {:set_stroke_color, {r, g, b}} ->
         "#{Object.num(r)} #{Object.num(g)} #{Object.num(b)} RG\n"
@@ -652,6 +654,15 @@ defmodule Tincture.PDF.Serialize do
     end)
   end
 
+  # A path-painting operator also ends the path, which is why a shape can be
+  # stroked or filled but not both by chaining two of them.
+  defp paint_operator(:stroke), do: "S\n"
+  defp paint_operator(:fill), do: "f\n"
+  defp paint_operator(:fill_even_odd), do: "f*\n"
+  defp paint_operator(:fill_and_stroke), do: "B\n"
+  # `n` ends the path without painting, leaving the caller to paint it.
+  defp paint_operator(:none), do: "n\n"
+
   defp bezier_circle(cx, cy, radius) do
     k = radius * 0.552_284_749_831
     x0 = cx + radius
@@ -689,8 +700,7 @@ defmodule Tincture.PDF.Serialize do
       "#{Object.num(x1)} #{Object.num(y1)} #{Object.num(x2)} #{Object.num(y2)} #{Object.num(x3)} #{Object.num(y3)} c\n" <>
       "#{Object.num(x4)} #{Object.num(y4)} #{Object.num(x5)} #{Object.num(y5)} #{Object.num(x6)} #{Object.num(y6)} c\n" <>
       "#{Object.num(x7)} #{Object.num(y7)} #{Object.num(x8)} #{Object.num(y8)} #{Object.num(x9)} #{Object.num(y9)} c\n" <>
-      "#{Object.num(x10)} #{Object.num(y10)} #{Object.num(x11)} #{Object.num(y11)} #{Object.num(x12)} #{Object.num(y12)} c\n" <>
-      "S\n"
+      "#{Object.num(x10)} #{Object.num(y10)} #{Object.num(x11)} #{Object.num(y11)} #{Object.num(x12)} #{Object.num(y12)} c\n"
   end
 
   defp rotation_matrix(angle_degrees) do

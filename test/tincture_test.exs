@@ -3740,7 +3740,7 @@ defmodule TinctureTest do
       Tincture.new()
       |> Tincture.line(50, 695, 200, 695)
 
-    assert pdf.operations == [{:line, 50, 695, 200, 695}]
+    assert pdf.operations == [{:line, 50, 695, 200, 695, :stroke}]
 
     pdf_binary = Tincture.export(pdf)
 
@@ -3752,7 +3752,7 @@ defmodule TinctureTest do
       Tincture.new()
       |> Tincture.rectangle(20, 600, 120, 40)
 
-    assert pdf.operations == [{:rectangle, 20, 600, 120, 40}]
+    assert pdf.operations == [{:rectangle, 20, 600, 120, 40, :stroke}]
 
     pdf_binary = Tincture.export(pdf)
 
@@ -3775,7 +3775,7 @@ defmodule TinctureTest do
       Tincture.new()
       |> Tincture.circle(100, 200, 30)
 
-    assert pdf.operations == [{:circle, 100, 200, 30}]
+    assert pdf.operations == [{:circle, 100, 200, 30, :stroke}]
 
     pdf_binary = Tincture.export(pdf)
 

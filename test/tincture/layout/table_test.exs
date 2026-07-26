@@ -24,7 +24,7 @@ defmodule Tincture.Layout.TableTest do
     assert %RenderResult{widths: [80.0, 40.0], rows: 3, columns: 2} = result
     assert result.height == result.row_height * 3
 
-    rect_ops = Enum.filter(pdf.operations, &match?({:rectangle, _, _, _, _}, &1))
+    rect_ops = Enum.filter(pdf.operations, &match?({:rectangle, _, _, _, _, _}, &1))
     assert length(rect_ops) == 6
 
     assert Enum.any?(
@@ -54,7 +54,7 @@ defmodule Tincture.Layout.TableTest do
     assert %RenderResult{rows: 1, columns: 2} = result
     assert_in_delta Enum.sum(result.widths), 120.0, 0.0001
 
-    refute Enum.any?(pdf.operations, &match?({:rectangle, _, _, _, _}, &1))
+    refute Enum.any?(pdf.operations, &match?({:rectangle, _, _, _, _, _}, &1))
     assert Enum.any?(pdf.operations, &match?({:text_at, 12.0, _, "A", {"Courier", 10.0}}, &1))
   end
 

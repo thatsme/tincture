@@ -29,22 +29,36 @@ defmodule Tincture.PDF.Ops do
     PDF.append_current_op(pdf, op)
   end
 
-  @spec line(PDF.t(), number(), number(), number(), number()) :: PDF.t()
-  def line(%PDF{} = pdf, x1, y1, x2, y2)
+  @spec line(PDF.t(), number(), number(), number(), number(), PDF.paint()) :: PDF.t()
+  def line(%PDF{} = pdf, x1, y1, x2, y2, paint \\ :stroke)
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) do
-    PDF.append_current_op(pdf, {:line, x1, y1, x2, y2})
+    PDF.append_current_op(pdf, {:line, x1, y1, x2, y2, normalize_paint(paint)})
   end
 
-  @spec rectangle(PDF.t(), number(), number(), number(), number()) :: PDF.t()
-  def rectangle(%PDF{} = pdf, x, y, width, height)
+  @spec rectangle(PDF.t(), number(), number(), number(), number(), PDF.paint()) :: PDF.t()
+  def rectangle(%PDF{} = pdf, x, y, width, height, paint \\ :stroke)
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) do
-    PDF.append_current_op(pdf, {:rectangle, x, y, width, height})
+    PDF.append_current_op(pdf, {:rectangle, x, y, width, height, normalize_paint(paint)})
   end
 
-  @spec circle(PDF.t(), number(), number(), number()) :: PDF.t()
-  def circle(%PDF{} = pdf, cx, cy, radius)
+  @spec circle(PDF.t(), number(), number(), number(), PDF.paint()) :: PDF.t()
+  def circle(%PDF{} = pdf, cx, cy, radius, paint \\ :stroke)
       when is_number(cx) and is_number(cy) and is_number(radius) and radius > 0 do
-    PDF.append_current_op(pdf, {:circle, cx, cy, radius})
+    PDF.append_current_op(pdf, {:circle, cx, cy, radius, normalize_paint(paint)})
+  end
+
+  # A path-painting operator ends the path, so a shape can be stroked, filled
+  # or both - but only once. Emitting `S` unconditionally, as these did
+  # before, made a filled rectangle impossible: the following `f` had no path
+  # left to act on and silently did nothing.
+  defp normalize_paint(paint)
+       when paint in [:stroke, :fill, :fill_and_stroke, :fill_even_odd, :none],
+       do: paint
+
+  defp normalize_paint(other) do
+    raise ArgumentError,
+          "paint must be :stroke, :fill, :fill_and_stroke, :fill_even_odd or :none, " <>
+            "got: #{inspect(other)}"
   end
 
   @spec set_stroke_color(PDF.t(), {number(), number(), number()}) :: PDF.t()

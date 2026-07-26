@@ -42,7 +42,7 @@ defmodule Tincture.EgTest8ParityTest do
     assert second_result.columns == 2
     assert_in_delta Enum.sum(second_result.widths), 280.0, 0.0001
 
-    rect_ops = Enum.filter(pdf.operations, &match?({:rectangle, _, _, _, _}, &1))
+    rect_ops = Enum.filter(pdf.operations, &match?({:rectangle, _, _, _, _, _}, &1))
     assert length(rect_ops) == 12
 
     assert Enum.any?(
