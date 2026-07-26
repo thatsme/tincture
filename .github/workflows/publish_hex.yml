@@ -1,9 +1,14 @@
 name: Publish Hex
 
+# Manual only. Tincture is not on Hex yet, and a tag firing this produces a
+# failing run rather than a release. Re-enable the tag trigger by restoring:
+#
+#   push:
+#     tags:
+#       - "v*"
+#
+# once HEX_API_KEY is set and publishing is intended.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 jobs:

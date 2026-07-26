@@ -10,6 +10,17 @@ See [ROADMAP.md](ROADMAP.md) for what is missing and in what order — including
 the gaps that matter for enterprise adoption (tagged PDF, PDF/A, digital
 signatures).
 
+## Status
+
+Tincture is not published to Hex. The engine is mature and the test suite is
+thorough, but no one has yet generated a real document against a real
+requirement and opened it in Acrobat — everything is verified against fixtures
+written alongside the code. Publishing claims a name permanently and invites
+dependencies, so it waits until the library has been used in anger.
+
+Use it from git in the meantime. [ROADMAP.md](ROADMAP.md) sets out what is
+missing and in what order.
+
 ## Why?
 
 The Elixir ecosystem lacks a native PDF generation library with real typographic capabilities. Most existing options are either wrappers around external tools (wkhtmltopdf, Chrome headless) or basic PDF writers without proper text layout. Tincture fills this gap by bringing battle-tested typesetting algorithms — including TeX-style hyphenation and global line-break optimization — directly into Elixir.
@@ -31,9 +42,11 @@ Tincture is an independent continuation. It is not endorsed by, affiliated with,
 
 ## Quick Start
 
+Not on Hex yet ([why](#status)). For now:
+
 ```elixir
-# Add to mix.exs
-{:tincture, "~> 0.1.0"}
+# mix.exs
+{:tincture, github: "thatsme/tincture", tag: "v0.1.0"}
 ```
 
 ```elixir
