@@ -11,9 +11,13 @@ defmodule Tincture.PDF.Serialize do
   set of object references. Image XObjects, the object table and the page
   structure are handled here.
 
-  Content streams are deflate-compressed, and text is encoded according to the
-  font it is drawn with: literal or UTF-16BE for simple fonts, glyph indices
-  for composite ones. See `Tincture.PDF.Object` for the string encoding rules.
+  Text is encoded according to the font it is drawn with: literal or UTF-16BE
+  for simple fonts, glyph indices for composite ones. See `Tincture.PDF.Object`
+  for the string encoding rules.
+
+  Content streams are written **uncompressed**. Image data carries its own
+  filter, but page content does not, which costs file size on text-heavy
+  documents — see the object and cross-reference stream item on the roadmap.
   """
 
   require Logger
@@ -24,6 +28,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.FontEmbed
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
+  alias Tincture.PDF.Structure
   alias Tincture.Telemetry
 
   @spec export(PDF.t()) :: binary()
@@ -67,6 +72,11 @@ defmodule Tincture.PDF.Serialize do
     {form_field_refs, widget_refs, form_field_objects} =
       build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id)
 
+    structure_start_id = form_fields_start_id + length(form_field_objects)
+
+    {struct_tree_ref, structure_objects} =
+      build_structure_objects(pdf, page_object_refs, page_numbers, structure_start_id)
+
     kids =
       page_numbers
       |> Enum.with_index()
@@ -100,8 +110,14 @@ defmodule Tincture.PDF.Serialize do
             page_object_refs
           )
 
+        # The key into the structure parent tree. It is the page index rather
+        # than an object id, so it can be written before structure objects
+        # have been allocated.
+        struct_parents =
+          if Map.has_key?(pdf.mcid_counters, page_number), do: " /StructParents #{idx}", else: ""
+
         page_body =
-          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots} >>"
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots}#{struct_parents} >>"
 
         content_body = ["<< /Length #{content_length} >>\nstream\n", content_stream, "endstream"]
 
@@ -109,10 +125,11 @@ defmodule Tincture.PDF.Serialize do
       end)
 
     base_object_bodies = [
-      catalog_object_body(outlines_ref, form_field_refs, pdf.form_fields),
+      catalog_object_body(outlines_ref, form_field_refs, pdf.form_fields, struct_tree_ref, pdf),
       "<< /Type /Pages /Kids [#{kids}] /Count #{page_count} >>"
       | page_objects ++
-          embedded_font_objects ++ image_objects ++ outline_objects ++ form_field_objects
+          embedded_font_objects ++
+          image_objects ++ outline_objects ++ form_field_objects ++ structure_objects
     ]
 
     {object_bodies, info_ref} =
@@ -131,15 +148,120 @@ defmodule Tincture.PDF.Serialize do
   defp page_object_id(index), do: 3 + index * 2
   defp content_object_id(index), do: page_object_id(index) + 1
 
-  defp catalog_object_body(outlines_ref, form_field_refs, form_fields) do
+  defp catalog_object_body(outlines_ref, form_field_refs, form_fields, struct_tree_ref, pdf) do
     outlines =
       case outlines_ref do
         nil -> ""
         id -> " /Outlines #{id} 0 R /PageMode /UseOutlines"
       end
 
-    "<< /Type /Catalog /Pages 2 0 R#{outlines}#{acro_form_entry(form_field_refs, form_fields)} >>"
+    # /MarkInfo is what declares the document tagged; without it a reader is
+    # entitled to ignore the structure tree entirely.
+    structure =
+      case struct_tree_ref do
+        nil -> ""
+        id -> " /StructTreeRoot #{id} 0 R /MarkInfo << /Marked true >>"
+      end
+
+    language =
+      case pdf.language do
+        nil -> ""
+        lang -> " /Lang #{Object.format_text(lang)}"
+      end
+
+    "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
+      "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language} >>"
   end
+
+  defp build_structure_objects(%PDF{structure_tree: []}, _refs, _pages, _start_id), do: {nil, []}
+
+  defp build_structure_objects(pdf, page_object_refs, page_numbers, start_id) do
+    root_id = start_id
+    parent_tree_id = start_id + 1
+    first_element_id = start_id + 2
+
+    flattened = Structure.flatten(pdf.structure_tree)
+    ids = flattened |> Enum.with_index(first_element_id) |> Map.new(fn {el, id} -> {el, id} end)
+
+    # Depth-first, parents first, so a parent's kids are already numbered.
+    # Built once rather than searched per element, which would be quadratic.
+    parents =
+      for parent <- flattened, kid <- parent.kids, into: %{}, do: {kid, parent}
+
+    element_objects =
+      Enum.map(flattened, fn element ->
+        structure_element_body(element, ids, root_id, parents, page_object_refs)
+      end)
+
+    root_kids =
+      Enum.map_join(pdf.structure_tree, " ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+
+    root =
+      "<< /Type /StructTreeRoot /K [#{root_kids}] /ParentTree #{parent_tree_id} 0 R" <>
+        " /ParentTreeNextKey #{length(page_numbers)} >>"
+
+    {root_id, [root, parent_tree_body(flattened, ids, page_numbers) | element_objects]}
+  end
+
+  # Maps each page's /StructParents key to an array indexed by MCID, so a
+  # reader that finds marked content can get back to the element owning it.
+  defp parent_tree_body(flattened, ids, page_numbers) do
+    by_page =
+      flattened
+      |> Enum.filter(& &1.mcid)
+      |> Enum.group_by(& &1.page_number)
+
+    nums =
+      page_numbers
+      |> Enum.with_index()
+      |> Enum.filter(fn {page_number, _idx} -> Map.has_key?(by_page, page_number) end)
+      |> Enum.map_join(" ", fn {page_number, idx} ->
+        refs =
+          by_page
+          |> Map.fetch!(page_number)
+          |> Enum.sort_by(& &1.mcid)
+          |> Enum.map_join(" ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+
+        "#{idx} [#{refs}]"
+      end)
+
+    "<< /Nums [#{nums}] >>"
+  end
+
+  defp structure_element_body(element, ids, root_id, parents, page_object_refs) do
+    parent_id =
+      case Map.get(parents, element) do
+        nil -> root_id
+        parent -> Map.fetch!(ids, parent)
+      end
+
+    page_ref = Map.fetch!(page_object_refs, element.page_number)
+
+    kids =
+      case element.mcid do
+        nil -> []
+        mcid -> [Integer.to_string(mcid)]
+      end ++ Enum.map(element.kids, fn kid -> "#{Map.fetch!(ids, kid)} 0 R" end)
+
+    kids_entry = if kids == [], do: "", else: " /K [#{Enum.join(kids, " ")}]"
+
+    "<< /Type /StructElem /S /#{Structure.tag_name(element.tag)}" <>
+      " /P #{parent_id} 0 R /Pg #{page_ref} 0 R" <>
+      kids_entry <>
+      structure_text_entry(" /Alt ", element[:alt]) <>
+      structure_text_entry(" /ActualText ", element[:actual_text]) <>
+      structure_text_entry(" /T ", element[:title]) <>
+      structure_text_entry(" /Lang ", element[:lang]) <>
+      scope_entry(element[:scope]) <> " >>"
+  end
+
+  defp structure_text_entry(_key, nil), do: ""
+  defp structure_text_entry(key, value), do: key <> Object.format_text(value)
+
+  defp scope_entry(nil), do: ""
+  defp scope_entry(:row), do: " /Scope /Row"
+  defp scope_entry(:column), do: " /Scope /Column"
+  defp scope_entry(:both), do: " /Scope /Both"
 
   defp acro_form_entry([], _form_fields), do: ""
 
@@ -858,6 +980,12 @@ defmodule Tincture.PDF.Serialize do
 
   defp content_stream(operations, font_aliases, embedded_font_text_modes) do
     Enum.map_join(operations, "", fn
+      {:begin_marked_content, tag, mcid} ->
+        "/#{tag} <</MCID #{mcid}>> BDC\n"
+
+      {:end_marked_content} ->
+        "EMC\n"
+
       {:text_at, x, y, text, {font_name, size}} ->
         font_ref = Map.fetch!(font_aliases, font_name)
         text_mode = Map.get(embedded_font_text_modes, font_name, :pdf_text)

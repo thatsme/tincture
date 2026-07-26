@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tagged PDF, for accessibility.** `Tincture.tag/4` and
+  `Tincture.set_language/2` produce logical structure: a `/StructTreeRoot`,
+  marked content bracketing the operators that draw each element, a parent tree
+  linking the two, `/MarkInfo`, `/Lang`, alternative text, and `/Scope` on table
+  header cells. An untagged PDF is a picture of a document — nothing records
+  which glyphs are a heading or what order to read them in — so this is the
+  layer assistive technology actually reads.
+
+  This produces the structure; it does not *certify* PDF/UA. Conformance is a
+  validation exercise against a checker such as veraPDF or PAC, which enforces
+  further rules a library cannot check on your behalf.
 - **Telemetry.** Three spans — `[:tincture, :export]`, `[:tincture, :page]` and
   `[:tincture, :font, :embed]` — covering document duration and size, per-page
   timing, and per-font embedding with source and embedded sizes so subsetting is

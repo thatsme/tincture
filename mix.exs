@@ -79,6 +79,7 @@ defmodule Tincture.MixProject do
       examples: [
         "run examples/invoice.exs",
         "run examples/form.exs",
+        "run examples/accessible.exs",
         "run examples/telemetry.exs"
       ],
       check: [

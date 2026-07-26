@@ -55,6 +55,33 @@ Shows:
   which cannot reference an embedded font, so form fields are restricted to the
   standard 14 and say so if you try otherwise.
 
+## [`accessible.exs`](accessible.exs) → [`output/accessible.pdf`](output/accessible.pdf)
+
+A quarterly report carrying logical structure: headings to navigate by, a table
+whose header cells declare what they govern, alternative text for the chart, and
+an explicit reading order.
+
+Nothing in it changes what the page looks like — that is the point. Tagging is
+invisible until something needs to *read* the document rather than display it.
+
+Shows:
+
+- **`Tincture.tag/4`**, nesting containers (`:document`, `:section`, `:table`,
+  `:tr`) around content elements (`:h1`, `:p`, `:th`, `:td`, `:figure`).
+- **`/Scope` on header cells**, which is what lets a reader announce
+  "South West, Revenue, 742,300" rather than a bare number.
+- **Alternative text** on a figure drawn as vector shapes, which carry no text
+  at all — the alt text is the only description that exists.
+- **`Tincture.set_language/2`**, without which a screen reader guesses the
+  pronunciation.
+
+The table is drawn by hand rather than with `Layout.Table`, because that helper
+draws a grid in one call and a tagged table needs each cell wrapped
+individually. Tagging the layout helpers is on the roadmap.
+
+This produces structure, not certified conformance — see the note the script
+prints.
+
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 
 Three pages of justified text, with the telemetry events printed as they fire:

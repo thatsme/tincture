@@ -1021,6 +1021,108 @@ defmodule Tincture do
   end
 
   @doc """
+  Tag a block of content with its logical role, making the document accessible.
+
+  An untagged PDF is a picture of a document: the bytes record where each glyph
+  sits and nothing records what it *means*, so a screen reader has no headings
+  to navigate by, no table structure, and no reliable reading order. Tagging
+  adds that layer — a structure tree in the catalog, and marked content in the
+  page linking the drawn operators to it.
+
+  Everything drawn inside `fun` belongs to the element:
+
+      pdf
+      |> Tincture.set_language("en-GB")
+      |> Tincture.tag(:document, fn pdf ->
+        pdf
+        |> Tincture.tag(:h1, fn pdf ->
+          Tincture.text_at(pdf, 50, 760, "Quarterly report")
+        end)
+        |> Tincture.tag(:p, fn pdf ->
+          Tincture.text_at(pdf, 50, 730, "Revenue rose by nine per cent.")
+        end)
+      end)
+
+  Nesting is how structure is expressed, so a table is a `:table` containing
+  `:tr` containing `:th` and `:td`:
+
+      Tincture.tag(pdf, :table, fn pdf ->
+        Tincture.tag(pdf, :tr, fn pdf ->
+          pdf
+          |> Tincture.tag(:th, [scope: :column], &Tincture.text_at(&1, 50, 700, "Region"))
+          |> Tincture.tag(:th, [scope: :column], &Tincture.text_at(&1, 200, 700, "Revenue"))
+        end)
+      end)
+
+  ## Tags
+
+  Container tags group other elements and wrap no content of their own:
+  `:document`, `:part`, `:article`, `:section`, `:div`, `:table`, `:thead`,
+  `:tbody`, `:tfoot`, `:tr`, `:list`, `:list_item`, `:toc`, `:index`.
+
+  Content tags bracket what is drawn: `:p`, `:h1` to `:h6`, `:heading`, `:th`,
+  `:td`, `:label`, `:list_body`, `:caption`, `:figure`, `:formula`, `:quote`,
+  `:block_quote`, `:code`, `:note`, `:reference`, `:span`, `:link`,
+  `:toc_item`.
+
+  ## Options
+
+    * `:alt` — alternative text. **Required in practice for `:figure`**: an
+      image with no alt text is invisible to a screen reader.
+    * `:actual_text` — the text this content really represents, for when the
+      glyphs are not the words (a ligature, a decorative capital).
+    * `:lang` — a BCP 47 tag, when this element differs from the document.
+    * `:title` — a human-readable title for the element.
+    * `:scope` — `:row`, `:column` or `:both`. Only valid on `:th`, and what
+      tells a reader which cells a header governs.
+
+  ## What this does and does not give you
+
+  It produces the structure: `/StructTreeRoot`, marked content, the parent
+  tree, `/MarkInfo`, `/Lang`, alt text and table scope. That is what assistive
+  technology reads.
+
+  It does not *certify* PDF/UA conformance. That is a validation exercise
+  against a checker such as veraPDF or PAC, and it imposes further rules — on
+  fonts, colour contrast, and metadata — that a library cannot enforce on your
+  behalf. Tag your documents and then verify them.
+  """
+  @spec tag(PDF.t(), atom(), keyword(), (PDF.t() -> PDF.t())) :: PDF.t()
+  def tag(pdf, tag, opts \\ [], fun)
+
+  def tag(%PDF{} = pdf, tag, opts, fun)
+      when is_atom(tag) and is_list(opts) and is_function(fun, 1) do
+    pdf
+    |> PDF.begin_structure(tag, opts)
+    |> fun.()
+    |> case do
+      %PDF{} = tagged ->
+        PDF.end_structure(tagged)
+
+      other ->
+        raise ArgumentError,
+              "the function passed to tag/4 must return a %Tincture.PDF{}, got: #{inspect(other)}"
+    end
+  end
+
+  @doc """
+  Set the document's natural language, as a BCP 47 tag such as `"en-GB"`.
+
+  Without it a screen reader has to guess which language to pronounce the text
+  as, so this is a requirement for an accessible document rather than a nicety.
+  """
+  @spec set_language(PDF.t(), String.t()) :: PDF.t()
+  def set_language(%PDF{} = pdf, language) do
+    PDF.set_language(pdf, language)
+  end
+
+  @doc """
+  Whether the document carries logical structure.
+  """
+  @spec tagged?(PDF.t()) :: boolean()
+  def tagged?(%PDF{} = pdf), do: PDF.tagged?(pdf)
+
+  @doc """
   Export a PDF struct to a binary.
   """
   @spec export(PDF.t()) :: binary()

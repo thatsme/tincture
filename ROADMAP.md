@@ -13,7 +13,8 @@ Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
-encryption. No runtime dependencies. 1,098 tests, 88% coverage, clean Credo and Dialyzer, CI
+encryption, tagged PDF for accessibility, telemetry. No required runtime
+dependencies. 1,142 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -23,21 +24,26 @@ person reads. What follows is what it does not yet cover.
 
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
-**Status: entirely absent.** No `/StructTreeRoot`, no marked content, no
-`/Tabs`, no `/Lang`, no alt text.
+**Status: structure done; conformance unverified.**
 
-This is the single largest gap for enterprise and public-sector work, and
-usually the one that disqualifies a library outright rather than being
-negotiable. Section 508 in the US, EN 301 549 in the EU and equivalent rules
-elsewhere require documents a public body publishes to be accessible. An
-untagged PDF is a picture of a document to a screen reader.
+`Tincture.tag/4` produces the structure tree, marked content around the
+operators that draw each element, the parent tree linking them, `/MarkInfo`,
+`/Lang`, alternative text and `/Scope` on header cells. That is the layer a
+screen reader reads, and it is what Section 508, EN 301 549 and equivalent
+rules are asking for.
 
-Needs: a structure tree, marked-content operators around text and figures,
-alt text on images, explicit reading order, `/Lang`, and table structure
-(`/TH`, `/TD`, header scope).
+What remains:
 
-This is architectural. Marked content has to be emitted as the content stream
-is built, so it cannot be bolted on afterwards.
+- **Validation.** Nothing here has been checked against veraPDF or PAC, so
+  Tincture makes no PDF/UA conformance claim. Until a document is validated,
+  "tagged" and "conformant" are different words.
+- **Tagging the layout helpers.** `Layout.Table.render/6` draws a whole grid in
+  one call, so a tagged table has to be built by hand today, as
+  `examples/accessible.exs` does. The helpers should emit their own structure.
+- `/Tabs /S` on pages, so tab order follows structure rather than annotation
+  order.
+- Automatic alt text prompting: nothing forces a `:figure` to carry `:alt`,
+  and a figure without it is invisible to a reader.
 
 ## 2. Archival — PDF/A
 
@@ -175,9 +181,8 @@ This is arguably a separate library. Listed because evaluators will ask, and
 
 1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
 2. **Transparency and shading** — small, self-contained, visible.
-3. **Tagged PDF** — the largest blocker for public-sector work, and
-   architectural, so better done before more features build on the content
-   stream.
+3. ~~Tagged PDF~~ — structure done. **Validating it** against veraPDF, and
+   tagging the layout helpers, remain.
 4. **PDF/A** — mostly constraints, and partly depends on 3.
 5. **Digital signatures** — self-contained but touches export.
 6. **Object and xref streams** — file size.

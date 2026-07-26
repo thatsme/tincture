@@ -5,6 +5,7 @@ defmodule Tincture.PDF do
 
   alias Tincture.Font
   alias Tincture.Font.TTF
+  alias Tincture.PDF.Structure
   require Logger
 
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
@@ -59,6 +60,8 @@ defmodule Tincture.PDF do
             optional(:alpha_decode_parms) => map()
           }
   @type image_op :: {:image, number(), number(), number(), number(), pos_integer()}
+  @type begin_marked_content_op :: {:begin_marked_content, String.t(), non_neg_integer()}
+  @type end_marked_content_op :: {:end_marked_content}
   @type bookmark :: %{required(:title) => String.t(), required(:page_number) => pos_integer()}
   @type link_target :: {:url, String.t()} | {:page, pos_integer()}
   @type annotation_border :: :none | {number(), number(), number()}
@@ -128,6 +131,8 @@ defmodule Tincture.PDF do
           | graphics_state_op()
           | color_op()
           | image_op()
+          | begin_marked_content_op()
+          | end_marked_content_op()
 
   @type t :: %__MODULE__{
           page_size: page_size(),
@@ -137,6 +142,10 @@ defmodule Tincture.PDF do
           images: %{required(pos_integer()) => image()},
           next_image_id: pos_integer(),
           embedded_fonts: %{optional(String.t()) => embedded_font()},
+          structure_tree: [Structure.t()],
+          structure_stack: [Structure.t()],
+          mcid_counters: %{optional(pos_integer()) => non_neg_integer()},
+          language: String.t() | nil,
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
           form_fields: [form_field()],
@@ -152,6 +161,10 @@ defmodule Tincture.PDF do
             images: %{},
             next_image_id: 1,
             embedded_fonts: %{},
+            structure_tree: [],
+            structure_stack: [],
+            mcid_counters: %{},
+            language: nil,
             bookmarks: [],
             annotations: %{},
             form_fields: [],
@@ -203,6 +216,107 @@ defmodule Tincture.PDF do
     pages = Map.put(pdf.pages, pdf.current_page, updated_ops)
     %__MODULE__{pdf | pages: pages, operations: updated_ops}
   end
+
+  @doc """
+  Open a structure element, bracketing whatever is drawn until it is closed.
+
+  Content elements also open a marked-content sequence in the page's content
+  stream, which is what ties the drawn operators to this element.
+  """
+  @spec begin_structure(t(), Structure.tag(), keyword()) :: t()
+  def begin_structure(%__MODULE__{} = pdf, tag, opts \\ []) do
+    name = Structure.tag_name(tag)
+
+    {pdf, mcid} =
+      if Structure.content?(tag) do
+        {pdf, mcid} = next_mcid(pdf)
+        {append_current_op(pdf, {:begin_marked_content, name, mcid}), mcid}
+      else
+        {pdf, nil}
+      end
+
+    element =
+      %{tag: tag, page_number: pdf.current_page, mcid: mcid, kids: []}
+      |> put_structure_option(:alt, Keyword.get(opts, :alt))
+      |> put_structure_option(:actual_text, Keyword.get(opts, :actual_text))
+      |> put_structure_option(:lang, Keyword.get(opts, :lang))
+      |> put_structure_option(:title, Keyword.get(opts, :title))
+      |> put_structure_option(:scope, normalize_scope(tag, Keyword.get(opts, :scope)))
+
+    %__MODULE__{pdf | structure_stack: [element | pdf.structure_stack]}
+  end
+
+  @doc """
+  Close the innermost open structure element.
+  """
+  @spec end_structure(t()) :: t()
+  def end_structure(%__MODULE__{structure_stack: []}) do
+    raise ArgumentError, "no structure element is open"
+  end
+
+  def end_structure(%__MODULE__{structure_stack: [element | rest]} = pdf) do
+    pdf =
+      if Structure.content?(element.tag) do
+        append_current_op(pdf, {:end_marked_content})
+      else
+        pdf
+      end
+
+    # Kids accumulate reversed, since each is prepended as it closes.
+    element = %{element | kids: Enum.reverse(element.kids)}
+
+    case rest do
+      [] ->
+        %__MODULE__{pdf | structure_stack: [], structure_tree: pdf.structure_tree ++ [element]}
+
+      [parent | ancestors] ->
+        parent = %{parent | kids: [element | parent.kids]}
+        %__MODULE__{pdf | structure_stack: [parent | ancestors]}
+    end
+  end
+
+  @doc """
+  Set the document's natural language, as a BCP 47 tag such as `"en-GB"`.
+
+  Required for a document to be accessible: without it a screen reader has to
+  guess which language to pronounce the text as.
+  """
+  @spec set_language(t(), String.t()) :: t()
+  def set_language(%__MODULE__{} = pdf, language) when is_binary(language) and language != "" do
+    %__MODULE__{pdf | language: language}
+  end
+
+  def set_language(%__MODULE__{}, other),
+    do: raise(ArgumentError, "language must be a non-empty string, got: #{inspect(other)}")
+
+  @doc """
+  Whether this document carries logical structure.
+  """
+  @spec tagged?(t()) :: boolean()
+  def tagged?(%__MODULE__{structure_tree: tree}), do: tree != []
+
+  defp next_mcid(%__MODULE__{} = pdf) do
+    page = pdf.current_page
+    mcid = Map.get(pdf.mcid_counters, page, 0)
+    {%__MODULE__{pdf | mcid_counters: Map.put(pdf.mcid_counters, page, mcid + 1)}, mcid}
+  end
+
+  defp put_structure_option(element, _key, nil), do: element
+  defp put_structure_option(element, key, value), do: Map.put(element, key, value)
+
+  defp normalize_scope(_tag, nil), do: nil
+
+  defp normalize_scope(:th, scope) when scope in [:row, :column, :both], do: scope
+
+  defp normalize_scope(:th, other),
+    do:
+      raise(
+        ArgumentError,
+        ":scope must be :row, :column or :both, got: #{inspect(other)}"
+      )
+
+  defp normalize_scope(tag, _scope),
+    do: raise(ArgumentError, ":scope only applies to a :th element, not #{inspect(tag)}")
 
   @spec register_image(t(), image()) :: {t(), pos_integer()}
   def register_image(%__MODULE__{} = pdf, image) when is_map(image) do
