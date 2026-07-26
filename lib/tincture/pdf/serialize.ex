@@ -1808,6 +1808,16 @@ defmodule Tincture.PDF.Serialize do
 
   defp glyph_data_for_id(_glyf_table, _glyph_offsets, _glyph_id), do: :error
 
+  # A glyph with no outline is encoded as loca[i] == loca[i+1], i.e. zero bytes
+  # of glyph data. This is legal and common - the space character does it, as
+  # does every non-marking character. It has no components to follow.
+  #
+  # Without this clause an empty glyph falls through to the catch-all :error,
+  # which aborts the whole subset and silently falls back to embedding the full
+  # font. Since almost every real string contains a space, that defeated
+  # subsetting for essentially all real text.
+  defp composite_component_glyph_ids(<<>>), do: {:ok, []}
+
   defp composite_component_glyph_ids(<<num_contours::16-signed-big, _rest::binary>> = glyph_data)
        when num_contours >= 0 do
     if byte_size(glyph_data) >= 10 do

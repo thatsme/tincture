@@ -109,6 +109,35 @@ defmodule Tincture do
 
   @doc """
   Register an embedded TrueType font by name from a `.ttf` file path with embedding options.
+
+  ## Options
+
+    * `:subset` — how much of the font to embed. Defaults to `:used_text`.
+
+      * `:used_text` — embed only the glyphs the document actually draws.
+        Typically cuts an embedded font by 70-90%.
+      * `:ascii_basic` — embed the printable ASCII range (32..126). Useful when
+        you intend to edit the text later with an external tool.
+      * `:none` — embed the font verbatim.
+
+      Subsetted fonts carry the six-letter `/BaseFont` tag the PDF
+      specification requires (for example `ABCDEF+Inter`). If a font cannot be
+      subsetted safely, Tincture logs a warning and embeds it in full rather
+      than producing a broken document.
+
+    * `:enforce_embedding_permissions` — when `true`, raise instead of warn if
+      the font's OS/2 `fsType` restricts embedding or subsetting. Defaults to
+      `false`.
+
+  ## Examples
+
+      Tincture.new()
+      |> Tincture.register_ttf_font("Inter", "priv/fonts/Inter.ttf")
+      |> Tincture.set_font("Inter", 12)
+
+      # Embed the whole font, e.g. for a template others will edit.
+      Tincture.register_ttf_font(pdf, "Inter", path, subset: :none)
+
   """
   @spec register_ttf_font(PDF.t(), String.t(), Path.t(), keyword()) :: PDF.t()
   def register_ttf_font(%PDF{} = pdf, font_name, path, opts) when is_list(opts) do
@@ -125,6 +154,9 @@ defmodule Tincture do
 
   @doc """
   Register an embedded OpenType font by name from an `.otf` file path with embedding options.
+
+  Takes the same options as `register_ttf_font/4`, including `:subset`, which
+  defaults to `:used_text`.
   """
   @spec register_otf_font(PDF.t(), String.t(), Path.t(), keyword()) :: PDF.t()
   def register_otf_font(%PDF{} = pdf, font_name, path, opts) when is_list(opts) do

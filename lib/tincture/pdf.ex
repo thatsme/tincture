@@ -182,7 +182,7 @@ defmodule Tincture.PDF do
   end
 
   defp register_embedded_font(%__MODULE__{} = pdf, font_name, path, format, format_label, opts) do
-    subset = normalize_subset_option(Keyword.get(opts, :subset, :none))
+    subset = normalize_subset_option(Keyword.get(opts, :subset, :used_text))
 
     enforce_embedding_permissions =
       normalize_embedding_permissions_option(

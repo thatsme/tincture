@@ -79,7 +79,9 @@ defmodule TinctureTest do
       |> Tincture.export()
 
     assert pdf_binary =~ "/Subtype /TrueType"
-    assert pdf_binary =~ "/BaseFont /DemoTTF"
+    # Subsetting is on by default, so the PDF spec requires a six-uppercase-letter
+    # subset tag on /BaseFont.
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoTTF|
     assert pdf_binary =~ "/FontFile2 "
     assert pdf_binary =~ "/F1 "
     assert pdf_binary =~ "/F1 14 Tf"
@@ -1635,7 +1637,9 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Hello OTF")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/BaseFont /DemoOTF"
+    # Subsetting is on by default, so the PDF spec requires a six-uppercase-letter
+    # subset tag on /BaseFont.
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoOTF|
     assert pdf_binary =~ "/FontFile3 "
     assert pdf_binary =~ "/Subtype /OpenType"
     assert pdf_binary =~ "/F1 12 Tf"
