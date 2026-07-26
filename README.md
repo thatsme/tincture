@@ -46,18 +46,18 @@ not, including every content stream declaring a `/Length` one byte too large,
 and `/Scope` on table headers being written somewhere readers ignore. Those are
 recorded in [CHANGELOG.md](CHANGELOG.md).
 
-## Status
-
-**Not published to Hex.** The engine is mature, the suite is thorough and the
-standards output is independently verified, but the API under this name is new
-and may still move. Publishing claims a name permanently, so it waits.
+## Install
 
 ```elixir
 # mix.exs
-{:tincture, github: "thatsme/tincture"}
+{:tincture, "~> 0.1"}
 ```
 
-1,224 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
+[Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
+is mature and the standards output is independently verified, but the API under
+this name is new and may still move before 1.0.
+
+1,225 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
 Elixir 1.16–1.19.
 
 ## What it does
