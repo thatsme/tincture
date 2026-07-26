@@ -3,6 +3,8 @@ defmodule Tincture.Font.TTF do
 
   import Bitwise
   require Logger
+
+  alias Tincture.Font.CFF
   @max_gpos_pair_set_records 10_000
   @max_gpos_class_pair_records 10_000
   @max_gpos_expanded_class_pairs 10_000
@@ -2933,100 +2935,16 @@ defmodule Tincture.Font.TTF do
 
   defp parse_cff_metadata(_), do: :error
 
-  defp parse_cff_index(<<count::16-big, rest::binary>>) do
-    if count == 0 do
-      {:ok, {[], rest}}
-    else
-      case rest do
-        <<off_size::8, offset_data::binary>> when off_size >= 1 and off_size <= 4 ->
-          offset_count = count + 1
-          offset_bytes = offset_count * off_size
-
-          if byte_size(offset_data) < offset_bytes do
-            :error
-          else
-            <<offset_bytes_bin::binary-size(offset_bytes), objects_and_rest::binary>> =
-              offset_data
-
-            with {:ok, offsets} <- decode_cff_index_offsets(offset_bytes_bin, off_size),
-                 {:ok, objects, rest_after} <-
-                   parse_cff_index_objects(offsets, count, objects_and_rest) do
-              {:ok, {objects, rest_after}}
-            else
-              _ -> :error
-            end
-          end
-
-        _ ->
-          :error
-      end
+  # Delegates to Tincture.Font.CFF, which owns the INDEX container format and
+  # is shared with the subsetting path in Tincture.PDF.Serialize. Reading only
+  # needs the objects and the trailing binary; the byte offsets CFF also
+  # returns matter when rewriting a table, not when parsing one.
+  defp parse_cff_index(data) do
+    case CFF.parse_index(data) do
+      {:ok, %{objects: objects, rest: rest}} -> {:ok, {objects, rest}}
+      :error -> :error
     end
   end
-
-  defp parse_cff_index(_), do: :error
-
-  defp decode_cff_index_offsets(bin, off_size) when is_binary(bin) and is_integer(off_size) do
-    decode_cff_index_offsets(bin, off_size, [])
-  end
-
-  defp decode_cff_index_offsets(<<>>, _off_size, acc), do: {:ok, Enum.reverse(acc)}
-
-  defp decode_cff_index_offsets(bin, off_size, acc) do
-    if byte_size(bin) < off_size do
-      :error
-    else
-      <<entry::binary-size(off_size), rest::binary>> = bin
-      value = :binary.decode_unsigned(entry)
-      decode_cff_index_offsets(rest, off_size, [value | acc])
-    end
-  end
-
-  defp parse_cff_index_objects(offsets, count, objects_and_rest)
-       when is_list(offsets) and is_integer(count) and count > 0 and is_binary(objects_and_rest) do
-    cond do
-      length(offsets) != count + 1 ->
-        :error
-
-      not nondecreasing?(offsets) ->
-        :error
-
-      hd(offsets) < 1 ->
-        :error
-
-      List.last(offsets) < 1 ->
-        :error
-
-      List.last(offsets) - 1 > byte_size(objects_and_rest) ->
-        :error
-
-      true ->
-        objects_data_size = List.last(offsets) - 1
-        <<objects_data::binary-size(objects_data_size), rest_after::binary>> = objects_and_rest
-
-        pairs = Enum.chunk_every(offsets, 2, 1, :discard)
-
-        if length(pairs) != count do
-          :error
-        else
-          Enum.reduce_while(pairs, {:ok, []}, fn [start_offset, end_offset], {:ok, acc} ->
-            if end_offset < start_offset do
-              {:halt, :error}
-            else
-              object_size = end_offset - start_offset
-              object_offset = start_offset - 1
-              object_data = binary_part(objects_data, object_offset, object_size)
-              {:cont, {:ok, [object_data | acc]}}
-            end
-          end)
-          |> case do
-            {:ok, reverse_objects} -> {:ok, Enum.reverse(reverse_objects), rest_after}
-            :error -> :error
-          end
-        end
-    end
-  end
-
-  defp parse_cff_index_objects(_offsets, _count, _objects_and_rest), do: :error
 
   defp extract_cff_font_bbox(top_dict) when is_binary(top_dict) do
     scan_cff_dict_for_font_bbox(top_dict, [])
@@ -3219,88 +3137,11 @@ defmodule Tincture.Font.TTF do
   defp normalize_cff_font_bbox_value(value) when is_float(value), do: {:ok, round(value)}
   defp normalize_cff_font_bbox_value(_value), do: :error
 
-  defp parse_cff_dict_number(<<30, rest::binary>>) do
-    parse_cff_real_number(rest, [])
-  end
-
-  defp parse_cff_dict_number(<<28, value::16-signed-big, rest::binary>>),
-    do: {:ok, value, rest}
-
-  defp parse_cff_dict_number(<<29, value::32-signed-big, rest::binary>>),
-    do: {:ok, value, rest}
-
-  defp parse_cff_dict_number(<<255, value::32-signed-big, rest::binary>>),
-    do: {:ok, value / 65_536, rest}
-
-  defp parse_cff_dict_number(<<first::8, second::8, rest::binary>>)
-       when first >= 247 and first <= 250 do
-    value = (first - 247) * 256 + second + 108
-    {:ok, value, rest}
-  end
-
-  defp parse_cff_dict_number(<<first::8, second::8, rest::binary>>)
-       when first >= 251 and first <= 254 do
-    value = -((first - 251) * 256 + second + 108)
-    {:ok, value, rest}
-  end
-
-  defp parse_cff_dict_number(<<value::8, rest::binary>>) when value >= 32 and value <= 246,
-    do: {:ok, value - 139, rest}
-
-  defp parse_cff_dict_number(_), do: :error
-
-  defp parse_cff_real_number(<<>>, _acc), do: :error
-
-  defp parse_cff_real_number(<<byte::8, rest::binary>>, acc) do
-    high = byte >>> 4
-    low = byte &&& 0x0F
-
-    case parse_cff_real_nibble(high, acc) do
-      {:continue, acc_after_high} ->
-        case parse_cff_real_nibble(low, acc_after_high) do
-          {:continue, acc_after_low} ->
-            parse_cff_real_number(rest, acc_after_low)
-
-          {:done, acc_final} ->
-            finalize_cff_real_number(acc_final, rest)
-
-          :error ->
-            :error
-        end
-
-      {:done, acc_final} ->
-        finalize_cff_real_number(acc_final, rest)
-
-      :error ->
-        :error
-    end
-  end
-
-  defp parse_cff_real_nibble(nibble, acc) when nibble >= 0 and nibble <= 9,
-    do: {:continue, [Integer.to_string(nibble) | acc]}
-
-  defp parse_cff_real_nibble(0xA, acc), do: {:continue, ["." | acc]}
-  defp parse_cff_real_nibble(0xB, acc), do: {:continue, ["E" | acc]}
-  defp parse_cff_real_nibble(0xC, acc), do: {:continue, ["E-" | acc]}
-  defp parse_cff_real_nibble(0xE, acc), do: {:continue, ["-" | acc]}
-  defp parse_cff_real_nibble(0xF, acc), do: {:done, acc}
-  defp parse_cff_real_nibble(_nibble, _acc), do: :error
-
-  defp finalize_cff_real_number(acc, rest) do
-    acc
-    |> Enum.reverse()
-    |> IO.iodata_to_binary()
-    |> case do
-      "" ->
-        :error
-
-      number_string ->
-        case Float.parse(number_string) do
-          {value, ""} -> {:ok, value, rest}
-          _ -> :error
-        end
-    end
-  end
+  # Delegates to Tincture.Font.CFF. Note this changes operator 255 (16.16
+  # fixed) from a bare `value / 65_536` to the normalised form, so a whole
+  # value now parses as an integer rather than a float - matching what the
+  # subsetting path already did for the same bytes.
+  defp parse_cff_dict_number(data), do: CFF.parse_dict_number(data)
 
   defp parse_loca_offsets(loca_table, num_glyphs, 0) do
     expected_entries = num_glyphs + 1

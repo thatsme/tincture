@@ -4,6 +4,7 @@ defmodule Tincture.PDF.Serialize do
   import Bitwise
   require Logger
 
+  alias Tincture.Font.CFF
   alias Tincture.PDF
   alias Tincture.PDF.Page
   alias Tincture.Unicode
@@ -1141,7 +1142,7 @@ defmodule Tincture.PDF.Serialize do
 
   defp parse_cff_dict_number_meta(<<30, rest::binary>>, cursor)
        when is_integer(cursor) and cursor >= 0 do
-    case parse_cff_real_dict_number(rest, []) do
+    case CFF.parse_real_number(rest) do
       {:ok, value, next_rest, consumed_bytes} ->
         {:ok, %{value: value, start: cursor, length: 1 + consumed_bytes, kind: :real}, next_rest}
 
@@ -1159,7 +1160,7 @@ defmodule Tincture.PDF.Serialize do
        do:
          {:ok,
           %{
-            value: cff_fixed_16_16_to_number(raw_value),
+            value: CFF.fixed_16_16_to_number(raw_value),
             start: cursor,
             length: 5,
             kind: :fixed_16_16
@@ -1187,73 +1188,6 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp parse_cff_dict_number_meta(_dict_data, _cursor), do: :error
-
-  defp parse_cff_real_dict_number(<<>>, _acc), do: :error
-
-  defp parse_cff_real_dict_number(<<byte::8, rest::binary>>, acc) do
-    high_nibble = byte >>> 4
-    low_nibble = byte &&& 0x0F
-
-    case parse_cff_real_nibble(high_nibble, acc) do
-      {:continue, after_high} ->
-        case parse_cff_real_nibble(low_nibble, after_high) do
-          {:continue, after_low} ->
-            case parse_cff_real_dict_number(rest, after_low) do
-              {:ok, value, remaining, consumed_bytes} ->
-                {:ok, value, remaining, consumed_bytes + 1}
-
-              :error ->
-                :error
-            end
-
-          {:done, done_acc} ->
-            finalize_cff_real_dict_number(done_acc, rest, 1)
-
-          :error ->
-            :error
-        end
-
-      {:done, done_acc} ->
-        finalize_cff_real_dict_number(done_acc, rest, 1)
-
-      :error ->
-        :error
-    end
-  end
-
-  defp parse_cff_real_nibble(nibble, acc) when nibble >= 0 and nibble <= 9,
-    do: {:continue, [Integer.to_string(nibble) | acc]}
-
-  defp parse_cff_real_nibble(0xA, acc), do: {:continue, ["." | acc]}
-  defp parse_cff_real_nibble(0xB, acc), do: {:continue, ["E" | acc]}
-  defp parse_cff_real_nibble(0xC, acc), do: {:continue, ["E-" | acc]}
-  defp parse_cff_real_nibble(0xE, acc), do: {:continue, ["-" | acc]}
-  defp parse_cff_real_nibble(0xF, acc), do: {:done, acc}
-  defp parse_cff_real_nibble(_nibble, _acc), do: :error
-
-  defp finalize_cff_real_dict_number(acc, rest, consumed_bytes)
-       when is_list(acc) and is_binary(rest) and is_integer(consumed_bytes) and consumed_bytes > 0 do
-    number =
-      acc
-      |> Enum.reverse()
-      |> IO.iodata_to_binary()
-
-    case Float.parse(number) do
-      {value, ""} ->
-        {:ok, value, rest, consumed_bytes}
-
-      _ ->
-        :error
-    end
-  end
-
-  defp cff_fixed_16_16_to_number(raw_value) when is_integer(raw_value) do
-    if rem(raw_value, 65_536) == 0 do
-      div(raw_value, 65_536)
-    else
-      raw_value / 65_536
-    end
-  end
 
   defp apply_binary_patches_same_length(binary, patches)
        when is_binary(binary) and is_list(patches) do
@@ -1467,96 +1401,10 @@ defmodule Tincture.PDF.Serialize do
 
   defp parse_cff_index(_invalid), do: :error
 
-  defp parse_cff_index_with_offsets(<<count::16-big, rest::binary>>) do
-    if count == 0 do
-      {:ok, %{objects: [], rest: rest, size: 2, offsets: [], objects_data_offset: 2}}
-    else
-      case rest do
-        <<off_size::8, offset_data::binary>> when off_size >= 1 and off_size <= 4 ->
-          offset_count = count + 1
-          offset_bytes = offset_count * off_size
-
-          if byte_size(offset_data) < offset_bytes do
-            :error
-          else
-            <<offset_bytes_bin::binary-size(offset_bytes), objects_and_rest::binary>> =
-              offset_data
-
-            with {:ok, offsets} <- decode_cff_index_offsets(offset_bytes_bin, off_size),
-                 {:ok, objects, rest_after, objects_size} <-
-                   parse_cff_index_objects(offsets, count, objects_and_rest) do
-              {:ok,
-               %{
-                 objects: objects,
-                 rest: rest_after,
-                 size: 2 + 1 + offset_bytes + objects_size,
-                 offsets: offsets,
-                 objects_data_offset: 2 + 1 + offset_bytes
-               }}
-            else
-              _ ->
-                :error
-            end
-          end
-
-        _ ->
-          :error
-      end
-    end
-  end
-
-  defp parse_cff_index_with_offsets(_invalid), do: :error
-
-  defp decode_cff_index_offsets(bin, off_size)
-       when is_binary(bin) and is_integer(off_size) and off_size >= 1 and off_size <= 4 do
-    decode_cff_index_offsets(bin, off_size, [])
-  end
-
-  defp decode_cff_index_offsets(<<>>, _off_size, acc), do: {:ok, Enum.reverse(acc)}
-
-  defp decode_cff_index_offsets(bin, off_size, acc) do
-    if byte_size(bin) < off_size do
-      :error
-    else
-      <<entry::binary-size(off_size), rest::binary>> = bin
-      value = :binary.decode_unsigned(entry)
-      decode_cff_index_offsets(rest, off_size, [value | acc])
-    end
-  end
-
-  defp parse_cff_index_objects(offsets, count, objects_and_rest)
-       when is_list(offsets) and is_integer(count) and count > 0 and is_binary(objects_and_rest) do
-    cond do
-      length(offsets) != count + 1 ->
-        :error
-
-      hd(offsets) < 1 or List.last(offsets) < 1 ->
-        :error
-
-      not nondecreasing_list?(offsets) ->
-        :error
-
-      List.last(offsets) - 1 > byte_size(objects_and_rest) ->
-        :error
-
-      true ->
-        objects_size = List.last(offsets) - 1
-        <<objects_data::binary-size(objects_size), rest_after::binary>> = objects_and_rest
-
-        objects =
-          offsets
-          |> Enum.chunk_every(2, 1, :discard)
-          |> Enum.map(fn [start_offset, end_offset] ->
-            object_size = end_offset - start_offset
-            object_offset = start_offset - 1
-            binary_part(objects_data, object_offset, object_size)
-          end)
-
-        {:ok, objects, rest_after, objects_size}
-    end
-  end
-
-  defp parse_cff_index_objects(_offsets, _count, _objects_and_rest), do: :error
+  # Delegates to Tincture.Font.CFF, which owns the INDEX container format and
+  # is shared with the metadata reader in Tincture.Font.TTF. The offsets and
+  # byte sizes CFF returns are what the top-DICT patching below needs.
+  defp parse_cff_index_with_offsets(data), do: CFF.parse_index(data)
 
   defp cff_dict_operator_operand(top_dict, operator)
        when is_binary(top_dict) and is_integer(operator) and operator >= 0 and operator <= 21 do
@@ -1637,38 +1485,7 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  defp parse_cff_dict_number(<<28, value::16-signed-big, rest::binary>>),
-    do: {:ok, value, rest}
-
-  defp parse_cff_dict_number(<<30, rest::binary>>) do
-    case parse_cff_real_dict_number(rest, []) do
-      {:ok, value, next_rest, _consumed_bytes} -> {:ok, value, next_rest}
-      :error -> :error
-    end
-  end
-
-  defp parse_cff_dict_number(<<255, raw_value::32-signed-big, rest::binary>>),
-    do: {:ok, cff_fixed_16_16_to_number(raw_value), rest}
-
-  defp parse_cff_dict_number(<<29, value::32-signed-big, rest::binary>>),
-    do: {:ok, value, rest}
-
-  defp parse_cff_dict_number(<<first::8, second::8, rest::binary>>)
-       when first >= 247 and first <= 250 do
-    value = (first - 247) * 256 + second + 108
-    {:ok, value, rest}
-  end
-
-  defp parse_cff_dict_number(<<first::8, second::8, rest::binary>>)
-       when first >= 251 and first <= 254 do
-    value = -((first - 251) * 256 + second + 108)
-    {:ok, value, rest}
-  end
-
-  defp parse_cff_dict_number(<<value::8, rest::binary>>) when value >= 32 and value <= 246,
-    do: {:ok, value - 139, rest}
-
-  defp parse_cff_dict_number(_), do: :error
+  defp parse_cff_dict_number(data), do: CFF.parse_dict_number(data)
 
   defp encode_cff_index(entries) when is_list(entries) do
     count = length(entries)
@@ -1719,15 +1536,6 @@ defmodule Tincture.PDF.Serialize do
     padding_bytes = max(off_size - byte_size(encoded), 0)
     <<0::size(padding_bytes)-unit(8), encoded::binary>>
   end
-
-  defp nondecreasing_list?([_single]), do: true
-  defp nondecreasing_list?([]), do: true
-
-  defp nondecreasing_list?([a, b | rest]) when a <= b do
-    nondecreasing_list?([b | rest])
-  end
-
-  defp nondecreasing_list?(_), do: false
 
   defp subset_ttf_glyf_and_loca(glyf_table, ttf_metrics, used_glyph_ids)
        when is_binary(glyf_table) and is_map(ttf_metrics) and is_map(used_glyph_ids) do
