@@ -24,3 +24,7 @@ tincture-*.tar
 
 # Dialyzer PLT files are built artifacts, keyed on mix.lock + Elixir/OTP.
 /priv/plts/
+
+# Editor/agent scaffolding is not part of the library.
+/.claude/
+/.agents/
