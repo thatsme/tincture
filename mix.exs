@@ -17,7 +17,31 @@ defmodule Tincture.MixProject do
       homepage_url: @source_url,
       docs: docs(),
       package: package(),
-      deps: deps()
+      deps: deps(),
+      aliases: aliases(),
+      test_coverage: [tool: ExCoveralls],
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+        plt_add_apps: [:mix, :ex_unit],
+        ignore_warnings: ".dialyzer_ignore.exs",
+        list_unused_filters: true,
+        # :underspecs is deliberately omitted. It flags every public spec that is
+        # broader than the inferred success typing (e.g. `map()` for an image
+        # metadata map), which is noise rather than signal on a library API.
+        flags: [:error_handling, :extra_return, :missing_return]
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.html": :test,
+        "coveralls.github": :test,
+        check: :test
+      ]
     ]
   end
 
@@ -34,7 +58,21 @@ defmodule Tincture.MixProject do
     [
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test, runtime: false}
+    ]
+  end
+
+  # `mix check` runs every gate CI runs, in the same order.
+  defp aliases do
+    [
+      check: [
+        "format --check-formatted",
+        "compile --force --warnings-as-errors",
+        "credo --strict",
+        "dialyzer",
+        "coveralls"
+      ]
     ]
   end
 

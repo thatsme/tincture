@@ -264,89 +264,87 @@ defmodule Tincture.Typography do
                   Enum.reduce((start_idx + 1)..n, [], fn end_idx, acc ->
                     trimmed_end_idx = trim_trailing_spaces_index(line_index, start_idx, end_idx)
 
-                    cond do
-                      trimmed_end_idx <= start_idx ->
-                        acc
+                    if trimmed_end_idx <= start_idx do
+                      acc
+                    else
+                      width = range_width(line_index, start_idx, trimmed_end_idx)
+                      line_hyphen = line_ends_with_hyphen_index?(line_index, trimmed_end_idx)
+                      next_idx = skip_leading_spaces_index(line_index, end_idx)
+                      last_line? = next_idx >= n
 
-                      true ->
-                        width = range_width(line_index, start_idx, trimmed_end_idx)
-                        line_hyphen = line_ends_with_hyphen_index?(line_index, trimmed_end_idx)
-                        next_idx = skip_leading_spaces_index(line_index, end_idx)
-                        last_line? = next_idx >= n
+                      space_count = range_space_count(line_index, start_idx, trimmed_end_idx)
 
-                        space_count = range_space_count(line_index, start_idx, trimmed_end_idx)
+                      space_total_width =
+                        range_space_width(line_index, start_idx, trimmed_end_idx)
 
-                        space_total_width =
-                          range_space_width(line_index, start_idx, trimmed_end_idx)
+                      adjustment =
+                        line_adjustment_from_space_stats(
+                          width,
+                          max_width,
+                          align,
+                          justify_space_tuning,
+                          last_line?,
+                          space_count,
+                          space_total_width
+                        )
 
-                        adjustment =
-                          line_adjustment_from_space_stats(
-                            width,
-                            max_width,
-                            align,
-                            justify_space_tuning,
-                            last_line?,
-                            space_count,
-                            space_total_width
-                          )
+                      if adjustment.fits? do
+                        adjusted_width = adjustment.adjusted_width
+                        line_cls = line_fitness_class(adjusted_width, max_width)
 
-                        if not adjustment.fits? do
-                          acc
-                        else
-                          adjusted_width = adjustment.adjusted_width
-                          line_cls = line_fitness_class(adjusted_width, max_width)
+                        case line_break_cost_from_space_stats(
+                               width,
+                               adjusted_width,
+                               max_width,
+                               align,
+                               last_line?,
+                               justify_space_tuning,
+                               penalties.cost_model,
+                               space_count,
+                               space_total_width
+                             ) do
+                          :infeasible ->
+                            acc
 
-                          case line_break_cost_from_space_stats(
-                                 width,
-                                 adjusted_width,
-                                 max_width,
-                                 align,
-                                 last_line?,
-                                 justify_space_tuning,
-                                 penalties.cost_model,
-                                 space_count,
-                                 space_total_width
-                               ) do
-                            :infeasible ->
+                          line_cost ->
+                            remaining_cost =
+                              Map.get(cost_acc3, {next_idx, line_cls, line_hyphen}, :infinity)
+
+                            if remaining_cost == :infinity do
                               acc
+                            else
+                              token_count =
+                                range_non_space_count(line_index, start_idx, trimmed_end_idx)
 
-                            line_cost ->
-                              remaining_cost =
-                                Map.get(cost_acc3, {next_idx, line_cls, line_hyphen}, :infinity)
+                              base_penalty =
+                                line_cost +
+                                  if(next_idx >= n and start_idx > 0 and token_count == 1,
+                                    do: penalties.widow,
+                                    else: 0.0
+                                  ) +
+                                  if(start_idx == 0 and next_idx < n and token_count == 1,
+                                    do: penalties.orphan,
+                                    else: 0.0
+                                  ) +
+                                  if next_idx < n and line_hyphen,
+                                    do: penalties.hyphen,
+                                    else: 0.0
 
-                              if remaining_cost == :infinity do
-                                acc
-                              else
-                                token_count =
-                                  range_non_space_count(line_index, start_idx, trimmed_end_idx)
-
-                                base_penalty =
-                                  line_cost +
-                                    if(next_idx >= n and start_idx > 0 and token_count == 1,
-                                      do: penalties.widow,
-                                      else: 0.0
-                                    ) +
-                                    if(start_idx == 0 and next_idx < n and token_count == 1,
-                                      do: penalties.orphan,
-                                      else: 0.0
-                                    ) +
-                                    if next_idx < n and line_hyphen,
-                                      do: penalties.hyphen,
-                                      else: 0.0
-
-                                [
-                                  %{
-                                    next_idx: next_idx,
-                                    line_cls: line_cls,
-                                    line_hyphen: line_hyphen,
-                                    base_penalty: base_penalty,
-                                    remaining_cost: remaining_cost
-                                  }
-                                  | acc
-                                ]
-                              end
-                          end
+                              [
+                                %{
+                                  next_idx: next_idx,
+                                  line_cls: line_cls,
+                                  line_hyphen: line_hyphen,
+                                  base_penalty: base_penalty,
+                                  remaining_cost: remaining_cost
+                                }
+                                | acc
+                              ]
+                            end
                         end
+                      else
+                        acc
+                      end
                     end
                   end)
 
@@ -520,23 +518,21 @@ defmodule Tincture.Typography do
     n = length(tokens)
     start_idx = skip_leading_spaces(tokens, idx)
 
-    cond do
-      start_idx >= n ->
-        Enum.reverse(spans_acc)
+    if start_idx >= n do
+      Enum.reverse(spans_acc)
+    else
+      case Map.get(next_break, {start_idx, prev_cls, prev_hyphen}) do
+        nil ->
+          nil
 
-      true ->
-        case Map.get(next_break, {start_idx, prev_cls, prev_hyphen}) do
-          nil ->
-            nil
+        {end_idx, line_cls, line_hyphen} when is_integer(end_idx) and end_idx > start_idx ->
+          build_spans(tokens, next_break, end_idx, line_cls, line_hyphen, [
+            {start_idx, end_idx} | spans_acc
+          ])
 
-          {end_idx, line_cls, line_hyphen} when is_integer(end_idx) and end_idx > start_idx ->
-            build_spans(tokens, next_break, end_idx, line_cls, line_hyphen, [
-              {start_idx, end_idx} | spans_acc
-            ])
-
-          _ ->
-            nil
-        end
+        _ ->
+          nil
+      end
     end
   end
 
@@ -682,9 +678,7 @@ defmodule Tincture.Typography do
     width = line_width(tokens)
 
     text =
-      tokens
-      |> Enum.map(& &1.text)
-      |> Enum.join("")
+      Enum.map_join(tokens, "", & &1.text)
 
     %Line{
       text: text,
@@ -901,43 +895,41 @@ defmodule Tincture.Typography do
        ) do
     epsilon = 1.0e-6
 
-    cond do
-      space_count == 0 ->
-        if abs(adjusted_width - max_width) <= epsilon, do: 0.0, else: :infeasible
+    if space_count == 0 do
+      if abs(adjusted_width - max_width) <= epsilon, do: 0.0, else: :infeasible
+    else
+      requested_delta = max_width - natural_width
 
-      true ->
-        requested_delta = max_width - natural_width
+      cond do
+        requested_delta > 0 ->
+          case justify_space_tuning.max_multiplier do
+            :infinity ->
+              0.0
 
-        cond do
-          requested_delta > 0 ->
-            case justify_space_tuning.max_multiplier do
-              :infinity ->
-                0.0
+            multiplier ->
+              max_stretch = space_total_width * (multiplier - 1.0)
 
-              multiplier ->
-                max_stretch = space_total_width * (multiplier - 1.0)
+              if max_stretch <= epsilon do
+                :infeasible
+              else
+                ratio = requested_delta / max_stretch
+                if ratio <= 1.0 + epsilon, do: ratio, else: :infeasible
+              end
+          end
 
-                if max_stretch <= epsilon do
-                  :infeasible
-                else
-                  ratio = requested_delta / max_stretch
-                  if ratio <= 1.0 + epsilon, do: ratio, else: :infeasible
-                end
-            end
+        requested_delta < 0 ->
+          max_shrink = space_total_width * (1.0 - justify_space_tuning.min_multiplier)
 
-          requested_delta < 0 ->
-            max_shrink = space_total_width * (1.0 - justify_space_tuning.min_multiplier)
+          if max_shrink <= epsilon do
+            :infeasible
+          else
+            ratio = requested_delta / max_shrink
+            if abs(ratio) <= 1.0 + epsilon, do: ratio, else: :infeasible
+          end
 
-            if max_shrink <= epsilon do
-              :infeasible
-            else
-              ratio = requested_delta / max_shrink
-              if abs(ratio) <= 1.0 + epsilon, do: ratio, else: :infeasible
-            end
-
-          true ->
-            0.0
-        end
+        true ->
+          0.0
+      end
     end
   end
 

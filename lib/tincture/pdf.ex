@@ -366,9 +366,7 @@ defmodule Tincture.PDF do
   defp maybe_add_fs_type_restriction(restrictions, false, _restriction), do: restrictions
 
   defp format_fs_type_restrictions(restrictions) when is_list(restrictions) do
-    restrictions
-    |> Enum.map(&fs_type_restriction_label/1)
-    |> Enum.join(", ")
+    Enum.map_join(restrictions, ", ", &fs_type_restriction_label/1)
   end
 
   defp fs_type_restriction_label(:restricted), do: "embedding restricted"

@@ -21,3 +21,6 @@ tincture-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Dialyzer PLT files are built artifacts, keyed on mix.lock + Elixir/OTP.
+/priv/plts/

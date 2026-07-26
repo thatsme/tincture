@@ -62,8 +62,8 @@ defmodule Tincture.Fuzz.MalformedInputFuzzTest do
       body_fragment = Base.encode16(deterministic_bytes("xml", idx, 12), case: :lower)
 
       malformed_xml =
-        "<document><layout page_size=\"letter\" columns=\"2\" />" <>
-          "<body width=\"#{100 + idx}\" size=\"10\"><p>#{body_fragment}</body>"
+        ~s(<document><layout page_size="letter" columns="2" />) <>
+          ~s(<body width="#{100 + idx}" size="10"><p>#{body_fragment}</body>)
 
       capture_log(fn ->
         assert {:error, :invalid_xml} = Template.parse_xml(malformed_xml)

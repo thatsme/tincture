@@ -210,7 +210,7 @@ defmodule Tincture.Typography.Hyphen do
   defp parse_rule_file(path) do
     {exceptions, hyphens_by_first_rev} =
       path
-      |> File.stream!([], :line)
+      |> File.stream!(:line)
       |> Enum.reduce({%{}, %{}}, fn raw_line, {exceptions_acc, hyphens_acc} ->
         line = String.trim(raw_line)
 
@@ -311,12 +311,10 @@ defmodule Tincture.Typography.Hyphen do
       line
       |> :binary.bin_to_list()
       |> Enum.reduce({[], [], 0}, fn byte, {prefix_acc, pairs_acc, index} ->
-        cond do
-          byte >= ?0 and byte <= ?9 ->
-            {prefix_acc, [{index, byte - ?0} | pairs_acc], index}
-
-          true ->
-            {[byte | prefix_acc], pairs_acc, index + 1}
+        if byte >= ?0 and byte <= ?9 do
+          {prefix_acc, [{index, byte - ?0} | pairs_acc], index}
+        else
+          {[byte | prefix_acc], pairs_acc, index + 1}
         end
       end)
 

@@ -374,14 +374,12 @@ defmodule Tincture.Layout.Template do
   end
 
   defp parse_xml_doc(xml) do
-    try do
-      {doc, _rest} = :erlang.apply(:xmerl_scan, :string, [String.to_charlist(xml)])
-      {:ok, doc}
-    rescue
-      _ -> {:error, :invalid_xml}
-    catch
-      _, _ -> {:error, :invalid_xml}
-    end
+    {doc, _rest} = :erlang.apply(:xmerl_scan, :string, [String.to_charlist(xml)])
+    {:ok, doc}
+  rescue
+    _ -> {:error, :invalid_xml}
+  catch
+    _, _ -> {:error, :invalid_xml}
   end
 
   defp parse_xml_template(doc) do
@@ -397,9 +395,8 @@ defmodule Tincture.Layout.Template do
               columns: columns,
               gutter: gutter
             )},
-         {:ok, with_header} <- parse_header_slot(template, doc),
-         {:ok, with_footer} <- parse_footer_slot(with_header, doc) do
-      {:ok, with_footer}
+         {:ok, with_header} <- parse_header_slot(template, doc) do
+      parse_footer_slot(with_header, doc)
     end
   end
 

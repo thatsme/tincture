@@ -595,8 +595,7 @@ defmodule Tincture.PDF.Serialize do
 
   defp subset_mode_codepoints(:used_text, used_char_codes, scalar_codepoints) do
     (List.wrap(used_char_codes) ++ List.wrap(scalar_codepoints))
-    |> Enum.filter(&is_integer/1)
-    |> Enum.filter(&(&1 >= 0 and &1 <= 0x10FFFF))
+    |> Enum.filter(&(is_integer(&1) and &1 >= 0 and &1 <= 0x10FFFF))
     |> Enum.uniq()
     |> Enum.sort()
   end
@@ -2443,8 +2442,7 @@ defmodule Tincture.PDF.Serialize do
        when is_map(cmap_by_code) do
     scalar_codepoints
     |> List.wrap()
-    |> Enum.filter(&is_integer/1)
-    |> Enum.filter(&(&1 > 0xFFFF and &1 <= 0x10FFFF))
+    |> Enum.filter(&(is_integer(&1) and &1 > 0xFFFF and &1 <= 0x10FFFF))
     |> Enum.reduce_while({:ok, %{}}, fn codepoint, {:ok, acc} ->
       case Map.get(cmap_by_code, codepoint) do
         glyph_id when is_integer(glyph_id) and glyph_id >= 0 ->
@@ -2693,8 +2691,7 @@ defmodule Tincture.PDF.Serialize do
 
         scalar_codepoints
         |> List.wrap()
-        |> Enum.filter(&is_integer/1)
-        |> Enum.filter(&(&1 > 0xFFFF and &1 <= 0x10FFFF))
+        |> Enum.filter(&(is_integer(&1) and &1 > 0xFFFF and &1 <= 0x10FFFF))
         |> Enum.reduce_while({:ok, %{}}, fn codepoint, {:ok, acc} ->
           case Map.get(cmap_by_code, codepoint) do
             glyph_id when is_integer(glyph_id) and glyph_id >= 0 ->
@@ -2808,9 +2805,8 @@ defmodule Tincture.PDF.Serialize do
           put_override(acc, single, value)
 
         [hi, lo] ->
-          with {:ok, hi_acc} <- put_override(acc, hi, value),
-               {:ok, final_acc} <- put_override(hi_acc, lo, 0) do
-            {:ok, final_acc}
+          with {:ok, hi_acc} <- put_override(acc, hi, value) do
+            put_override(hi_acc, lo, 0)
           end
 
         _ ->
@@ -2859,8 +2855,7 @@ defmodule Tincture.PDF.Serialize do
   defp normalize_used_cids(used_cids) do
     used_cids
     |> List.wrap()
-    |> Enum.filter(&is_integer/1)
-    |> Enum.filter(&(&1 >= 0 and &1 <= 0xFFFF))
+    |> Enum.filter(&(is_integer(&1) and &1 >= 0 and &1 <= 0xFFFF))
     |> Enum.uniq()
     |> Enum.sort()
   end
@@ -2953,11 +2948,9 @@ defmodule Tincture.PDF.Serialize do
 
   defp utf16_units_for_codepoint(codepoint)
        when is_integer(codepoint) and codepoint >= 0 and codepoint <= 0x10FFFF do
-    try do
-      {:ok, utf16_code_units(<<codepoint::utf8>>)}
-    rescue
-      _ -> :error
-    end
+    {:ok, utf16_code_units(<<codepoint::utf8>>)}
+  rescue
+    _ -> :error
   end
 
   defp utf16_units_for_codepoint(_codepoint), do: :error

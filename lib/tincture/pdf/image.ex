@@ -44,9 +44,8 @@ defmodule Tincture.PDF.Image do
   end
 
   defp parse_png(<<@png_signature, rest::binary>>) do
-    with {:ok, ihdr, idat_chunks} <- parse_png_chunks(rest, nil, []),
-         {:ok, image} <- build_png_image(ihdr, idat_chunks) do
-      {:ok, image}
+    with {:ok, ihdr, idat_chunks} <- parse_png_chunks(rest, nil, []) do
+      build_png_image(ihdr, idat_chunks)
     end
   end
 

@@ -5,9 +5,26 @@ on:
     branches: ["**"]
   pull_request:
 
+env:
+  MIX_ENV: test
+
 jobs:
   test:
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported pair, per `elixir: "~> 1.16"` in mix.exs.
+          - elixir: "1.16.3"
+            otp: "26.2"
+          # Current pair. Dialyzer and coverage only run here, since a PLT is
+          # expensive to build and the results do not differ across versions.
+          - elixir: "1.18.3"
+            otp: "27.3"
+            check: true
 
     steps:
       - name: Checkout
@@ -16,8 +33,8 @@ jobs:
       - name: Setup Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.16.3"
-          otp-version: "26.2"
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
 
       - name: Cache deps and build
         uses: actions/cache@v4
@@ -25,9 +42,9 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-
+            ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-
 
       - name: Install dependencies
         run: mix deps.get
@@ -35,5 +52,31 @@ jobs:
       - name: Check formatting
         run: mix format --check-formatted
 
+      - name: Compile with warnings as errors
+        run: mix compile --force --warnings-as-errors
+
+      - name: Credo
+        run: mix credo --strict
+
       - name: Run tests
         run: mix test
+
+      # The PLT is keyed on the lockfile and the Elixir/OTP pair, so it is
+      # rebuilt only when one of those changes.
+      - name: Cache Dialyzer PLT
+        if: matrix.check
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-
+
+      - name: Dialyzer
+        if: matrix.check
+        run: mix dialyzer --format short
+
+      # Fails below the floor in coveralls.json.
+      - name: Coverage
+        if: matrix.check
+        run: mix coveralls

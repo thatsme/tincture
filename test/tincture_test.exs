@@ -1486,7 +1486,7 @@ defmodule TinctureTest do
 
     refute pdf_binary =~ "/CIDToGIDMap /Identity"
     assert extract_cid_to_gid_value(pdf_binary, 9731) == 2
-    assert extract_cid_to_gid_value(pdf_binary, 65039) == 0
+    assert extract_cid_to_gid_value(pdf_binary, 65_039) == 0
 
     File.rm(path)
   end
@@ -6691,7 +6691,7 @@ defmodule TinctureTest do
   defp test_ttf_no_cmap_devanagari_unicode_range_binary do
     os2 =
       os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 32768)
+      |> write_u32_at(42, 32_768)
 
     build_ttf([
       {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
@@ -8650,7 +8650,7 @@ defmodule TinctureTest do
   end
 
   defp cff_table_with_charstrings(charstrings, trailing_bytes \\ <<>>, top_dict_prefix \\ <<>>)
-       when is_list(charstrings) and length(charstrings) > 0 and is_binary(trailing_bytes) and
+       when is_list(charstrings) and charstrings != [] and is_binary(trailing_bytes) and
               is_binary(top_dict_prefix) do
     normalized_charstrings =
       Enum.map(charstrings, fn charstring ->
@@ -8700,7 +8700,7 @@ defmodule TinctureTest do
   end
 
   defp cff_table_with_charstrings_and_private_tail(charstrings)
-       when is_list(charstrings) and length(charstrings) > 0 do
+       when is_list(charstrings) and charstrings != [] do
     normalized_charstrings =
       Enum.map(charstrings, fn charstring ->
         case charstring do
@@ -8766,7 +8766,7 @@ defmodule TinctureTest do
   end
 
   defp cff_table_with_charstrings_and_fdarray_private_tail(charstrings)
-       when is_list(charstrings) and length(charstrings) > 0 do
+       when is_list(charstrings) and charstrings != [] do
     normalized_charstrings =
       Enum.map(charstrings, fn charstring ->
         case charstring do

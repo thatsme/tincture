@@ -197,7 +197,7 @@ defmodule Tincture.Showcase.BankStatement do
 
   defp transaction_rows(:joint_fee_interest) do
     {rows, _final_balance} =
-      Enum.map_reduce(1..54, 10420.11, fn idx, balance ->
+      Enum.map_reduce(1..54, 10_420.11, fn idx, balance ->
         {description, delta} =
           cond do
             rem(idx, 12) == 0 ->

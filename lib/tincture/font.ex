@@ -30,12 +30,10 @@ defmodule Tincture.Font do
   def text_width(font_name, size, text)
       when is_binary(font_name) and is_number(size) and size > 0 and is_binary(text) do
     total_units =
-      cond do
-        standard_font?(font_name) ->
-          text_width_standard(font_name, text)
-
-        true ->
-          text_width_afm(font_name, text)
+      if standard_font?(font_name) do
+        text_width_standard(font_name, text)
+      else
+        text_width_afm(font_name, text)
       end
 
     total_units * size / 1000

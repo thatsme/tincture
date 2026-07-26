@@ -2342,7 +2342,7 @@ defmodule Tincture.Font.TTFTest do
   end
 
   defp cff_table_with_charstrings(charstrings, top_dict_prefix \\ <<>>)
-       when is_list(charstrings) and length(charstrings) > 0 and is_binary(top_dict_prefix) do
+       when is_list(charstrings) and charstrings != [] and is_binary(top_dict_prefix) do
     normalized_charstrings =
       Enum.map(charstrings, fn charstring ->
         case charstring do

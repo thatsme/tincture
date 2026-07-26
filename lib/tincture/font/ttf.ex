@@ -606,11 +606,9 @@ defmodule Tincture.Font.TTF do
   defp decode_name_string(_raw, _platform_id, _encoding_id), do: nil
 
   defp safe_unicode_decode(raw, source_encoding) do
-    try do
-      :unicode.characters_to_binary(raw, source_encoding, :utf8)
-    rescue
-      _ -> nil
-    end
+    :unicode.characters_to_binary(raw, source_encoding, :utf8)
+  rescue
+    _ -> nil
   end
 
   defp normalize_name_value(value) when is_binary(value) do
@@ -2338,9 +2336,7 @@ defmodule Tincture.Font.TTF do
   defp glyph_ids_to_codepoints(_glyph_ids, _glyph_to_codepoint), do: :error
 
   defp codepoints_to_string(codepoints) when is_list(codepoints) do
-    codepoints
-    |> Enum.map(fn codepoint -> <<codepoint::utf8>> end)
-    |> Enum.join()
+    Enum.map_join(codepoints, fn codepoint -> <<codepoint::utf8>> end)
   end
 
   defp valid_unicode_codepoint?(codepoint)
@@ -4266,23 +4262,21 @@ defmodule Tincture.Font.TTF do
     |> Enum.reduce_while({:ok, %{}}, fn high_byte, {:ok, acc} ->
       subheader_key = Enum.at(keys, high_byte, -1)
 
-      cond do
-        subheader_key < 0 or rem(subheader_key, 8) != 0 ->
-          {:halt, :error}
+      if subheader_key < 0 or rem(subheader_key, 8) != 0 do
+        {:halt, :error}
+      else
+        subheader_index = div(subheader_key, 8)
 
-        true ->
-          subheader_index = div(subheader_key, 8)
+        case Enum.at(subheaders, subheader_index) do
+          nil ->
+            {:halt, :error}
 
-          case Enum.at(subheaders, subheader_index) do
-            nil ->
-              {:halt, :error}
-
-            subheader ->
-              case build_cmap_format2_high_byte(subtable, high_byte, subheader_index, subheader) do
-                {:ok, high_byte_map} -> {:cont, {:ok, Map.merge(acc, high_byte_map)}}
-                :error -> {:halt, :error}
-              end
-          end
+          subheader ->
+            case build_cmap_format2_high_byte(subtable, high_byte, subheader_index, subheader) do
+              {:ok, high_byte_map} -> {:cont, {:ok, Map.merge(acc, high_byte_map)}}
+              :error -> {:halt, :error}
+            end
+        end
       end
     end)
     |> case do

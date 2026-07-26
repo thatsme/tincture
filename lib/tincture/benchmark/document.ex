@@ -1,9 +1,9 @@
 defmodule Tincture.Benchmark.Document do
   @moduledoc false
 
-  alias Tincture.PDF
   alias Tincture.Layout.Table
   alias Tincture.Layout.Template
+  alias Tincture.PDF
   alias Tincture.Typography.RichText
 
   @default_guardrails %{

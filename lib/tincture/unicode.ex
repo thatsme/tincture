@@ -50,11 +50,9 @@ defmodule Tincture.Unicode do
 
   def combining_mark_codepoint?(codepoint)
       when is_integer(codepoint) and codepoint >= 0 and codepoint <= 0x10FFFF do
-    try do
-      Regex.match?(@combining_mark_regex, <<codepoint::utf8>>)
-    rescue
-      _ -> false
-    end
+    Regex.match?(@combining_mark_regex, <<codepoint::utf8>>)
+  rescue
+    _ -> false
   end
 
   def combining_mark_codepoint?(_codepoint), do: false

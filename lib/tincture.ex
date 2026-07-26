@@ -6,19 +6,20 @@ defmodule Tincture do
   import Bitwise
 
   alias Tincture.Font
+  alias Tincture.Font.UnicodeRanges
   alias Tincture.PDF
   alias Tincture.PDF.Ops
   alias Tincture.PDF.Serialize
   alias Tincture.Typography
-  alias Tincture.Unicode
   alias Tincture.Typography.Line
   alias Tincture.Typography.RichText
   alias Tincture.Typography.RichText.Break
   alias Tincture.Typography.RichText.Space
   alias Tincture.Typography.RichText.Word
+  alias Tincture.Unicode
 
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
-  @type rich_text :: %{required(:tokens) => [term()]}
+  @type rich_text :: RichText.t()
   @type paragraph_option ::
           {:align, :left | :center | :right | :justified}
           | {:line_height, number()}
@@ -555,9 +556,8 @@ defmodule Tincture do
   """
   @spec save(PDF.t(), Path.t()) :: :ok | {:error, term()}
   def save(%PDF{} = pdf, path) when is_binary(path) do
-    with :ok <- File.mkdir_p(Path.dirname(path)),
-         :ok <- File.write(path, export(pdf)) do
-      :ok
+    with :ok <- File.mkdir_p(Path.dirname(path)) do
+      File.write(path, export(pdf))
     end
   end
 
@@ -1131,12 +1131,10 @@ defmodule Tincture do
 
   defp font_supports_codepoint?(%PDF{} = pdf, font_name, codepoint)
        when is_integer(codepoint) and codepoint >= 0 do
-    cond do
-      Font.font_available?(font_name) ->
-        codepoint <= 255
-
-      true ->
-        embedded_font_supports_codepoint?(Map.get(pdf.embedded_fonts, font_name), codepoint)
+    if Font.font_available?(font_name) do
+      codepoint <= 255
+    else
+      embedded_font_supports_codepoint?(Map.get(pdf.embedded_fonts, font_name), codepoint)
     end
   end
 
@@ -1157,8 +1155,8 @@ defmodule Tincture do
     code_page_ranges = Map.get(ttf_metrics, :os2_code_page_ranges)
 
     cond do
-      is_tuple(unicode_ranges) and not unicode_ranges_all_zero?(unicode_ranges) ->
-        unicode_ranges_support_codepoint?(unicode_ranges, codepoint)
+      is_tuple(unicode_ranges) and not UnicodeRanges.all_zero?(unicode_ranges) ->
+        UnicodeRanges.supports_codepoint?(unicode_ranges, codepoint)
 
       is_tuple(code_page_ranges) and not code_page_ranges_all_zero?(code_page_ranges) ->
         code_page_ranges_support_codepoint?(code_page_ranges, codepoint)
@@ -1170,35 +1168,6 @@ defmodule Tincture do
 
   defp embedded_font_supports_codepoint?(%{}, codepoint), do: codepoint <= 255
   defp embedded_font_supports_codepoint?(_other, _codepoint), do: false
-
-  defp unicode_ranges_support_codepoint?(
-         {range1, range2, range3, range4},
-         codepoint
-       )
-       when is_integer(range1) and is_integer(range2) and is_integer(range3) and
-              is_integer(range4) and is_integer(codepoint) and codepoint >= 0 do
-    case unicode_range_bit_for_codepoint(codepoint) do
-      nil ->
-        false
-
-      bit ->
-        range_value =
-          case div(bit, 32) do
-            0 -> range1
-            1 -> range2
-            2 -> range3
-            3 -> range4
-          end
-
-        mask = 1 <<< rem(bit, 32)
-        (range_value &&& mask) != 0
-    end
-  end
-
-  defp unicode_ranges_support_codepoint?(_ranges, _codepoint), do: false
-
-  defp unicode_ranges_all_zero?({0, 0, 0, 0}), do: true
-  defp unicode_ranges_all_zero?(_ranges), do: false
 
   defp code_page_ranges_support_codepoint?({range1, range2}, codepoint)
        when is_integer(range1) and is_integer(range2) and is_integer(codepoint) do
@@ -1297,52 +1266,6 @@ defmodule Tincture do
 
   defp code_page_ranges_all_zero?({0, 0}), do: true
   defp code_page_ranges_all_zero?(_ranges), do: false
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0000 and codepoint <= 0x007F,
-       do: 0
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0080 and codepoint <= 0x00FF,
-       do: 1
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0100 and codepoint <= 0x017F,
-       do: 2
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0180 and codepoint <= 0x024F,
-       do: 3
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0370 and codepoint <= 0x03FF,
-       do: 7
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0400 and codepoint <= 0x04FF,
-       do: 9
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0530 and codepoint <= 0x058F,
-       do: 10
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0590 and codepoint <= 0x05FF,
-       do: 11
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0600 and codepoint <= 0x06FF,
-       do: 13
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0900 and codepoint <= 0x097F,
-       do: 15
-
-  defp unicode_range_bit_for_codepoint(codepoint)
-       when codepoint >= 0x0E00 and codepoint <= 0x0E7F,
-       do: 24
-
-  defp unicode_range_bit_for_codepoint(_codepoint), do: nil
 
   defp text_width_for_font(%PDF{} = pdf, font_name, size, text) do
     if Font.font_available?(font_name) do
