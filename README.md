@@ -101,6 +101,7 @@ File.write!("hello.pdf", pdf)
 - [x] PDF bookmarks / table of contents (`Tincture.add_bookmark/3`)
 - [x] Hyperlinks and annotations — external URLs and internal page targets (`Tincture.link/6`, `Tincture.text_link/5`)
 - [x] Interactive forms (AcroForm) — text fields, checkboxes and choice fields (`Tincture.text_field/7`, `Tincture.checkbox/6`, `Tincture.choice_field/7`)
+- [x] AES-256 encryption — user/owner passwords and permission flags, standard security handler revision 6 (`Tincture.encrypt/2`)
 - [x] `kd_test1`-style commercial bill parity fixture with logo (`test/kd_test1_parity_test.exs`)
 
 ## Architecture

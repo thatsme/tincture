@@ -364,6 +364,56 @@ defmodule Tincture do
   end
 
   @doc """
+  Encrypt the document with AES-256.
+
+  Uses the standard security handler at revision 6 (`/V 5 /R 6`), the
+  encryption defined by PDF 2.0. Readers from Acrobat X (2010) onward support
+  it, as do macOS Preview, Chrome, Firefox, PDFBox, Ghostscript and qpdf.
+
+  ## What this protects
+
+  A **user password** is real encryption. Without it the document cannot be
+  read at all.
+
+      Tincture.encrypt(pdf, user_password: "hunter2")
+
+  An **owner password on its own is not.** The document is encrypted under the
+  empty user password, so any reader can open it; the permissions below are
+  advisory, and `qpdf --decrypt` strips them without knowing the password.
+  This is how the PDF format works, not a limitation of this implementation.
+
+      # Anyone can open this; the restriction is a request, not a control.
+      Tincture.encrypt(pdf, owner_password: "master", permissions: [:print])
+
+  Use an owner password to express intent, and a user password when the
+  content genuinely must not be read.
+
+  ## Options
+
+    * `:user_password` — required to open the document. Defaults to `""`.
+    * `:owner_password` — grants full rights. Defaults to the user password.
+    * `:permissions` — what a viewer is asked to allow. Defaults to
+      everything. One or more of `:print`, `:modify`, `:copy`, `:annotate`,
+      `:fill_forms`, `:extract_for_accessibility`, `:assemble`,
+      `:print_high_quality`.
+    * `:encrypt_metadata` — encrypt document metadata too. Defaults to `true`.
+
+  ## Examples
+
+      pdf
+      |> Tincture.text_at(72, 700, "Confidential")
+      |> Tincture.encrypt(user_password: "hunter2", permissions: [:print])
+      |> Tincture.export()
+
+  Calling this twice replaces the earlier settings; the document is encrypted
+  once, at export.
+  """
+  @spec encrypt(PDF.t(), keyword()) :: PDF.t()
+  def encrypt(%PDF{} = pdf, opts \\ []) when is_list(opts) do
+    %PDF{pdf | encryption: Tincture.PDF.Encrypt.new(opts)}
+  end
+
+  @doc """
   Set the current font name and size.
   """
   @spec set_font(PDF.t(), String.t(), number()) :: PDF.t()

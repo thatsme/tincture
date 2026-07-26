@@ -19,6 +19,7 @@ defmodule Tincture.PDF.Serialize do
   require Logger
 
   alias Tincture.PDF
+  alias Tincture.PDF.Encrypt
   alias Tincture.PDF.FontEmbed
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
@@ -99,7 +100,7 @@ defmodule Tincture.PDF.Serialize do
           {base_object_bodies ++ [info_body], info_id}
       end
 
-    build_pdf(object_bodies, info_ref)
+    build_pdf(object_bodies, info_ref, pdf.encryption)
   end
 
   defp page_object_id(index), do: 3 + index * 2
@@ -235,14 +236,26 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  defp build_pdf(object_bodies, info_ref) do
+  defp build_pdf(object_bodies, info_ref, encryption) do
     header = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+
+    # The /Encrypt dictionary is appended last and is itself never encrypted -
+    # a reader has to read it before it holds any key.
+    {object_bodies, encrypt_ref} =
+      case encryption do
+        nil ->
+          {object_bodies, nil}
+
+        context ->
+          {object_bodies ++ [Encrypt.encrypt_dictionary(context)], length(object_bodies) + 1}
+      end
 
     {objects_reversed, offsets_reversed, cursor} =
       Enum.reduce(Enum.with_index(object_bodies, 1), {[], [], byte_size(header)}, fn {body, id},
                                                                                      {acc_objects,
                                                                                       acc_offsets,
                                                                                       acc_cursor} ->
+        body = maybe_encrypt_object(body, id, encrypt_ref, encryption)
         object = [Integer.to_string(id), " 0 obj\n", body, "\nendobj\n"]
         next_cursor = acc_cursor + IO.iodata_length(object)
         {[object | acc_objects], [acc_cursor | acc_offsets], next_cursor}
@@ -265,14 +278,38 @@ defmodule Tincture.PDF.Serialize do
         id -> " /Info #{id} 0 R"
       end
 
+    encrypt_part =
+      case encrypt_ref do
+        nil -> ""
+        id -> " /Encrypt #{id} 0 R"
+      end
+
+    # /ID is required once a document is encrypted, and both halves are the
+    # same for a file that has never been incrementally updated.
+    id_part =
+      case encryption do
+        nil ->
+          ""
+
+        context ->
+          hex = Base.encode16(Encrypt.id(context), case: :upper)
+          " /ID [<#{hex}> <#{hex}>]"
+      end
+
     trailer = [
-      "trailer\n<< /Size #{object_count + 1} /Root 1 0 R#{info_part} >>\n",
+      "trailer\n<< /Size #{object_count + 1} /Root 1 0 R#{info_part}#{encrypt_part}#{id_part} >>\n",
       "startxref\n#{xref_offset}\n",
       "%%EOF\n"
     ]
 
     IO.iodata_to_binary([header, objects, xref, trailer])
   end
+
+  defp maybe_encrypt_object(body, _id, _encrypt_ref, nil), do: body
+  defp maybe_encrypt_object(body, id, id, _encryption), do: body
+
+  defp maybe_encrypt_object(body, _id, _encrypt_ref, context),
+    do: Encrypt.encrypt_object(body, context)
 
   defp font_resources(operations, embedded_font_refs) do
     fonts = FontEmbed.font_names_from_operations(operations)

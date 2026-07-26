@@ -113,6 +113,7 @@ defmodule Tincture.PDF do
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
           form_fields: [form_field()],
+          encryption: map() | nil,
           metadata: %{optional(atom()) => String.t()},
           operations: [op()]
         }
@@ -127,6 +128,7 @@ defmodule Tincture.PDF do
             bookmarks: [],
             annotations: %{},
             form_fields: [],
+            encryption: nil,
             metadata: %{},
             operations: []
 
