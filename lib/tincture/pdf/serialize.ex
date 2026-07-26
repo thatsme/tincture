@@ -24,9 +24,25 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.FontEmbed
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
+  alias Tincture.Telemetry
 
   @spec export(PDF.t()) :: binary()
   def export(%PDF{} = pdf) do
+    metadata = %{
+      page_count: length(PDF.page_numbers(pdf)),
+      form_field_count: length(pdf.form_fields),
+      embedded_font_count: map_size(pdf.embedded_fonts),
+      image_count: map_size(pdf.images),
+      encrypted?: not is_nil(pdf.encryption)
+    }
+
+    Telemetry.span([:tincture, :export], metadata, fn ->
+      binary = do_export(pdf)
+      {binary, %{byte_size: byte_size(binary)}}
+    end)
+  end
+
+  defp do_export(%PDF{} = pdf) do
     {page_width, page_height} = Page.media_box(pdf.page_size)
     page_numbers = PDF.page_numbers(pdf)
     page_count = length(page_numbers)
@@ -65,8 +81,16 @@ defmodule Tincture.PDF.Serialize do
         operations = PDF.page_operations(pdf, page_number)
         {font_aliases, font_resources} = font_resources(operations, embedded_font_refs)
         xobject_resources = xobject_resources(operations, image_object_refs)
-        content_stream = content_stream(operations, font_aliases, embedded_font_text_modes)
-        content_length = IO.iodata_length(content_stream)
+
+        page_metadata = %{page_number: page_number, operation_count: length(operations)}
+
+        {content_stream, content_length} =
+          Telemetry.span([:tincture, :page], page_metadata, fn ->
+            stream = content_stream(operations, font_aliases, embedded_font_text_modes)
+            length = IO.iodata_length(stream)
+            {{stream, length}, %{byte_size: length}}
+          end)
+
         resources = resource_dictionary(font_resources, xobject_resources)
 
         annots =

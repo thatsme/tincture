@@ -22,6 +22,13 @@
 # worse than a broad one because it silently stops matching.
 
 [
+  # Telemetry.enabled?/0 returns a compile-time constant, so within any single
+  # build its success typing is exactly `true` or exactly `false` and the
+  # boolean() spec looks too wide. The spec is right for the library, which
+  # compiles both ways depending on whether the optional :telemetry dependency
+  # is present; Dialyzer only ever analyses the build in front of it.
+  {"lib/tincture/telemetry.ex", :extra_range},
+
   # Catch-all raise for an unsupported hyphenation locale. Reachable only if a
   # caller passes a locale outside the supported set; the public API normalises
   # before dispatch, so Dialyzer sees it as dead.

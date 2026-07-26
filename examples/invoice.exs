@@ -1,3 +1,5 @@
+Code.require_file("support/fonts.exs", __DIR__)
+
 # A realistic invoice — run with: mix run examples/invoice.exs
 #
 # Writes output/invoice.pdf.
@@ -10,8 +12,6 @@
 alias Tincture.Layout.Table
 alias Tincture.Typography.RichText
 
-georgia = "/System/Library/Fonts/Supplemental/Georgia.ttf"
-verdana = "/System/Library/Fonts/Supplemental/Verdana.ttf"
 
 # A4 in points.
 page_w = 595
@@ -60,8 +60,7 @@ pdf =
     subject: "Invoice for calibration and service work",
     keywords: "invoice, calibration, service"
   )
-  |> Tincture.register_ttf_font("Body", georgia)
-  |> Tincture.register_ttf_font("Sans", verdana)
+  |> then(&elem(Examples.Fonts.register(&1, "Body", "Sans"), 0))
 
 # --- header band ----------------------------------------------------------
 # rectangle/6 takes a paint mode. Before that existed the band silently did
@@ -240,9 +239,10 @@ pdf =
   |> Tincture.text_at(margin, 48, "Bank: Lloyds · Sort 30-96-14 · Account 41780255 · IBAN GB29 LOYD 3096 1441 7802 55")
 
 binary = Tincture.export(pdf)
-File.write!("output/invoice.pdf", binary)
+path = Examples.Fonts.output_path("invoice.pdf")
+File.write!(path, binary)
 
-IO.puts("wrote output/invoice.pdf — #{byte_size(binary)} bytes")
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
 IO.puts("table height: #{Float.round(table.height, 1)}pt over #{table.rows} rows")
 IO.puts("embedded fonts subsetted: #{Regex.scan(~r|/BaseFont /([A-Z]{6})\+(\w+)|, binary) |> Enum.map(&Enum.at(&1, 2)) |> inspect()}")
 IO.puts("link present: #{binary =~ "/Subtype /Link"}")

@@ -149,8 +149,9 @@ currently holds everything at once.
 
 **Status: absent.**
 
-- **Telemetry.** No `:telemetry` events. Enterprises want render duration and
-  document size per document, and page-level timing for slow-path diagnosis.
+- ~~**Telemetry.**~~ **Done.** Three spans — document, page and font embed —
+  with duration, byte sizes and document shape. `:telemetry` is optional, so
+  the zero-required-dependency claim still holds. See `Tincture.Telemetry`.
 - **Benchmarks against alternatives.** The benchmark suite guards against
   regression but does not compare with ChromicPDF or elixir-pdf, so there is
   no answer to "how fast is it".
@@ -172,7 +173,7 @@ This is arguably a separate library. Listed because evaluators will ask, and
 
 ## Suggested order
 
-1. **Telemetry and benchmarks** — days, and immediately useful.
+1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
 2. **Transparency and shading** — small, self-contained, visible.
 3. **Tagged PDF** — the largest blocker for public-sector work, and
    architectural, so better done before more features build on the content

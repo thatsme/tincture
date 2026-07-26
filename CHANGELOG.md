@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Telemetry.** Three spans — `[:tincture, :export]`, `[:tincture, :page]` and
+  `[:tincture, :font, :embed]` — covering document duration and size, per-page
+  timing, and per-font embedding with source and embedded sizes so subsetting is
+  measurable. `:telemetry` is an **optional** dependency: without it every event
+  call compiles away, so Tincture still has no required runtime dependencies.
+  See `Tincture.Telemetry`.
+- **`examples/`**, with the produced PDFs committed. An invoice, an interactive
+  form exercising every field type, and a telemetry report. `mix examples` runs
+  them all. Font paths are resolved per platform, so they run outside macOS.
 - **The remaining form field types.** `Tincture.radio_group/4`,
   `Tincture.push_button/7` and `Tincture.signature_field/7` complete the field
   set. A radio group is the first field that is not a single object: the

@@ -62,6 +62,10 @@ defmodule Tincture.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      # Optional on purpose: Tincture has no required runtime dependencies, and
+      # with :telemetry absent every event call compiles away. See
+      # `Tincture.Telemetry`.
+      {:telemetry, "~> 1.0", optional: true},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
@@ -72,6 +76,11 @@ defmodule Tincture.MixProject do
   # `mix check` runs every gate CI runs, in the same order.
   defp aliases do
     [
+      examples: [
+        "run examples/invoice.exs",
+        "run examples/form.exs",
+        "run examples/telemetry.exs"
+      ],
       check: [
         "format --check-formatted",
         "compile --force --warnings-as-errors",

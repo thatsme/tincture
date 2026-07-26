@@ -23,6 +23,7 @@ defmodule Tincture.PDF.FontEmbed do
   alias Tincture.Font.CFF
   alias Tincture.PDF
   alias Tincture.PDF.Object
+  alias Tincture.Telemetry
   alias Tincture.Unicode
 
   @sfnt_checksum_magic 0xB1B0AFBA
@@ -59,17 +60,35 @@ defmodule Tincture.PDF.FontEmbed do
           unicode_text? = Map.get(unicode_text_by_font, font_name, false)
           use_type0? = use_type0_embedded_font?(embedded_font, unicode_text?)
 
+          font_metadata = %{
+            font_name: font_name,
+            format: Map.get(embedded_font, :format),
+            subset: Map.get(embedded_font, :subset)
+          }
+
           {font_object_ref, per_font_objects, next_object_id, text_mode} =
-            build_embedded_font_family_objects(
-              embedded_font,
-              next_id,
-              used_char_codes,
-              used_cids,
-              scalar_codepoints,
-              variation_sequences,
-              to_unicode_mappings,
-              use_type0?
-            )
+            Telemetry.span([:tincture, :font, :embed], font_metadata, fn ->
+              result =
+                build_embedded_font_family_objects(
+                  embedded_font,
+                  next_id,
+                  used_char_codes,
+                  used_cids,
+                  scalar_codepoints,
+                  variation_sequences,
+                  to_unicode_mappings,
+                  use_type0?
+                )
+
+              {_ref, objects, _next, _mode} = result
+
+              measurements = %{
+                byte_size: IO.iodata_length(objects),
+                source_size: byte_size(Map.get(embedded_font, :data, ""))
+              }
+
+              {result, measurements}
+            end)
 
           {
             Map.put(acc_refs, font_name, font_object_ref),
