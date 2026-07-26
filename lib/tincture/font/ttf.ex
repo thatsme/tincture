@@ -4065,8 +4065,7 @@ defmodule Tincture.Font.TTF do
 
   defp parse_cmap_format4(
          <<4::16-big, _length::16-big, _language::16-big, seg_count_x2::16-big,
-           _search_range::16-big, _entry_selector::16-big, _range_shift::16-big,
-           rest::binary>> =
+           _search_range::16-big, _entry_selector::16-big, _range_shift::16-big, rest::binary>> =
            subtable
        )
        when rem(seg_count_x2, 2) == 0 do

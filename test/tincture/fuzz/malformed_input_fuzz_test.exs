@@ -67,7 +67,9 @@ defmodule Tincture.Fuzz.MalformedInputFuzzTest do
 
       capture_log(fn ->
         assert {:error, :invalid_xml} = Template.parse_xml(malformed_xml)
-        assert {:error, :invalid_xml} = Template.render_xml_document(Tincture.new(), malformed_xml)
+
+        assert {:error, :invalid_xml} =
+                 Template.render_xml_document(Tincture.new(), malformed_xml)
       end)
     end)
   end

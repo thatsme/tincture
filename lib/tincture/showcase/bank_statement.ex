@@ -67,7 +67,11 @@ defmodule Tincture.Showcase.BankStatement do
         |> Tincture.set_font("Helvetica", 9)
         |> Tincture.text_at(48, 228, "Customer support: (800) 555-0199")
         |> Tincture.text_at(48, 216, "Fraud hotline: (800) 555-0411")
-        |> Tincture.text_at(48, 204, "This statement includes simulated transactions for testing.")
+        |> Tincture.text_at(
+          48,
+          204,
+          "This statement includes simulated transactions for testing."
+        )
 
       doc_result = %DocumentResult{
         pages_used: 3,
@@ -244,7 +248,9 @@ defmodule Tincture.Showcase.BankStatement do
   end
 
   defp maybe_draw_page_chrome(pdf, 1, _total, _config), do: pdf
-  defp maybe_draw_page_chrome(pdf, page, total, config), do: draw_page_chrome(pdf, page, total, config)
+
+  defp maybe_draw_page_chrome(pdf, page, total, config),
+    do: draw_page_chrome(pdf, page, total, config)
 
   defp draw_page_chrome(pdf, page, total, config) do
     pdf

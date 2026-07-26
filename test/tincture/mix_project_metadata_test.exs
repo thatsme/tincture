@@ -20,6 +20,14 @@ defmodule Tincture.MixProjectMetadataTest do
   test "docs config includes readme extras" do
     docs = Mix.Project.config()[:docs]
     assert is_list(docs)
-    assert "README.MD" in Keyword.get(docs, :extras, [])
+    assert "README.md" in Keyword.get(docs, :extras, [])
+  end
+
+  test "packaged files all exist" do
+    files = Mix.Project.config()[:package] |> Keyword.get(:files, [])
+
+    for file <- files do
+      assert File.exists?(file), "package declares #{file} but it is missing from the repo"
+    end
   end
 end

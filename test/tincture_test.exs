@@ -1754,7 +1754,9 @@ defmodule TinctureTest do
 
     pdf_binary =
       Tincture.new()
-      |> Tincture.register_otf_font("DemoOTFCFFSubsetFDArrayPrivateTail", path, subset: :used_text)
+      |> Tincture.register_otf_font("DemoOTFCFFSubsetFDArrayPrivateTail", path,
+        subset: :used_text
+      )
       |> Tincture.set_font("DemoOTFCFFSubsetFDArrayPrivateTail", 12)
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
@@ -3370,7 +3372,12 @@ defmodule TinctureTest do
       |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
       |> Tincture.register_ttf_font("FallbackLigatureSTKerningX", ligature_kerning_path)
       |> Tincture.set_font("PrimaryASCII", 12)
-      |> Tincture.text_at_rotated_with_fallback(50, 700, 20, "st★", ["FallbackLigatureSTKerningX"],
+      |> Tincture.text_at_rotated_with_fallback(
+        50,
+        700,
+        20,
+        "st★",
+        ["FallbackLigatureSTKerningX"],
         shaping: :gsub_ligatures,
         kerning: :gpos
       )

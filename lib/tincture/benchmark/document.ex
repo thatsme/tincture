@@ -145,8 +145,8 @@ defmodule Tincture.Benchmark.Document do
     :erlang.garbage_collect()
     after_mem = :erlang.memory(:total)
 
-    us_per_iter = total_us / iterations
-    ips = 1_000_000.0 / us_per_iter
+    us_per_iter = total_us / (iterations * 1.0)
+    ips = if us_per_iter > 0.0, do: 1_000_000.0 / us_per_iter, else: 0.0
 
     memory_bytes_delta =
       case after_mem - before_mem do

@@ -406,8 +406,7 @@ defmodule Tincture.Typography do
     n = length(tokens)
 
     {prefix_width_rev, prefix_space_count_rev, prefix_space_width_rev, prefix_non_space_count_rev,
-     hyphen_flags_rev, _width, _space_count, _space_width,
-     _non_space_count} =
+     hyphen_flags_rev, _width, _space_count, _space_width, _non_space_count} =
       Enum.reduce(
         tokens,
         {[0.0], [0], [0.0], [0], [], 0.0, 0, 0.0, 0},

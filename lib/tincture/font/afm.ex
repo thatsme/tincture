@@ -49,7 +49,7 @@ defmodule Tincture.Font.AFM do
     Map.get(afm.kerning, {left, right}, 0)
   end
 
-  defp parse_line("FontName " <> font_name, {mode, afm}) do
+  defp parse_line("FontName " <> font_name, {mode, %__MODULE__{} = afm}) do
     {mode, %__MODULE__{afm | font_name: String.trim(font_name)}}
   end
 
@@ -73,7 +73,7 @@ defmodule Tincture.Font.AFM do
     end
   end
 
-  defp parse_line("KPX " <> rest, {:kern_pairs, afm}) do
+  defp parse_line("KPX " <> rest, {:kern_pairs, %__MODULE__{} = afm}) do
     case String.split(rest, ~r/\s+/, trim: true) do
       [left, right, value] ->
         case parse_number(value) do
@@ -145,11 +145,11 @@ defmodule Tincture.Font.AFM do
     end
   end
 
-  defp put_width(afm, code, width) do
+  defp put_width(%__MODULE__{} = afm, code, width) do
     %__MODULE__{afm | widths_by_code: Map.put(afm.widths_by_code, code, width)}
   end
 
-  defp put_glyph(afm, code, glyph_name) do
+  defp put_glyph(%__MODULE__{} = afm, code, glyph_name) do
     %__MODULE__{afm | glyph_by_code: Map.put(afm.glyph_by_code, code, glyph_name)}
   end
 end
