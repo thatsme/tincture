@@ -81,17 +81,27 @@ defmodule Tincture.MixProject do
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
+        "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md",
         "erlguten (Joe Armstrong)" => "https://github.com/CarlWright/NGerlguten"
       },
       maintainers: ["thatsme"],
-      files: ["lib", "priv", "mix.exs", "README.md", "LICENSE", "NOTICE"]
+      files: [
+        "lib",
+        "priv",
+        "mix.exs",
+        "README.md",
+        "CHANGELOG.md",
+        "ROADMAP.md",
+        "LICENSE",
+        "NOTICE"
+      ]
     ]
   end
 
   defp docs do
     [
       main: "Tincture",
-      extras: ["README.md", "NOTICE", "LICENSE"],
+      extras: ["README.md", "CHANGELOG.md", "ROADMAP.md", "NOTICE", "LICENSE"],
       source_ref: "v#{@version}",
       source_url: @source_url,
       # Mermaid is rendered client-side; ExDoc ships no diagram support itself.

@@ -6,6 +6,10 @@ Tincture is a **fork of [ex_guten](https://github.com/hwatkins/ex_guten)** by Hu
 
 Most of the engine — the TrueType/OpenType parser, the Knuth-Plass line breaker, the TeX hyphenation port, the PDF object serialiser — is Hugh Watkins' work, carried forward here. See [Heritage](#heritage) and [NOTICE](NOTICE) for the full attribution chain.
 
+See [ROADMAP.md](ROADMAP.md) for what is missing and in what order — including
+the gaps that matter for enterprise adoption (tagged PDF, PDF/A, digital
+signatures).
+
 ## Why?
 
 The Elixir ecosystem lacks a native PDF generation library with real typographic capabilities. Most existing options are either wrappers around external tools (wkhtmltopdf, Chrome headless) or basic PDF writers without proper text layout. Tincture fills this gap by bringing battle-tested typesetting algorithms — including TeX-style hyphenation and global line-break optimization — directly into Elixir.
