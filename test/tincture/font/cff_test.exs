@@ -252,4 +252,218 @@ defmodule Tincture.Font.CFFTest do
       assert result.size == byte_size(binary) - byte_size("AFTER")
     end
   end
+
+  # -- DICT accessors and table metadata -------------------------------------
+  #
+  # These were private in Tincture.Font.TTF until the CFF-dict layer was lifted
+  # in, and came across without tests of their own.
+
+  describe "cff_sid_to_string/2" do
+    test "resolves standard SIDs from the built-in string table" do
+      # 0..390 are predefined by the specification; the weight names at the top
+      # of the range are what the font descriptor actually reads.
+      assert CFF.cff_sid_to_string([], 383) == "Black"
+      assert CFF.cff_sid_to_string([], 384) == "Bold"
+      assert CFF.cff_sid_to_string([], 385) == "Book"
+      assert CFF.cff_sid_to_string([], 386) == "Light"
+      assert CFF.cff_sid_to_string([], 387) == "Medium"
+      assert CFF.cff_sid_to_string([], 388) == "Regular"
+      assert CFF.cff_sid_to_string([], 389) == "Roman"
+      assert CFF.cff_sid_to_string([], 390) == "Semibold"
+    end
+
+    test "resolves custom SIDs from the font's own string index" do
+      # SIDs from 391 index into the string INDEX, zero-based.
+      assert CFF.cff_sid_to_string(["Inter", "Condensed"], 391) == "Inter"
+      assert CFF.cff_sid_to_string(["Inter", "Condensed"], 392) == "Condensed"
+    end
+
+    test "returns nil for a custom SID past the end of the string index" do
+      assert CFF.cff_sid_to_string(["Inter"], 500) == nil
+      assert CFF.cff_sid_to_string([], 391) == nil
+    end
+
+    test "returns nil for a standard SID with no assigned string" do
+      # The predefined table has gaps and stops at 390.
+      assert CFF.cff_sid_to_string([], 380) == nil
+    end
+
+    test "returns nil for a malformed SID or string index" do
+      assert CFF.cff_sid_to_string([], -1) == nil
+      assert CFF.cff_sid_to_string([], nil) == nil
+      assert CFF.cff_sid_to_string(nil, 391) == nil
+    end
+
+    test "trims a custom string and treats a blank one as absent" do
+      assert CFF.cff_sid_to_string(["  Inter  "], 391) == "Inter"
+      assert CFF.cff_sid_to_string(["   "], 391) == nil
+    end
+  end
+
+  describe "normalize_name_value/1" do
+    test "trims surrounding whitespace" do
+      assert CFF.normalize_name_value("  Inter  ") == "Inter"
+    end
+
+    test "returns nil for a blank or empty string" do
+      assert CFF.normalize_name_value("") == nil
+      assert CFF.normalize_name_value("   ") == nil
+    end
+
+    test "leaves an ordinary name untouched" do
+      assert CFF.normalize_name_value("Helvetica-Bold") == "Helvetica-Bold"
+    end
+  end
+
+  describe "DICT operand extraction" do
+    # A DICT entry is its operands followed by the operator byte.
+    defp dict_int(value) when value >= 108 and value <= 1131 do
+      <<div(value - 108, 256) + 247::8, rem(value - 108, 256)::8>>
+    end
+
+    defp dict_int(value) when value >= -107 and value <= 107, do: <<value + 139::8>>
+
+    test "extract_cff_operator_operand/2 reads the last operand of an entry" do
+      dict = dict_int(42) <> <<4::8>>
+      assert CFF.extract_cff_operator_operand(dict, 4) == {:ok, 42}
+    end
+
+    test "finds an entry among several" do
+      dict = dict_int(1) <> <<2::8>> <> dict_int(700) <> <<4::8>> <> dict_int(3) <> <<5::8>>
+      assert CFF.extract_cff_operator_operand(dict, 4) == {:ok, 700}
+    end
+
+    test "returns :error when the operator is absent" do
+      assert CFF.extract_cff_operator_operand(dict_int(42) <> <<4::8>>, 7) == :error
+    end
+
+    test "returns :error for an empty dict" do
+      assert CFF.extract_cff_operator_operand(<<>>, 4) == :error
+    end
+
+    test "rejects an operator outside the single-byte range" do
+      dict = dict_int(42) <> <<4::8>>
+      assert CFF.extract_cff_operator_operand(dict, 22) == :error
+      assert CFF.extract_cff_operator_operand(dict, -1) == :error
+    end
+
+    test "rejects a non-binary dict" do
+      assert CFF.extract_cff_operator_operand(nil, 4) == :error
+    end
+
+    test "extract_cff_operator_operands/2 reads every operand of an entry" do
+      # FontBBox (operator 5) carries four operands.
+      dict = dict_int(0) <> dict_int(-100) <> dict_int(500) <> dict_int(700) <> <<5::8>>
+      assert CFF.extract_cff_operator_operands(dict, 5) == {:ok, [0, -100, 500, 700]}
+    end
+
+    test "extract_cff_operator_operands/2 returns :error when absent" do
+      assert CFF.extract_cff_operator_operands(dict_int(1) <> <<2::8>>, 5) == :error
+      assert CFF.extract_cff_operator_operands(nil, 5) == :error
+    end
+
+    test "extract_cff_escaped_operator_operand/2 reads a two-byte operator" do
+      # Escaped operators are the byte 12 followed by a second byte.
+      dict = dict_int(120) <> <<12::8, 8::8>>
+      assert CFF.extract_cff_escaped_operator_operand(dict, 8) == {:ok, 120}
+    end
+
+    test "escaped and unescaped operators with the same number are distinct" do
+      # `12 8` must not be found by a search for plain operator 8.
+      dict = dict_int(120) <> <<12::8, 8::8>>
+      assert CFF.extract_cff_operator_operand(dict, 8) == :error
+    end
+
+    test "extract_cff_escaped_operator_operand/2 returns :error when absent" do
+      assert CFF.extract_cff_escaped_operator_operand(dict_int(1) <> <<12::8, 9::8>>, 8) == :error
+      assert CFF.extract_cff_escaped_operator_operand(nil, 8) == :error
+      assert CFF.extract_cff_escaped_operator_operand(<<>>, 8) == :error
+    end
+  end
+
+  describe "fetch_cff_metadata/2" do
+    defp cff_index([]), do: <<0::16-big>>
+
+    defp cff_index(objects) do
+      {offsets, _} =
+        Enum.reduce(objects, {[1], 1}, fn object, {acc, cursor} ->
+          next = cursor + byte_size(object)
+          {acc ++ [next], next}
+        end)
+
+      offset_bin = for o <- offsets, into: <<>>, do: <<o::8>>
+      <<length(objects)::16-big, 1::8, offset_bin::binary, IO.iodata_to_binary(objects)::binary>>
+    end
+
+    defp cff_table(opts \\ []) do
+      name = Keyword.get(opts, :name, "FontName")
+      top_dict = Keyword.get(opts, :top_dict, <<>>)
+      strings = Keyword.get(opts, :strings, [])
+      header_size = Keyword.get(opts, :header_size, 4)
+
+      <<1::8, 0::8, header_size::8, 1::8>> <>
+        String.duplicate(<<0>>, header_size - 4) <>
+        cff_index([name]) <> cff_index([top_dict]) <> cff_index(strings) <> cff_index([])
+    end
+
+    defp font_with(cff), do: {<<0xAA, 0xBB>> <> cff, %{"CFF " => {2, byte_size(cff)}}}
+
+    test "reads the name, top dict and string index" do
+      {data, records} = font_with(cff_table(name: "Inter", strings: ["Custom"]))
+
+      assert {:ok, metadata} = CFF.fetch_cff_metadata(data, records)
+      assert metadata.cff_name == "Inter"
+      assert metadata.string_index == ["Custom"]
+      assert is_binary(metadata.top_dict)
+    end
+
+    test "tolerates a header larger than the minimum" do
+      {data, records} = font_with(cff_table(header_size: 8))
+      assert {:ok, _metadata} = CFF.fetch_cff_metadata(data, records)
+    end
+
+    test "fetch_cff_top_dict/2 returns just the top dict" do
+      {data, records} = font_with(cff_table(top_dict: <<139::8, 4::8>>))
+      assert {:ok, <<139, 4>>} = CFF.fetch_cff_top_dict(data, records)
+    end
+
+    test "returns :error when the font has no CFF table" do
+      assert CFF.fetch_cff_metadata(<<0, 0>>, %{}) == :error
+      assert CFF.fetch_cff_top_dict(<<0, 0>>, %{}) == :error
+    end
+
+    test "returns :error when the record points outside the font" do
+      assert CFF.fetch_cff_metadata(<<0, 0>>, %{"CFF " => {900, 40}}) == :error
+    end
+
+    test "returns :error for a header shorter than four bytes" do
+      {data, records} = font_with(<<1::8, 0::8>>)
+      assert CFF.fetch_cff_metadata(data, records) == :error
+    end
+
+    test "returns :error when the declared header size exceeds the table" do
+      {data, records} = font_with(<<1::8, 0::8, 40::8, 1::8>>)
+      assert CFF.fetch_cff_metadata(data, records) == :error
+    end
+
+    test "returns :error when an index is malformed" do
+      {data, records} = font_with(<<1::8, 0::8, 4::8, 1::8, 0xFF, 0xFF, 0xFF>>)
+      assert CFF.fetch_cff_metadata(data, records) == :error
+    end
+  end
+
+  describe "nondecreasing?/1" do
+    test "an empty list is nondecreasing" do
+      assert CFF.nondecreasing?([])
+    end
+
+    test "equal neighbours are allowed" do
+      assert CFF.nondecreasing?([1, 1, 2, 2])
+    end
+
+    test "any decrease disqualifies the list" do
+      refute CFF.nondecreasing?([1, 3, 2])
+      refute CFF.nondecreasing?([2, 1])
+    end
+  end
 end
