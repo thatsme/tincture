@@ -10,10 +10,9 @@ defmodule Tincture.MixProject do
       name: "Tincture",
       version: @version,
       description:
-        "Typographic-quality PDF generation for Elixir with no runtime dependencies. " <>
-          "TeX hyphenation and Knuth-Plass line breaking, TrueType/OpenType embedding with " <>
-          "subsetting, tables and templates, interactive forms, AES-256 encryption, and " <>
-          "verified PDF/UA accessibility, PDF/A archival output and digital signatures.",
+        "Typographic-quality PDF generation with no runtime dependencies. TeX hyphenation, " <>
+          "Knuth-Plass line breaking, TrueType/OpenType embedding with subsetting, tables, " <>
+          "forms, AES-256 encryption, and verified PDF/UA and PDF/A output.",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -109,9 +108,15 @@ defmodule Tincture.MixProject do
         "erlguten (Joe Armstrong)" => "https://github.com/CarlWright/NGerlguten"
       },
       maintainers: ["thatsme"],
+      # priv subdirectories listed individually so priv/plts — the generated
+      # Dialyzer PLT, 3.2 MB of build artefact — cannot ride along. hex.build
+      # packages from the filesystem, so .gitignore does not exclude it.
       files: [
         "lib",
-        "priv",
+        "priv/standard_fonts",
+        "priv/hyphen",
+        "priv/hyphen_rules",
+        "priv/showcase",
         "mix.exs",
         "README.md",
         "CHANGELOG.md",

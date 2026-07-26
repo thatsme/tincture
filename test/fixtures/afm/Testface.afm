@@ -1,0 +1,25 @@
+StartFontMetrics 4.1
+Comment Synthetic metrics written for Tincture's own tests. Not a real font:
+Comment there are no outlines, only widths and one kerning pair, chosen so a
+Comment measured width is an exact round number. Public domain.
+FontName Testface
+FullName Testface Regular
+FamilyName Testface
+Weight Regular
+FontBBox 0 -200 1000 900
+CapHeight 700
+XHeight 500
+Ascender 750
+Descender -200
+StartCharMetrics 4
+C 65 ; WX 600 ; N A ;
+C 66 ; WX 650 ; N B ;
+C 84 ; WX 700 ; N T ;
+C 111 ; WX 500 ; N o ;
+EndCharMetrics
+StartKernData
+StartKernPairs 1
+KPX T o -200
+EndKernPairs
+EndKernData
+EndFontMetrics

@@ -38,8 +38,24 @@ defmodule Tincture.Font.Metrics do
     end
   end
 
+  @doc """
+  Where AFM font metrics are loaded from.
+
+  Defaults to `priv/afm` inside the application. Point it elsewhere to make
+  your own AFM fonts available by name:
+
+      config :tincture, afm_path: "priv/fonts/afm"
+
+  Tincture ships no AFM fonts itself — the PDF Standard 14 metrics live in
+  `priv/standard_fonts` and are always available.
+  """
+  @spec afm_path() :: Path.t()
+  def afm_path do
+    Application.get_env(:tincture, :afm_path, Application.app_dir(:tincture, "priv/afm"))
+  end
+
   defp build_registry do
-    Path.join(Application.app_dir(:tincture, "priv/afm"), "*.afm")
+    Path.join(afm_path(), "*.afm")
     |> Path.wildcard()
     |> Enum.reduce(%{}, fn path, acc ->
       afm = AFM.parse_file(path)

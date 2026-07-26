@@ -26,9 +26,8 @@ acknowledged. The chain is:
    https://github.com/CarlWright/NGerlguten
    The maintained continuation of erlguten, which carried the library
    forward with font handling and additional layout work. Font metric
-   files under priv/afm/ and priv/standard_fonts/, the hyphenation
-   dictionaries under priv/hyphen/, and several Type 1 font programs
-   under priv/fonts/ derive from this lineage.
+   files under priv/standard_fonts/ and the hyphenation dictionaries
+   under priv/hyphen/ derive from this lineage.
 
 3. ex_guten — Hugh Watkins (hwatkins), MIT License, 2026
    https://github.com/hwatkins/ex_guten
@@ -53,12 +52,17 @@ for provenance details:
                         nb_NO, sv_SE) and their original .tex sources.
                         See priv/hyphen/README.upstream.txt.
 
-  priv/fonts/           Type 1 font programs. See priv/fonts/README.upstream.txt,
-                        README.ocr.txt, and README.vsecret.txt.
-
-  priv/afm/             Adobe Font Metrics files.
-
   priv/standard_fonts/  Metric tables for the PDF Standard 14 fonts.
+
+  Tincture ships no other fonts. Earlier versions of this lineage bundled
+  Type 1 programs and Adobe Font Metrics for Victorias-Secret (c) 1992
+  David Rakowski and OCR-A/OCR-B Digits (c) 1993 Jerry Whiting, Azalea
+  Software, as demonstration material. Their terms do not permit
+  commercial redistribution, so they were removed rather than carried
+  into a package that is redistributed under MIT.
+
+  Adobe Font Metrics for additional fonts can be supplied by pointing
+  :afm_path at a directory of your own. See Tincture.Font.Metrics.
 
   priv/hyphen/tb87nemeth.pdf
                         TUGboat article included as reference documentation

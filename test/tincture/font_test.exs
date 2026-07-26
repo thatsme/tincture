@@ -1,17 +1,19 @@
 defmodule Tincture.FontTest do
   use ExUnit.Case
 
-  test "registered_fonts/0 lists available AFM-backed fonts" do
-    fonts = Tincture.Font.registered_fonts()
-
-    assert "Victorias-Secret" in fonts
-    assert "OCR-A-Digits" in fonts
-    assert "OCR-B-Digits" in fonts
+  # Tincture ships no AFM fonts. The registry reads whatever :afm_path points
+  # at, which the test environment aims at a synthetic fixture.
+  test "registered_fonts/0 lists fonts found on the configured AFM path" do
+    assert "Testface" in Tincture.Font.registered_fonts()
   end
 
-  test "afm/1 returns parsed AFM for known font" do
-    assert {:ok, afm} = Tincture.Font.afm("Victorias-Secret")
-    assert afm.font_name == "Victorias-Secret"
+  test "afm/1 returns parsed AFM for a font on the path" do
+    assert {:ok, afm} = Tincture.Font.afm("Testface")
+    assert afm.font_name == "Testface"
+  end
+
+  test "afm/1 returns :error for a font that is not there" do
+    assert :error = Tincture.Font.afm("Nope-Font")
   end
 
   test "standard_font?/1 recognizes base 14 font names" do
@@ -23,13 +25,14 @@ defmodule Tincture.FontTest do
 
   test "font_available?/1 is true for standard and AFM fonts" do
     assert Tincture.Font.font_available?("Helvetica")
-    assert Tincture.Font.font_available?("Victorias-Secret")
+    assert Tincture.Font.font_available?("Testface")
     refute Tincture.Font.font_available?("Nope-Font")
   end
 
   test "text_width/3 applies AFM widths and kerning" do
-    width = Tincture.Font.text_width("Victorias-Secret", 10, "To")
-    assert_in_delta width, 12.98, 0.001
+    # T is 700 and o is 500, with a kerning pair of -200: exactly 10pt at size 10.
+    width = Tincture.Font.text_width("Testface", 10, "To")
+    assert_in_delta width, 10.0, 0.001
   end
 
   test "text_width/3 supports standard Helvetica widths" do
@@ -55,8 +58,8 @@ defmodule Tincture.FontTest do
   end
 
   test "text_width/3 ignores unmapped combining marks for AFM fonts" do
-    base = Tincture.Font.text_width("Victorias-Secret", 10, "AB")
-    with_combining = Tincture.Font.text_width("Victorias-Secret", 10, "ÁB")
+    base = Tincture.Font.text_width("Testface", 10, "AB")
+    with_combining = Tincture.Font.text_width("Testface", 10, "ÁB")
     assert_in_delta with_combining, base, 0.001
   end
 
