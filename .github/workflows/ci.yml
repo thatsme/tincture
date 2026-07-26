@@ -9,22 +9,85 @@ env:
   MIX_ENV: test
 
 jobs:
+  # Formatter output is version-dependent: Elixir 1.19 packs some binary
+  # patterns onto one line where 1.16/1.18 wrap them. Running the format check
+  # across a matrix therefore cannot pass on every entry at once, so lint is
+  # pinned to a single version. Dialyzer and coverage live here too, since a PLT
+  # is expensive to build and neither result varies across versions.
+  lint:
+    name: Lint (Elixir ${{ env.ELIXIR_VERSION }})
+    runs-on: ubuntu-latest
+    env:
+      ELIXIR_VERSION: "1.19.5"
+      OTP_VERSION: "28.1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-lint-${{ env.ELIXIR_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-lint-${{ env.ELIXIR_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile with warnings as errors
+        run: mix compile --force --warnings-as-errors
+
+      - name: Credo
+        run: mix credo --strict
+
+      # Keyed on the lockfile and the Elixir/OTP pair, so it rebuilds only when
+      # one of those changes.
+      - name: Cache Dialyzer PLT
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ env.ELIXIR_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-${{ env.ELIXIR_VERSION }}-
+
+      - name: Dialyzer
+        run: mix dialyzer --format short
+
+      # Fails below the floor in coveralls.json.
+      - name: Coverage
+        run: mix coveralls
+
+  # Proves the library actually runs on every Elixir it claims to support
+  # (`elixir: "~> 1.16"` in mix.exs). No formatting check here by design.
   test:
-    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Oldest supported pair, per `elixir: "~> 1.16"` in mix.exs.
           - elixir: "1.16.3"
             otp: "26.2"
-          # Current pair. Dialyzer and coverage only run here, since a PLT is
-          # expensive to build and the results do not differ across versions.
+          - elixir: "1.17.3"
+            otp: "27.2"
           - elixir: "1.18.3"
             otp: "27.3"
-            check: true
+          - elixir: "1.19.5"
+            otp: "28.1"
 
     steps:
       - name: Checkout
@@ -49,34 +112,8 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
-      - name: Check formatting
-        run: mix format --check-formatted
-
-      - name: Compile with warnings as errors
-        run: mix compile --force --warnings-as-errors
-
-      - name: Credo
-        run: mix credo --strict
+      - name: Compile
+        run: mix compile --force
 
       - name: Run tests
         run: mix test
-
-      # The PLT is keyed on the lockfile and the Elixir/OTP pair, so it is
-      # rebuilt only when one of those changes.
-      - name: Cache Dialyzer PLT
-        if: matrix.check
-        uses: actions/cache@v4
-        with:
-          path: priv/plts
-          key: ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-
-
-      - name: Dialyzer
-        if: matrix.check
-        run: mix dialyzer --format short
-
-      # Fails below the floor in coveralls.json.
-      - name: Coverage
-        if: matrix.check
-        run: mix coveralls
