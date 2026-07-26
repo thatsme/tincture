@@ -24,7 +24,18 @@ person reads. What follows is what it does not yet cover.
 
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
-**Status: structure done; conformance unverified.**
+**Status: verified compliant.** `examples/output/accessible.pdf` passes
+veraPDF 1.30.2 against the PDF/UA-1 profile — 106 of 106 rules, 1701 of 1701
+checks, `isCompliant="true"`.
+
+Reproduce it with:
+
+    verapdf --flavour ua1 examples/output/accessible.pdf
+
+Compliance belongs to a *document*, not a library: Tincture gives you the tools
+to produce a conforming file, and whether yours conforms depends on how you tag
+it. What the library guarantees is that correct usage is not blocked by a defect
+in the output — which is what validation established, by finding three.
 
 `Tincture.tag/4` produces the structure tree, marked content around the
 operators that draw each element, the parent tree linking them, `/MarkInfo`,
@@ -34,11 +45,9 @@ rules are asking for.
 
 What remains:
 
-- **Validation.** Nothing here has been checked against veraPDF or PAC, so
-  Tincture makes no PDF/UA conformance claim. Until a document is validated,
-  "tagged" and "conformant" are different words.
 - **Tagging the remaining layout helpers.** `Layout.Table.render/6` now emits
   its own structure. `Layout.Template` and `Layout.Box` do not.
+- **PAC.** Only veraPDF has been used. PAC applies some checks veraPDF does not.
 - `/Tabs /S` on pages, so tab order follows structure rather than annotation
   order.
 - Automatic alt text prompting: nothing forces a `:figure` to carry `:alt`,
@@ -51,8 +60,14 @@ What remains:
 PDF/A (ISO 19005) is what records-retention policies specify. It is mostly a
 set of constraints rather than new capability: fonts must be embedded (already
 true), an output intent with an ICC profile must be present, metadata must be
-XMP rather than only the info dictionary, and encryption and external
-references are forbidden.
+XMP rather than only the info dictionary (**XMP now emitted**), and encryption
+and external references are forbidden.
+
+PDF/A-1 additionally requires a `/CIDSet` for every subset font. Tincture
+deliberately emits none — an inaccurate CIDSet is a conformance failure where
+an absent one is not, and the retained glyph set is not reliably knowable while
+subsetting can fall back to the whole font. Reinstating it correctly is a
+prerequisite for PDF/A-1 specifically.
 
 PDF/A-2b is the usual target. PDF/A-2a additionally requires tagging, so it
 depends on item 1.
@@ -180,8 +195,7 @@ This is arguably a separate library. Listed because evaluators will ask, and
 
 1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
 2. **Transparency and shading** — small, self-contained, visible.
-3. ~~Tagged PDF~~ — structure done, tables included. **Validating it** against
-   veraPDF remains.
+3. ~~Tagged PDF~~ — done and validated against veraPDF.
 4. **PDF/A** — mostly constraints, and partly depends on 3.
 5. **Digital signatures** — self-contained but touches export.
 6. **Object and xref streams** — file size.

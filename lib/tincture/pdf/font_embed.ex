@@ -1651,10 +1651,16 @@ defmodule Tincture.PDF.FontEmbed do
     sfnt_table_checksum_words(rest, sum + word &&& 0xFFFF_FFFF)
   end
 
-  defp embedded_font_descriptor_object(embedded_font, font_file_id, cidset_id \\ nil) do
+  # No /CIDSet. It is optional in PDF 1.7 and deprecated in PDF 2.0, required
+  # only by PDF/A-1, and it must identify exactly the CIDs present in the
+  # embedded program. Subsetting here falls back to the whole font on several
+  # paths while the name keeps its subset tag, so the retained set is not
+  # reliably knowable at this point - and an inaccurate CIDSet is a conformance
+  # failure where an absent one is not. Reinstating it correctly is a
+  # prerequisite for PDF/A-1, not for PDF/UA.
+  defp embedded_font_descriptor_object(embedded_font, font_file_id) do
     font_name = embedded_pdf_font_name(embedded_font)
     font_file_ref = embedded_font_descriptor_font_file_ref(embedded_font, font_file_id)
-    cidset_ref = if is_integer(cidset_id), do: " /CIDSet #{cidset_id} 0 R", else: ""
     stretch_ref = embedded_font_stretch_ref(embedded_font)
     family_ref = embedded_font_family_ref(embedded_font)
     weight_ref = embedded_font_weight_ref(embedded_font)
@@ -1672,7 +1678,7 @@ defmodule Tincture.PDF.FontEmbed do
     stem_v = embedded_font_stem_v(embedded_font)
     stem_h = embedded_font_stem_h(embedded_font, stem_v)
 
-    "<< /Type /FontDescriptor /FontName /#{font_name} /Flags #{flags} /FontBBox [#{x_min} #{y_min} #{x_max} #{y_max}]#{stretch_ref}#{family_ref}#{weight_ref}#{avg_width_ref}#{max_width_ref}#{missing_width_ref}#{fs_type_ref}#{style_ref} /ItalicAngle #{Object.num(italic_angle)} /Ascent #{ascent} /Descent #{descent} /Leading #{leading} /XHeight #{x_height} /CapHeight #{cap_height} /StemV #{stem_v} /StemH #{stem_h}#{font_file_ref}#{cidset_ref} >>"
+    "<< /Type /FontDescriptor /FontName /#{font_name} /Flags #{flags} /FontBBox [#{x_min} #{y_min} #{x_max} #{y_max}]#{stretch_ref}#{family_ref}#{weight_ref}#{avg_width_ref}#{max_width_ref}#{missing_width_ref}#{fs_type_ref}#{style_ref} /ItalicAngle #{Object.num(italic_angle)} /Ascent #{ascent} /Descent #{descent} /Leading #{leading} /XHeight #{x_height} /CapHeight #{cap_height} /StemV #{stem_v} /StemH #{stem_h}#{font_file_ref} >>"
   end
 
   defp embedded_font_descriptor_font_file_ref(embedded_font, font_file_id) do
@@ -1708,13 +1714,12 @@ defmodule Tincture.PDF.FontEmbed do
     to_unicode_id = cid_font_id + 1
 
     if Map.get(embedded_font, :subset, :none) != :none do
-      cidset_id = to_unicode_id + 1
-      type0_font_id = cidset_id + 1
+      type0_font_id = to_unicode_id + 1
 
       objects =
         [
           embedded_font_file_object(embedded_font, used_char_codes, scalar_codepoints),
-          embedded_font_descriptor_object(embedded_font, font_file_id, cidset_id),
+          embedded_font_descriptor_object(embedded_font, font_file_id),
           cid_to_gid_map_object,
           embedded_cid_font_object(
             embedded_font,
@@ -1725,7 +1730,6 @@ defmodule Tincture.PDF.FontEmbed do
             cid_to_gid_map_ref
           ),
           to_unicode_cmap_object(to_unicode_mappings),
-          cidset_object(used_cids),
           embedded_type0_font_object(embedded_font, cid_font_id, to_unicode_id)
         ]
         |> Enum.reject(&is_nil/1)
@@ -1972,38 +1976,6 @@ defmodule Tincture.PDF.FontEmbed do
     font_name = embedded_pdf_font_name(embedded_font)
 
     "<< /Type /Font /Subtype /Type0 /BaseFont /#{font_name} /Encoding /Identity-H /DescendantFonts [#{cid_font_id} 0 R] /ToUnicode #{to_unicode_id} 0 R >>"
-  end
-
-  defp cidset_object(used_cids) do
-    data = cidset_binary(used_cids)
-    length = byte_size(data)
-    ["<< /Length #{length} >>\nstream\n", data, "\nendstream"]
-  end
-
-  defp cidset_binary(used_cids) do
-    cids = normalize_used_cids(used_cids)
-
-    case cids do
-      [] ->
-        <<0>>
-
-      _ ->
-        max_cid = List.last(cids)
-        size = div(max_cid, 8) + 1
-        base = :binary.copy(<<0>>, size)
-
-        Enum.reduce(cids, base, fn cid, acc ->
-          byte_idx = div(cid, 8)
-          bit_idx = rem(cid, 8)
-          mask = 1 <<< (7 - bit_idx)
-          put_cidset_bit(acc, byte_idx, mask)
-        end)
-    end
-  end
-
-  defp put_cidset_bit(bin, byte_idx, mask) do
-    <<prefix::binary-size(byte_idx), byte, suffix::binary>> = bin
-    <<prefix::binary, byte ||| mask, suffix::binary>>
   end
 
   defp to_unicode_cmap_object(used_mappings) do

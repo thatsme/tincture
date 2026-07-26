@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Verified PDF/UA-1 conformance.** `examples/output/accessible.pdf` passes
+  veraPDF 1.30.2 against the PDF/UA-1 profile: 106 of 106 rules, 1701 of 1701
+  checks. Validating it found three real defects, all fixed below.
+- **XMP metadata.** The catalog now carries a `/Metadata` stream — Dublin Core
+  title, creator and description, plus `pdfuaid:part` for a tagged document.
+  The info dictionary alone satisfies neither PDF/UA nor PDF/A.
+- **`/ViewerPreferences << /DisplayDocTitle true >>`** on tagged documents, so a
+  reader shows the document's title rather than its file name.
 - **Tagged PDF, for accessibility.** `Tincture.tag/4` and
   `Tincture.set_language/2` produce logical structure: a `/StructTreeRoot`,
   marked content bracketing the operators that draw each element, a parent tree
@@ -78,6 +86,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`/CIDSet` is no longer emitted.** It must identify exactly the CIDs present
+  in the embedded program, and subsetting falls back to the whole font on
+  several paths while the name keeps its subset tag — so an accurate one cannot
+  be produced at that point. veraPDF rejects an inaccurate CIDSet (ISO 14289-1
+  clause 7.21.4.2) where an absent one is conformant; it is optional in PDF 1.7
+  and deprecated in PDF 2.0. Required only for PDF/A-1, which is not yet a
+  target.
+- **Table `/Scope` moved into an attribute dictionary.** It was emitted as a
+  direct key on the structure element, where a reader ignores it — leaving the
+  table's structure undeterminable and failing ISO 14289-1 clause 7.5. It now
+  reads `/A << /O /Table /Scope /Column >>`. Found by validation.
 - **Form fields now reject a non-standard font.** A field's value is rendered
   by the viewer from its `/DA` string, which resolves against the AcroForm
   resource dictionary — and that can only carry the standard 14. Naming an

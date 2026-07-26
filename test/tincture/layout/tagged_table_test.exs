@@ -53,7 +53,7 @@ defmodule Tincture.Layout.TaggedTableTest do
     end
 
     test "header cells declare the cells they govern", %{binary: binary} do
-      assert length(Regex.scan(~r|/Scope /Column|, binary)) == 2
+      assert length(Regex.scan(~r|/A << /O /Table /Scope /Column >>|, binary)) == 2
     end
 
     test "borders are artifacts, not untagged content", %{binary: binary} do

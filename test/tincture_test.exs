@@ -169,7 +169,13 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Subtype /Type0"
     assert pdf_binary =~ "/Encoding /Identity-H"
     assert pdf_binary =~ "/Subtype /CIDFontType2"
-    assert pdf_binary =~ "/CIDSet "
+    # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
+    # identify exactly the CIDs present in the embedded program. Subsetting
+    # falls back to the whole font on several paths while the name keeps its
+    # subset tag, so an accurate one cannot be produced here - and veraPDF
+    # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
+    # one is conformant.
+    refute pdf_binary =~ "/CIDSet "
     assert pdf_binary =~ "+DemoUsedSubsetUnicode"
     refute pdf_binary =~ "/FirstChar "
 
@@ -1602,7 +1608,13 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Subtype /Type0"
     assert pdf_binary =~ "/Subtype /CIDFontType0"
     assert pdf_binary =~ "/Encoding /Identity-H"
-    assert pdf_binary =~ "/CIDSet "
+    # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
+    # identify exactly the CIDs present in the embedded program. Subsetting
+    # falls back to the whole font on several paths while the name keeps its
+    # subset tag, so an accurate one cannot be produced here - and veraPDF
+    # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
+    # one is conformant.
+    refute pdf_binary =~ "/CIDSet "
     assert pdf_binary =~ "/ToUnicode "
 
     File.rm(path)

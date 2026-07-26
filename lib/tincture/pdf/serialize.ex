@@ -77,6 +77,11 @@ defmodule Tincture.PDF.Serialize do
     {struct_tree_ref, structure_objects} =
       build_structure_objects(pdf, page_object_refs, page_numbers, structure_start_id)
 
+    metadata_start_id = structure_start_id + length(structure_objects)
+
+    {metadata_ref, metadata_objects} =
+      build_metadata_objects(pdf, struct_tree_ref, metadata_start_id)
+
     kids =
       page_numbers
       |> Enum.with_index()
@@ -125,11 +130,19 @@ defmodule Tincture.PDF.Serialize do
       end)
 
     base_object_bodies = [
-      catalog_object_body(outlines_ref, form_field_refs, pdf.form_fields, struct_tree_ref, pdf),
+      catalog_object_body(
+        outlines_ref,
+        form_field_refs,
+        pdf.form_fields,
+        struct_tree_ref,
+        metadata_ref,
+        pdf
+      ),
       "<< /Type /Pages /Kids [#{kids}] /Count #{page_count} >>"
       | page_objects ++
           embedded_font_objects ++
-          image_objects ++ outline_objects ++ form_field_objects ++ structure_objects
+          image_objects ++
+          outline_objects ++ form_field_objects ++ structure_objects ++ metadata_objects
     ]
 
     {object_bodies, info_ref} =
@@ -148,7 +161,14 @@ defmodule Tincture.PDF.Serialize do
   defp page_object_id(index), do: 3 + index * 2
   defp content_object_id(index), do: page_object_id(index) + 1
 
-  defp catalog_object_body(outlines_ref, form_field_refs, form_fields, struct_tree_ref, pdf) do
+  defp catalog_object_body(
+         outlines_ref,
+         form_field_refs,
+         form_fields,
+         struct_tree_ref,
+         metadata_ref,
+         pdf
+       ) do
     outlines =
       case outlines_ref do
         nil -> ""
@@ -169,8 +189,124 @@ defmodule Tincture.PDF.Serialize do
         lang -> " /Lang #{Object.format_text(lang)}"
       end
 
+    metadata =
+      case metadata_ref do
+        nil -> ""
+        id -> " /Metadata #{id} 0 R"
+      end
+
+    # A reader showing the file name instead of the document title is a
+    # failure for anyone navigating by title, so a tagged document says which
+    # to prefer.
+    viewer_preferences =
+      if struct_tree_ref, do: " /ViewerPreferences << /DisplayDocTitle true >>", else: ""
+
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
-      "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language} >>"
+      "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language}" <>
+      "#{metadata}#{viewer_preferences} >>"
+  end
+
+  # XMP is the metadata format the archival and accessibility standards
+  # require; the info dictionary alone does not satisfy either. Emitted only
+  # when there is something to say.
+  defp build_metadata_objects(%PDF{} = pdf, struct_tree_ref, start_id) do
+    case xmp_packet(pdf, struct_tree_ref) do
+      nil -> {nil, []}
+      packet -> {start_id, [xmp_object_body(packet)]}
+    end
+  end
+
+  defp xmp_object_body(packet) do
+    [
+      "<< /Type /Metadata /Subtype /XML /Length #{byte_size(packet)} >>\nstream\n",
+      packet,
+      "\nendstream"
+    ]
+  end
+
+  defp xmp_packet(%PDF{metadata: metadata} = pdf, struct_tree_ref) do
+    if map_size(metadata) == 0 and is_nil(struct_tree_ref) and is_nil(pdf.language) do
+      nil
+    else
+      # Claimed only for a tagged document: asserting PDF/UA on an untagged
+      # file would be a false claim baked into the bytes.
+      ua_id =
+        if struct_tree_ref do
+          ~s(    <rdf:Description rdf:about="" xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">\n) <>
+            "      <pdfuaid:part>1</pdfuaid:part>\n    </rdf:Description>\n"
+        else
+          ""
+        end
+
+      """
+      <?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
+      <x:xmpmeta xmlns:x="adobe:ns:meta/">
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      #{ua_id}\
+      #{dublin_core_description(metadata, pdf.language)}\
+      #{pdf_description(metadata)}\
+        </rdf:RDF>
+      </x:xmpmeta>
+      <?xpacket end="w"?>
+      """
+    end
+  end
+
+  defp dublin_core_description(metadata, language) do
+    title = xmp_language_alternative("dc:title", Map.get(metadata, :title), language)
+
+    description =
+      xmp_language_alternative("dc:description", Map.get(metadata, :subject), language)
+
+    creator = xmp_sequence("dc:creator", Map.get(metadata, :author))
+
+    case title <> description <> creator do
+      "" ->
+        ""
+
+      body ->
+        ~s(    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">\n) <>
+          body <> "    </rdf:Description>\n"
+    end
+  end
+
+  defp pdf_description(metadata) do
+    keywords = xmp_simple("pdf:Keywords", Map.get(metadata, :keywords))
+    producer = xmp_simple("pdf:Producer", Map.get(metadata, :creator) || "Tincture")
+
+    case keywords <> producer do
+      "" ->
+        ""
+
+      body ->
+        ~s(    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">\n) <>
+          body <> "    </rdf:Description>\n"
+    end
+  end
+
+  defp xmp_simple(_tag, nil), do: ""
+  defp xmp_simple(tag, value), do: "      <#{tag}>#{xmp_escape(value)}</#{tag}>\n"
+
+  defp xmp_sequence(_tag, nil), do: ""
+
+  defp xmp_sequence(tag, value) do
+    "      <#{tag}><rdf:Seq><rdf:li>#{xmp_escape(value)}</rdf:li></rdf:Seq></#{tag}>\n"
+  end
+
+  defp xmp_language_alternative(_tag, nil, _language), do: ""
+
+  defp xmp_language_alternative(tag, value, language) do
+    lang = language || "x-default"
+
+    "      <#{tag}><rdf:Alt><rdf:li xml:lang=\"#{lang}\">#{xmp_escape(value)}" <>
+      "</rdf:li></rdf:Alt></#{tag}>\n"
+  end
+
+  defp xmp_escape(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
   end
 
   defp build_structure_objects(%PDF{structure_tree: []}, _refs, _pages, _start_id), do: {nil, []}
@@ -258,10 +394,15 @@ defmodule Tincture.PDF.Serialize do
   defp structure_text_entry(_key, nil), do: ""
   defp structure_text_entry(key, value), do: key <> Object.format_text(value)
 
+  # Table attributes live in an attribute dictionary owned by /Table, not as
+  # direct keys on the element. A bare /Scope is ignored, which leaves the
+  # table's structure undeterminable and fails ISO 14289-1 clause 7.5.
   defp scope_entry(nil), do: ""
-  defp scope_entry(:row), do: " /Scope /Row"
-  defp scope_entry(:column), do: " /Scope /Column"
-  defp scope_entry(:both), do: " /Scope /Both"
+  defp scope_entry(:row), do: table_attribute("/Scope /Row")
+  defp scope_entry(:column), do: table_attribute("/Scope /Column")
+  defp scope_entry(:both), do: table_attribute("/Scope /Both")
+
+  defp table_attribute(entry), do: " /A << /O /Table #{entry} >>"
 
   defp acro_form_entry([], _form_fields), do: ""
 

@@ -246,7 +246,10 @@ defmodule Tincture.TaggedPDFTest do
         |> Tincture.tag(:th, [scope: :row], &Tincture.text_at(&1, 10, 10, "Total"))
         |> export()
 
-      assert binary =~ "/Scope /Row"
+      # In an attribute dictionary owned by /Table, not as a direct key. A bare
+      # /Scope is ignored by a reader, which leaves the table's structure
+      # undeterminable and fails ISO 14289-1 clause 7.5. veraPDF caught this.
+      assert binary =~ "/A << /O /Table /Scope /Row >>"
     end
 
     test "carries actual text, for when the glyphs are not the words" do

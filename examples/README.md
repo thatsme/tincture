@@ -80,8 +80,13 @@ scope and artifact borders — when the document is being tagged. The row rules
 are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
-This produces structure, not certified conformance — see the note the script
-prints.
+**Validated.** This document passes veraPDF 1.30.2 against the PDF/UA-1 profile
+— 106 of 106 rules, 1701 of 1701 checks:
+
+    verapdf --flavour ua1 examples/output/accessible.pdf
+
+The other examples are not tagged and do not claim conformance; they parse
+cleanly but fail the UA rules about structure, as they should.
 
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 
