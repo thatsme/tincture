@@ -28,3 +28,19 @@ tincture-*.tar
 # Editor/agent scaffolding is not part of the library.
 /.claude/
 /.agents/
+
+# macOS.
+.DS_Store
+
+# Language server caches.
+/.elixir_ls/
+/.lexical/
+/.language_server/
+
+# Analysis tooling writes multi-megabyte CubDB files here.
+/.giulia/
+
+# Never commit secrets, including a Hex API key.
+.env
+.env.*
+!.env.example
