@@ -1,9 +1,9 @@
-defmodule ExGuten.EgTmoReducedParityTest do
+defmodule Tincture.EgTmoReducedParityTest do
   use ExUnit.Case
 
-  alias ExGuten.Layout.Table
-  alias ExGuten.Layout.Template
-  alias ExGuten.Typography.RichText
+  alias Tincture.Layout.Table
+  alias Tincture.Layout.Template
+  alias Tincture.Typography.RichText
 
   test "reduced tmo-style composition renders template body flow plus summary table" do
     body =
@@ -20,8 +20,8 @@ defmodule ExGuten.EgTmoReducedParityTest do
       |> Template.with_footer("Confidential", font: "Helvetica", size: 9)
 
     {pdf, template_result} =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
+      Tincture.new()
+      |> Tincture.page_size(:letter)
       |> Template.render(template, body, align: :justified, line_height: 13)
 
     {pdf, table_result} =
@@ -33,7 +33,7 @@ defmodule ExGuten.EgTmoReducedParityTest do
         padding: 4
       )
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert template_result.overflow? == false
     assert table_result.rows == 2

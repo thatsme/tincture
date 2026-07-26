@@ -1,4 +1,4 @@
-# ExGuten Project Plan
+# Tincture Project Plan
 ## Porting erlguten to Elixir
 
 ### Overview
@@ -22,7 +22,7 @@ erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-g
 
 **Goal:** Repo scaffolding, CI, initial structure
 
-- [x] Create `ex_guten` repo with `mix new ex_guten --module ExGuten`
+- [x] Create `tincture` repo with `mix new tincture --module Tincture`
 - [x] Set up GitHub Actions CI (Elixir 1.16+, OTP 26+)
 - [x] Add LICENSE (Apache 2.0)
 - [x] Add README with vision and architecture diagram
@@ -30,8 +30,8 @@ erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-g
 - [x] Create module directory structure:
   ```
   lib/
-    ex_guten.ex                    # Top-level API
-    ex_guten/
+    tincture.ex                    # Top-level API
+    tincture/
       pdf.ex                       # Core PDF state
       pdf/
         page.ex                    # Page management
@@ -65,17 +65,17 @@ erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-g
 **Goal:** Generate valid PDF files with text and basic graphics
 
 **Port these erlguten modules:**
-| erlguten | ExGuten | Lines (approx) | Complexity |
+| erlguten | Tincture | Lines (approx) | Complexity |
 |---|---|---|---|
-| `eg_pdf` | `ExGuten.PDF` | ~800 | High — gen_server → struct |
-| `eg_pdf_page` | `ExGuten.PDF.Page` | ~200 | Medium |
-| `eg_pdf_lib` | `ExGuten.PDF.Ops` | ~400 | Medium — drawing primitives |
-| `eg_pdf_obj` | `ExGuten.PDF.Object` | ~200 | Medium — PDF object construction |
-| `eg_pdf_op` | `ExGuten.PDF.Op` | ~500 | Medium — operation encoding |
-| `eg_pdf` (export path) | `ExGuten.PDF.Serialize` | ~700 | High — binary PDF format |
+| `eg_pdf` | `Tincture.PDF` | ~800 | High — gen_server → struct |
+| `eg_pdf_page` | `Tincture.PDF.Page` | ~200 | Medium |
+| `eg_pdf_lib` | `Tincture.PDF.Ops` | ~400 | Medium — drawing primitives |
+| `eg_pdf_obj` | `Tincture.PDF.Object` | ~200 | Medium — PDF object construction |
+| `eg_pdf_op` | `Tincture.PDF.Op` | ~500 | Medium — operation encoding |
+| `eg_pdf` (export path) | `Tincture.PDF.Serialize` | ~700 | High — binary PDF format |
 
 **Key tasks:**
-- [x] Define `%ExGuten.PDF{}` struct (replaces gen_server state)
+- [x] Define `%Tincture.PDF{}` struct (replaces gen_server state)
   - Pages list, current page, fonts, images, metadata
 - [x] Implement page management
   - `new/0`, `page_size/2`, `set_page/2`, `add_page/1`
@@ -99,25 +99,25 @@ erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-g
   - Port `eg_test1` (comprehensive feature test)
 
 **Current progress (2026-02-18):**
-- Implemented multi-page `%ExGuten.PDF{}` state with current page tracking and per-page operation storage
+- Implemented multi-page `%Tincture.PDF{}` state with current page tracking and per-page operation storage
 - Implemented `new/0`, `page_size/2`, `set_page/2`, `add_page/1`, `set_font/3`, `text_at/4`, `text_at_rotated/5`, `line/5`, `rectangle/5`, `circle/4`, `set_fill_color/2`, `set_stroke_color/2`, `move_to/3`, `line_to/3`, `bezier/7`, `stroke/1`, `fill/1`, `clip/1`, `set_line_width/2`, `set_line_cap/2`, `set_line_join/2`, `set_dash/3`, `save_state/1`, `restore_state/1`, `export/1`, `save/2`
 - Implemented valid PDF serialization with catalog/page tree, per-page content streams/resources, xref, and trailer
 - Added tests for structure, page switching, multi-page serialization, page size, font resources, drawing operations, and `eg_test6`/`eg_test1` integration parity coverage
 
 **Milestone test:**
 ```elixir
-pdf = ExGuten.new()
-|> ExGuten.page_size(:a4)
-|> ExGuten.set_font("Helvetica", 14)
-|> ExGuten.text_at(50, 700, "Hello from ExGuten!")
-|> ExGuten.line(50, 695, 200, 695)
-|> ExGuten.export()
+pdf = Tincture.new()
+|> Tincture.page_size(:a4)
+|> Tincture.set_font("Helvetica", 14)
+|> Tincture.text_at(50, 700, "Hello from Tincture!")
+|> Tincture.line(50, 695, 200, 695)
+|> Tincture.export()
 
 File.write!("test.pdf", pdf)
 # Opens in any PDF reader ✓
 ```
 
-**Deliverable:** Publish `ex_guten` v0.1.0 to Hex.pm — basic PDF generation
+**Deliverable:** Publish `tincture` v0.1.0 to Hex.pm — basic PDF generation
 
 ---
 
@@ -126,11 +126,11 @@ File.write!("test.pdf", pdf)
 **Goal:** Proper font metrics, kerning, and the 14 standard PDF fonts
 
 **Port these modules:**
-| erlguten | ExGuten | Lines (approx) | Complexity |
+| erlguten | Tincture | Lines (approx) | Complexity |
 |---|---|---|---|
-| `eg_font_map` | `ExGuten.Font` | ~300 | Medium |
-| `eg_afm` | `ExGuten.Font.AFM` | ~400 | Medium — file parsing |
-| `eg_font_14` | `ExGuten.Font.Standard` | ~100 | Low |
+| `eg_font_map` | `Tincture.Font` | ~300 | Medium |
+| `eg_afm` | `Tincture.Font.AFM` | ~400 | Medium — file parsing |
+| `eg_font_14` | `Tincture.Font.Standard` | ~100 | Low |
 
 **Key tasks:**
 - [x] Port AFM (Adobe Font Metrics) parser
@@ -140,14 +140,14 @@ File.write!("test.pdf", pdf)
   - Map font names → metrics
   - 14 standard PDF fonts: Helvetica, Times-Roman, Courier (+ bold/italic variants), Symbol, ZapfDingbats
 - [x] Implement text width calculation
-  - `ExGuten.Font.text_width(font, size, string)` → points
+  - `Tincture.Font.text_width(font, size, string)` → points
   - Account for kerning pairs
 - [x] Integrate with PDF ops — font encoding in content streams
 - [x] Port `eg_test4` (font showcase test)
 
 **Current progress (2026-02-18):**
-- Implemented `ExGuten.Font.AFM.parse_file/1` and `parse_string/1` for AFM font name, char widths, glyph names, and kern pairs
-- Implemented `ExGuten.Font.text_width/3` with kerning-aware width calculation from AFM metrics
+- Implemented `Tincture.Font.AFM.parse_file/1` and `parse_string/1` for AFM font name, char widths, glyph names, and kern pairs
+- Implemented `Tincture.Font.text_width/3` with kerning-aware width calculation from AFM metrics
 - Implemented cached font registry lookup and base-14 standard font helpers (`standard_font?/1`, `font_available?/1`)
 - Imported and parsed upstream `eg_font_1..14` metric sources under `priv/standard_fonts/` for standard font width/kerning coverage
 - Integrated font-aware content stream encoding (single-byte PDF string encoding with escaping + unsupported glyph fallback)
@@ -163,12 +163,12 @@ File.write!("test.pdf", pdf)
 **Goal:** Paragraph layout with hyphenation and justification
 
 **Port these modules:**
-| erlguten | ExGuten | Lines (approx) | Complexity |
+| erlguten | Tincture | Lines (approx) | Complexity |
 |---|---|---|---|
-| `eg_richText` | `ExGuten.Typography.RichText` | ~500 | High |
-| `eg_line_break` | `ExGuten.Typography.LineBreak` | ~600 | High — Knuth-Plass |
-| `eg_hyphenate` | `ExGuten.Typography.Hyphen` | ~300 | Medium |
-| `eg_hyphen_rules_*` | `ExGuten.Typography.Hyphen.Rules` | ~2000 | Low (data) |
+| `eg_richText` | `Tincture.Typography.RichText` | ~500 | High |
+| `eg_line_break` | `Tincture.Typography.LineBreak` | ~600 | High — Knuth-Plass |
+| `eg_hyphenate` | `Tincture.Typography.Hyphen` | ~300 | Medium |
+| `eg_hyphen_rules_*` | `Tincture.Typography.Hyphen.Rules` | ~2000 | Low (data) |
 
 **Key tasks:**
 - [x] Define rich text structs
@@ -177,34 +177,34 @@ File.write!("test.pdf", pdf)
 - [x] Port TeX hyphenation algorithm (baseline + locale ingest)
   - Load hyphenation patterns from `priv/hyphen/` files (`.dic` ingest for multiple locales)
   - Support English (default), extensible to other languages
-  - `ExGuten.Typography.Hyphen.hyphenate("algorithm")` → `["al", "go", "rithm"]`
+  - `Tincture.Typography.Hyphen.hyphenate("algorithm")` → `["al", "go", "rithm"]`
 - [x] Port line-breaking algorithm (global optimization baseline)
   - DP badness minimization (Knuth-Plass-lite) for balanced raggedness
   - Support justification modes: `:left`, `:right`, `:center`, `:justified`
   - Handle mixed fonts within a line
 - [x] Build paragraph layout
-  - `ExGuten.Typography.layout_paragraph(rich_text, width, opts)`
+  - `Tincture.Typography.layout_paragraph(rich_text, width, opts)`
   - Returns list of laid-out lines with positions
 - [x] Port `eg_test3` (justification tests)
 - [x] Port `eg_test5` (rotated text blocks)
 
 **Current progress (2026-02-18):**
-- Implemented `ExGuten.Typography.Hyphen.hyphenate/1` with upstream `eg_hyphen_rules_en_GB` clause parity and exceptions
+- Implemented `Tincture.Typography.Hyphen.hyphenate/1` with upstream `eg_hyphen_rules_en_GB` clause parity and exceptions
 - Added hyphenation parity tests for `hyphenation`, `algorithm`, `supercalifragilisticexpialidocious`, and `however`
 - Short-word behavior implemented (`length <= 4` no hyphenation), matching upstream cutoff behavior
 - Added `.dic` hyphen pattern ingest for additional locales (`:da_dk`, `:fi_fi`, `:nb_no`, `:sv_se`)
-- Implemented greedy ragged-left line-breaking bootstrap in `ExGuten.Typography.LineBreak.break_text/4` with width checks from `ExGuten.Font.text_width/3`
+- Implemented greedy ragged-left line-breaking bootstrap in `Tincture.Typography.LineBreak.break_text/4` with width checks from `Tincture.Font.text_width/3`
 - Added line-breaking tests for exact-fit, greedy wraps, and hyphenation-assisted splits
 - Added `eg_test3`-style parity coverage for justification/centering/right alignment blocks and mixed-font paragraph rendering
-- Implemented rich-text tokenization bootstrap in `ExGuten.Typography.RichText` with `%Run{}`, `%Word{}`, `%Space{}`, and `%Break{}` tokens
-- Implemented paragraph layout bootstrap in `ExGuten.Typography.layout_paragraph/3` with greedy token wrapping, line `x`/`y` positions, and `:left`/`:center`/`:right`/`:justified` alignment offsets
-- Added `line_break: :optimal` mode in `ExGuten.Typography.layout_paragraph/3` with global dynamic-programming line selection
+- Implemented rich-text tokenization bootstrap in `Tincture.Typography.RichText` with `%Run{}`, `%Word{}`, `%Space{}`, and `%Break{}` tokens
+- Implemented paragraph layout bootstrap in `Tincture.Typography.layout_paragraph/3` with greedy token wrapping, line `x`/`y` positions, and `:left`/`:center`/`:right`/`:justified` alignment offsets
+- Added `line_break: :optimal` mode in `Tincture.Typography.layout_paragraph/3` with global dynamic-programming line selection
 - Added regression coverage proving optimal mode improves raggedness vs greedy on a deterministic case
 - Added mixed-run regression coverage for styled-token optimal wrapping with `align: :justified`
 - Implemented justification space expansion for non-final lines in `:justified` mode
-- Added high-level paragraph rendering API `ExGuten.text_paragraph/6` to emit positioned text operations from `RichText` layout output
-- Added paragraph rotation option (`rotate:`) in `ExGuten.text_paragraph/6` using rotated PDF text matrices
-- Added overflow/spill reporting API `ExGuten.Typography.layout_paragraph_with_spill/4` for bounded-line layout
+- Added high-level paragraph rendering API `Tincture.text_paragraph/6` to emit positioned text operations from `RichText` layout output
+- Added paragraph rotation option (`rotate:`) in `Tincture.text_paragraph/6` using rotated PDF text matrices
+- Added overflow/spill reporting API `Tincture.Typography.layout_paragraph_with_spill/4` for bounded-line layout
 - Added `eg5`-style parity coverage for multiple rotated paragraph blocks with mixed alignment modes
 
 **Deliverable:** Publish v0.3.0 — typographic paragraph layout
@@ -216,11 +216,11 @@ File.write!("test.pdf", pdf)
 **Goal:** Text boxes, tables, multi-column, and page templates
 
 **Port these modules:**
-| erlguten | ExGuten | Lines (approx) | Complexity |
+| erlguten | Tincture | Lines (approx) | Complexity |
 |---|---|---|---|
-| `eg_table` | `ExGuten.Layout.Table` | ~400 | Medium |
-| `eg_block` | `ExGuten.Layout.Box` | ~300 | Medium |
-| `eg_xml_lite` / `eg_xml_tokenise` / `eg_xml2richText` | `ExGuten.Layout.Template` | ~500 | High |
+| `eg_table` | `Tincture.Layout.Table` | ~400 | Medium |
+| `eg_block` | `Tincture.Layout.Box` | ~300 | Medium |
+| `eg_xml_lite` / `eg_xml_tokenise` / `eg_xml2richText` | `Tincture.Layout.Template` | ~500 | High |
 
 **Key tasks:**
 - [x] Implement text boxes
@@ -241,15 +241,15 @@ File.write!("test.pdf", pdf)
 - [x] Port `eg_tmo_test` (full document)
 
 **Current progress (2026-02-18):**
-- Implemented `ExGuten.Layout.Box.flow_text/7` for bounded text flow in a rectangle
-- Integrated with `ExGuten.Typography.layout_paragraph_with_spill/4` to expose visible lines + spill metadata
+- Implemented `Tincture.Layout.Box.flow_text/7` for bounded text flow in a rectangle
+- Integrated with `Tincture.Typography.layout_paragraph_with_spill/4` to expose visible lines + spill metadata
 - Added support for alignment, custom line height, and optional rotation (`rotate:`) for rendered box text
 - Added unit coverage for flow rendering, spill behavior, and invalid option handling
-- Implemented `ExGuten.Layout.Box.flow_across_boxes/4` to chain text flow across multiple boxes/columns with aggregated overflow reporting
-- Implemented `ExGuten.Layout.Table.render/6` bootstrap with explicit or auto-scaled column widths, cell borders/padding, header rows, and render metadata
+- Implemented `Tincture.Layout.Box.flow_across_boxes/4` to chain text flow across multiple boxes/columns with aggregated overflow reporting
+- Implemented `Tincture.Layout.Table.render/6` bootstrap with explicit or auto-scaled column widths, cell borders/padding, header rows, and render metadata
 - Added styled spill continuity across boxes by reconstructing rich text from spill tokens (`RichText.from_tokens/1`)
 - Added `eg8`-style parity coverage for multi-table rendering, header rows, auto widths, and escaped cell text
-- Implemented `ExGuten.Layout.Template` bootstrap (`new/1`, `with_header/3`, `with_footer/3`, `render/4`) with reusable region layout and slot rendering
+- Implemented `Tincture.Layout.Template` bootstrap (`new/1`, `with_header/3`, `with_footer/3`, `render/4`) with reusable region layout and slot rendering
 - Added full `eg_tmo`-style multi-page parity coverage (template document flow with page placeholders and composed table sections)
 
 **Deliverable:** Publish v0.4.0 — full layout engine
@@ -261,9 +261,9 @@ File.write!("test.pdf", pdf)
 **Goal:** Image support, unicode, and XML templates
 
 **Port these modules:**
-| erlguten | ExGuten | Lines (approx) | Complexity |
+| erlguten | Tincture | Lines (approx) | Complexity |
 |---|---|---|---|
-| `eg_pdf_image` | `ExGuten.PDF.Image` | ~300 | Medium |
+| `eg_pdf_image` | `Tincture.PDF.Image` | ~300 | Medium |
 
 **Key tasks:**
 - [x] JPEG image embedding
@@ -277,17 +277,17 @@ File.write!("test.pdf", pdf)
 - [x] Port `kd_test1` (commercial bill with logo)
 
 **Current progress (2026-02-18):**
-- Added `ExGuten.image_jpeg/6` and `ExGuten.PDF.Image` JPEG metadata parsing (dimensions, color space, bits/component)
+- Added `Tincture.image_jpeg/6` and `Tincture.PDF.Image` JPEG metadata parsing (dimensions, color space, bits/component)
 - Added PDF image state tracking (`PDF.images`) and image operations (`{:image, ...}`) with per-page placement
 - Extended serializer to emit JPEG XObjects (`/Subtype /Image`, `/Filter /DCTDecode`) and page `/XObject` resource dictionaries
-- Added `ExGuten.image_png/6` with PNG parsing, scanline decoding, and `/FlateDecode` image objects
+- Added `Tincture.image_png/6` with PNG parsing, scanline decoding, and `/FlateDecode` image objects
 - Added PNG alpha support via soft masks (`/SMask`) by extracting alpha channels into grayscale image XObjects
 - Added transform-matrix image painting (`cm` + `Do`) for explicit scaling and positioning
-- Added regression coverage for JPEG and PNG(+alpha) embedding and draw command serialization in `test/ex_guten_test.exs`
-- Added `ExGuten.add_bookmark/3` and PDF outline serialization (`/Outlines`, `/Dest`, linked `Prev`/`Next` items)
+- Added regression coverage for JPEG and PNG(+alpha) embedding and draw command serialization in `test/tincture_test.exs`
+- Added `Tincture.add_bookmark/3` and PDF outline serialization (`/Outlines`, `/Dest`, linked `Prev`/`Next` items)
 - Added UTF-8-safe PDF text/metadata/bookmark encoding via UTF-16BE hex strings for non-ASCII content
-- Added `ExGuten.register_ttf_font/3` and baseline embedded TrueType serialization (`/FontFile2`, descriptor, `/Subtype /TrueType`)
-- Added `ExGuten.register_otf_font/3` and baseline embedded OpenType serialization (`/FontFile3`, `/Subtype /OpenType`)
+- Added `Tincture.register_ttf_font/3` and baseline embedded TrueType serialization (`/FontFile2`, descriptor, `/Subtype /TrueType`)
+- Added `Tincture.register_otf_font/3` and baseline embedded OpenType serialization (`/FontFile3`, `/Subtype /OpenType`)
 - Added XML template parsing/rendering entry points (`Layout.Template.parse_xml/1`, `render_xml_document/3`) using `:xmerl`
 - Added `kd_test1`-style commercial bill parity coverage with logo image, metadata, bookmarks, and line-item table
 
@@ -306,7 +306,7 @@ File.write!("test.pdf", pdf)
   - [x] Support controlled stretch/shrink behavior for justified lines (opt-in multipliers implemented)
 - [x] Production-grade font embedding
   - [x] Parse real font tables (`cmap`, `hmtx`, `glyf/loca` or CFF, `OS/2`, etc.)
-    - [x] Added strict TTF metric-table parser for `head`, `maxp`, `hhea`, and `hmtx` (`ExGuten.Font.TTF.parse_basic_tables/1`)
+    - [x] Added strict TTF metric-table parser for `head`, `maxp`, `hhea`, and `hmtx` (`Tincture.Font.TTF.parse_basic_tables/1`)
     - [x] Added `head` table FontBBox extraction (`xMin`/`yMin`/`xMax`/`yMax`) for descriptor fallback metrics
     - [x] Added `cmap` extraction (format 0/2/4/6/8/10/12/13/14 support), including format-2 high-byte mappings, format-4 mappings beyond Latin-1, format-6 trimmed-table mappings, format-8 group mappings, format-10 trimmed 32-bit mappings, format-12 non-BMP codepoint→glyph lookup, format-13 many-to-one group mappings, and format-14 variation-selector metadata
     - [x] Added optional `loca`/`glyf` parsing for glyph offsets and glyph bounding boxes
@@ -447,11 +447,11 @@ File.write!("test.pdf", pdf)
   - Added regression coverage for reduced OTF FontFile3 stream size and CFF CharStrings shrink behavior on unused glyph IDs, including unreferenced trailing-byte layouts
   - Added regression coverage for referenced trailing private-data layouts (`Top DICT Private` and FDArray Font DICT Private offset updates + marker preservation after subset shrink)
 - Added strict TTF table parsing scaffold:
-  - Introduced `ExGuten.Font.TTF.parse_basic_tables/1` to parse `head`, `maxp`, `hhea`, and `hmtx` with bounds/integrity checks
+  - Introduced `Tincture.Font.TTF.parse_basic_tables/1` to parse `head`, `maxp`, `hhea`, and `hmtx` with bounds/integrity checks
   - `register_ttf_font/3` now requires successful parser validation and stores parsed `:ttf_metrics` on embedded font state
   - Added regression coverage for valid-signature TTF payloads missing required metric tables
 - Extended embedded TTF parser/serializer baseline:
-  - Added `cmap` parsing support (format 0/4) in `ExGuten.Font.TTF.parse_basic_tables/1` with extracted `cmap_by_code` mappings
+  - Added `cmap` parsing support (format 0/4) in `Tincture.Font.TTF.parse_basic_tables/1` with extracted `cmap_by_code` mappings
   - Serializer now emits TTF metric-based `/Widths` values for embedded subset ranges instead of static defaults when parser metrics are present
   - Added parser and integration regressions for mapped codepoint widths (`"AB"` subset range width emission)
   - Extended parser-backed metric extraction to OTTO/sfnt OpenType containers when required tables are present, enabling parser-driven width emission for OTF subset ranges
@@ -476,7 +476,7 @@ File.write!("test.pdf", pdf)
   - Added feature-tag expansion for all-script shaping substitutions (`liga`/`rlig`/`ccmp`) and exposed parser metadata map `gsub_substitutions_all`
   - Updated `:gsub_ligatures` replacement selection to prefer `gsub_substitutions_all` and accept fonts exposing `rlig`/`ccmp` features without requiring `liga`
 - Extended glyph metric extraction baseline:
-  - Added optional `loca`/`glyf` parsing in `ExGuten.Font.TTF.parse_basic_tables/1` for glyph offset tables and per-glyph bounding boxes
+  - Added optional `loca`/`glyf` parsing in `Tincture.Font.TTF.parse_basic_tables/1` for glyph offset tables and per-glyph bounding boxes
   - Added `glyf` outline-kind metadata extraction (`glyph_outline_types_by_id`) to distinguish simple vs composite glyph programs
   - Added `glyf` simple-glyph contour-count metadata extraction (`glyph_contour_counts_by_id`) for outline-shape baselines
   - Added `glyf` simple-glyph point-count metadata extraction (`glyph_point_counts_by_id`) from contour endpoint arrays when point records are present
@@ -494,7 +494,7 @@ File.write!("test.pdf", pdf)
   - Serializer now falls back to parser-derived `head_bbox` for descriptor `/FontBBox` when `loca`/`glyf`-derived unions are unavailable
   - Added parser and integration regressions for head-table bbox extraction and descriptor fallback emission
 - Extended vertical font metrics baseline:
-  - Added parser extraction for `hhea` ascender/descender and optional `OS/2` typo ascender/descender + cap height in `ExGuten.Font.TTF.parse_basic_tables/1`
+  - Added parser extraction for `hhea` ascender/descender and optional `OS/2` typo ascender/descender + cap height in `Tincture.Font.TTF.parse_basic_tables/1`
   - Serializer now emits descriptor `/Ascent`, `/Descent`, `/XHeight`, and `/CapHeight` from parsed metrics (with existing fallbacks when absent)
   - Added parser extraction for `hhea`/`OS/2` line-gap metrics and serializer descriptor `/Leading` emission (`OS/2 sTypoLineGap` fallback to `hhea lineGap`)
   - Added fallback to `OS/2` win ascent/descent for descriptor `/Ascent` and `/Descent` when typo/hhea values are zero or unavailable
@@ -642,7 +642,7 @@ File.write!("test.pdf", pdf)
   - Type0 CID width emission now applies format-12 mapped glyph widths to surrogate CID pairs (`high-surrogate = glyph width`, `low-surrogate = 0`) when mappings are available
   - Added integration coverage verifying non-BMP width emission uses parsed format-12 mappings instead of fallback widths
 - Added baseline fallback font chaining for positioned text:
-  - Added `ExGuten.text_at_with_fallback/5` to split text into contiguous runs by first supporting font (`current_font` + ordered fallback font list)
+  - Added `Tincture.text_at_with_fallback/5` to split text into contiguous runs by first supporting font (`current_font` + ordered fallback font list)
   - Added embedded-font glyph support checks driven by parsed TTF `cmap` mappings and run-position advancement from per-font metrics
   - Added integration regressions for mixed-glyph run splitting (`A☃B`) and single-run preservation when primary font fully covers text
   - Added grapheme-aware fallback run splitting so variation-selector clusters (for example `☃️`) stay in a single run instead of splitting selector codepoints into adjacent font runs
@@ -650,7 +650,7 @@ File.write!("test.pdf", pdf)
   - Added variation-aware embedded fallback width advancement: format-14 non-default UVS glyph widths are used for base codepoints and variation-selector codepoints are treated as zero-width for cursor advancement and kerning-pair input
   - Added zero-width handling for unmapped zero-advance unicode codepoints (ZWJ/ZWNJ/word-joiner and combining-mark ranges) in embedded fallback width advancement, preventing glyph-0 fallback widths from over-advancing mixed-script runs
   - Updated grapheme fallback support checks to treat zero-advance controls as ignorable for font coverage decisions, so ZWJ sequences can still route to fallback fonts that cover base glyphs
-  - Consolidated zero-advance unicode classification into shared `ExGuten.Unicode` helpers and reused the same predicates across fallback rendering and serializer Type0 width logic
+  - Consolidated zero-advance unicode classification into shared `Tincture.Unicode` helpers and reused the same predicates across fallback rendering and serializer Type0 width logic
   - Extended zero-advance combining-mark detection beyond fixed ranges by adding Unicode mark-category fallback matching (`\\p{M}`), covering script-specific marks (for example Hebrew niqqud, Arabic harakat, and Indic signs)
   - Extended standard/AFM `Font.text_width/3` handling to skip unmapped zero-advance codepoints while preserving kerning context, preventing built-in/AFM fallback runs from over-advancing on sequences like `A‍B` and `ÁB`
   - Added font-metric regressions for zero-advance handling in standard and AFM width paths
@@ -661,7 +661,7 @@ File.write!("test.pdf", pdf)
   - Added fallback API regressions that assert font-state preservation for plain fallback runs, rotated fallback runs, and shaping-driven fallback substitutions
   - Extended paragraph/rotated text rendering with fallback chaining:
     - Added `fallback_fonts:` option support in `text_paragraph/6`
-    - Added `ExGuten.text_at_rotated_with_fallback/6` for rotated fallback run splitting
+    - Added `Tincture.text_at_rotated_with_fallback/6` for rotated fallback run splitting
     - Added regression coverage for paragraph-level mixed-glyph fallback splitting
     - Switched paragraph cursor advancement to use measured rendered fallback width (instead of layout token `word.width`) so subsequent words line up with actual fallback/shaping output
     - Added rotated-mode parity for measured rendered fallback width advancement in paragraph rendering
@@ -716,21 +716,21 @@ File.write!("test.pdf", pdf)
 - Added malformed XML regression coverage:
   - `Template.parse_xml/1` and `Template.render_xml_document/3` now have explicit tests for malformed XML, missing body nodes, and invalid body size attributes
 - Added deterministic malformed-input fuzz corpus coverage:
-  - Added `test/ex_guten/fuzz/malformed_input_fuzz_test.exs` with generated malformed payload corpora for TTF/OTF registration, JPEG/PNG embedding, and XML parse/render entry points
+  - Added `test/tincture/fuzz/malformed_input_fuzz_test.exs` with generated malformed payload corpora for TTF/OTF registration, JPEG/PNG embedding, and XML parse/render entry points
   - Coverage asserts stable error behavior across multiple payload variants while preventing parser-crash regressions
 - Added benchmark baseline for typography cost models/options:
-  - `ExGuten.Benchmark.Typography.run/1` with scenario metrics for greedy, quadratic-optimal, and box-glue-optimal modes
+  - `Tincture.Benchmark.Typography.run/1` with scenario metrics for greedy, quadratic-optimal, and box-glue-optimal modes
   - `scripts/benchmark_typography.exs` for repeatable local performance checks via env-configured iteration counts
   - Added `run/1` custom-scenario support (`scenarios: [{name, fun}]`) and validation for focused benchmark slices and deterministic benchmark tests
   - Added non-failing guardrail warnings (`guardrail_warnings/2`) for scenario runtime thresholds
 - Added benchmark baseline for large-document and memory profiling checks:
-  - `ExGuten.Benchmark.Document.run/1` with paragraph-flow, table-heavy, and template-paginated scenarios
+  - `Tincture.Benchmark.Document.run/1` with paragraph-flow, table-heavy, and template-paginated scenarios
   - Includes `memory_bytes_delta` metrics per scenario and a runnable script at `scripts/benchmark_document.exs`
   - Added `gpos_guardrail_skips` reporting in document benchmark metrics/output and guardrail checks (`max_gpos_guardrail_skips`) so parser fallback activity is visible in benchmark runs
   - Updated benchmark scenario execution to derive `gpos_guardrail_skips` from returned PDF embedded-font metrics (instead of static `0`) and added `run/1` custom-scenario support for focused benchmark coverage/tests
   - Added non-failing guardrail warnings for runtime and memory thresholds with env-based scaling factors
 - Added strict benchmark guardrail enforcement mode:
-  - Added `assert_guardrails!/2` to `ExGuten.Benchmark.Typography` and `ExGuten.Benchmark.Document` to raise on threshold violations
+  - Added `assert_guardrails!/2` to `Tincture.Benchmark.Typography` and `Tincture.Benchmark.Document` to raise on threshold violations
   - Updated `scripts/benchmark_typography.exs` (`EX_GUTEN_BENCH_ENFORCE=1`) and `scripts/benchmark_document.exs` (`EX_GUTEN_DOC_BENCH_ENFORCE=1`) to support fail-fast guardrail checks for CI gating
 - Added locked PDF fixture baseline checks:
   - Added SHA-256 lock tests for representative core and optimal-typography PDF outputs
@@ -747,8 +747,8 @@ File.write!("test.pdf", pdf)
   - Added benchmark regression coverage to cap optimal-mode slowdown relative to greedy baseline
 - Rebaselined typography guardrails after optimization:
   - Updated default typography guardrails to reflect post-feature baselines while preserving regression detection (`optimal_quadratic: 24_000`, `optimal_box_glue: 24_000`, `optimal_box_glue_penalties: 24_000`)
-  - Verified `ExGuten.Benchmark.Typography` passes guardrails at `iterations=30`, `warmup=5`
-  - Verified `ExGuten.Benchmark.Document` guardrails still pass at `iterations=30`, `warmup=5`
+  - Verified `Tincture.Benchmark.Typography` passes guardrails at `iterations=30`, `warmup=5`
+  - Verified `Tincture.Benchmark.Document` guardrails still pass at `iterations=30`, `warmup=5`
 
 **Execution strategy:**
 - [x] Run each sub-track behind opt-in options first, then make defaults once parity + performance gates pass
@@ -770,7 +770,7 @@ File.write!("test.pdf", pdf)
   - Include render scripts so examples can be regenerated outside tests
   - Progress: added invoice and statement showcase slices with end-to-end tests, lock hashes, reusable builders, and render scripts, including a second statement variant (`test/invoice_showcase_test.exs`, `test/bank_statement_showcase_test.exs`, `test/fixtures/pdf/invoice_showcase.sha256`, `test/fixtures/pdf/bank_statement_showcase.sha256`, `test/fixtures/pdf/bank_statement_joint_fee_interest_showcase.sha256`, `scripts/render_invoice_showcase.exs`, `scripts/render_bank_statement_showcase.exs`)
 - [ ] API stability and upgrade discipline
-  - Add API contract tests for top-level `ExGuten` functions to catch accidental breaking changes
+  - Add API contract tests for top-level `Tincture` functions to catch accidental breaking changes
   - Add release checklist for semver/changelog/deprecation notes
 - [ ] Performance SLOs in CI
   - Add explicit benchmark budget checks in CI for typography + large-document scenarios
@@ -786,7 +786,7 @@ File.write!("test.pdf", pdf)
 ### Porting Strategy Notes
 
 **1. Replace gen_server with structs**
-The biggest architectural change. erlguten's `eg_pdf` is a `gen_server` — you call `eg_pdf:new()` which spawns a process, then pass the PID everywhere. In ExGuten, use an immutable struct:
+The biggest architectural change. erlguten's `eg_pdf` is a `gen_server` — you call `eg_pdf:new()` which spawns a process, then pass the PID everywhere. In Tincture, use an immutable struct:
 
 ```erlang
 %% erlguten
@@ -799,12 +799,12 @@ eg_pdf:delete(PDF).
 ```
 
 ```elixir
-# ex_guten
-pdf = ExGuten.new()
-|> ExGuten.page_size(:a4)
-|> ExGuten.set_font("Helvetica", 14)
-|> ExGuten.text_at(50, 700, "Hello")
-|> ExGuten.export()
+# tincture
+pdf = Tincture.new()
+|> Tincture.page_size(:a4)
+|> Tincture.set_font("Helvetica", 14)
+|> Tincture.text_at(50, 700, "Hello")
+|> Tincture.export()
 ```
 
 **2. Start with a mechanical first pass**
@@ -831,6 +831,6 @@ Know the landscape before you build:
 | `gutenex` | Elixir PDF writer | Abandoned since 2016 |
 | `chromic_pdf` | Chrome headless → PDF | External dependency, no typesetting |
 | `pdf_generator` | wkhtmltopdf wrapper | External binary required |
-| **ex_guten** | Native Elixir PDF + typesetting | **No external dependencies** |
+| **tincture** | Native Elixir PDF + typesetting | **No external dependencies** |
 
-ExGuten's niche: **native Elixir, no external tools, real typesetting.** This is the pitch.
+Tincture's niche: **native Elixir, no external tools, real typesetting.** This is the pitch.

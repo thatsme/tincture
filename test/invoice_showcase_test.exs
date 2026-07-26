@@ -1,7 +1,7 @@
-defmodule ExGuten.InvoiceShowcaseTest do
+defmodule Tincture.InvoiceShowcaseTest do
   use ExUnit.Case
 
-  alias ExGuten.Showcase.Invoice
+  alias Tincture.Showcase.Invoice
 
   test "complex invoice showcase renders end-to-end with layout, typography, tables, image, metadata, and bookmarks" do
     %{

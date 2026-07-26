@@ -1,9 +1,9 @@
-defmodule ExGuten.KdTest1ParityTest do
+defmodule Tincture.KdTest1ParityTest do
   use ExUnit.Case
 
-  alias ExGuten.Layout.Table
-  alias ExGuten.Layout.Template
-  alias ExGuten.Layout.Template.DocumentResult
+  alias Tincture.Layout.Table
+  alias Tincture.Layout.Template
+  alias Tincture.Layout.Template.DocumentResult
 
   test "kd_test1-style commercial bill renders with logo, body flow, and line-item table" do
     logo_path = write_test_logo_png!()
@@ -22,15 +22,15 @@ defmodule ExGuten.KdTest1ParityTest do
     """
 
     {:ok, pdf, %DocumentResult{} = doc_result} =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
-      |> ExGuten.set_metadata(title: "KD Test 1", author: "ExGuten")
+      Tincture.new()
+      |> Tincture.page_size(:letter)
+      |> Tincture.set_metadata(title: "KD Test 1", author: "Tincture")
       |> Template.render_xml_document(xml, page_number_start: 1, page_total: 1, line_height: 13)
 
     pdf =
       pdf
-      |> ExGuten.image_png(50, 726, 24, 24, logo_path)
-      |> ExGuten.add_bookmark("Invoice Start", 1)
+      |> Tincture.image_png(50, 726, 24, 24, logo_path)
+      |> Tincture.add_bookmark("Invoice Start", 1)
 
     {pdf, table_result} =
       Table.render(
@@ -56,7 +56,7 @@ defmodule ExGuten.KdTest1ParityTest do
     assert table_result.rows == 4
     assert table_result.columns == 3
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pdf_binary =~ "/Subtype /Image"
     assert pdf_binary =~ "/Filter /FlateDecode"
@@ -73,7 +73,7 @@ defmodule ExGuten.KdTest1ParityTest do
 
   defp write_test_logo_png! do
     path =
-      Path.join(System.tmp_dir!(), "ex_guten_kd_logo_#{System.unique_integer([:positive])}.png")
+      Path.join(System.tmp_dir!(), "tincture_kd_logo_#{System.unique_integer([:positive])}.png")
 
     :ok = File.write(path, test_logo_png_binary())
     path

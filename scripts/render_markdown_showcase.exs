@@ -1,5 +1,5 @@
-defmodule ExGuten.RenderMarkdownShowcaseScript do
-  alias ExGuten.Showcase.MarkdownDoc
+defmodule Tincture.RenderMarkdownShowcaseScript do
+  alias Tincture.Showcase.MarkdownDoc
 
   def run do
     {markdown_path, out_path} =
@@ -22,4 +22,4 @@ defmodule ExGuten.RenderMarkdownShowcaseScript do
   end
 end
 
-ExGuten.RenderMarkdownShowcaseScript.run()
+Tincture.RenderMarkdownShowcaseScript.run()

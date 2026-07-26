@@ -1,4 +1,4 @@
-defmodule ExGuten.EgTest4ParityTest do
+defmodule Tincture.EgTest4ParityTest do
   use ExUnit.Case
 
   @base_14_fonts [
@@ -22,15 +22,15 @@ defmodule ExGuten.EgTest4ParityTest do
     pdf =
       @base_14_fonts
       |> Enum.with_index()
-      |> Enum.reduce(ExGuten.new(), fn {font_name, idx}, acc ->
+      |> Enum.reduce(Tincture.new(), fn {font_name, idx}, acc ->
         y = 800 - idx * 24
 
         acc
-        |> ExGuten.set_font(font_name, 12)
-        |> ExGuten.text_at(20, y, "#{font_name}: abc ABC 123")
+        |> Tincture.set_font(font_name, 12)
+        |> Tincture.text_at(20, y, "#{font_name}: abc ABC 123")
       end)
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     Enum.each(@base_14_fonts, fn font_name ->
       assert pdf_binary =~ "/BaseFont /#{font_name}"

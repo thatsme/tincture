@@ -1,18 +1,20 @@
-defmodule ExGuten.MixProject do
+defmodule Tincture.MixProject do
   use Mix.Project
 
-  @version "0.1.1"
+  @version "0.1.0"
+  @source_url "https://github.com/thatsme/tincture"
 
   def project do
     [
-      app: :ex_guten,
-      name: "ExGuten",
+      app: :tincture,
+      name: "Tincture",
       version: @version,
-      description: "Typographic-quality PDF generation for Elixir",
+      description:
+        "Native, high-fidelity PDF generation for Elixir, distilled from the heritage of Joe Armstrong.",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
-      source_url: "https://github.com/hwatkins/ex_guten",
-      homepage_url: "https://github.com/hwatkins/ex_guten",
+      source_url: @source_url,
+      homepage_url: @source_url,
       docs: docs(),
       package: package(),
       deps: deps()
@@ -23,7 +25,7 @@ defmodule ExGuten.MixProject do
   def application do
     [
       extra_applications: [:logger, :xmerl],
-      mod: {ExGuten.Application, []}
+      mod: {Tincture.Application, []}
     ]
   end
 
@@ -39,18 +41,21 @@ defmodule ExGuten.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/hwatkins/ex_guten"},
-      maintainers: ["hwatkins"],
-      files: ["lib", "priv", "mix.exs", "README.MD", "LICENSE"]
+      links: %{
+        "GitHub" => @source_url,
+        "erlguten (Joe Armstrong)" => "https://github.com/CarlWright/NGerlguten"
+      },
+      maintainers: ["thatsme"],
+      files: ["lib", "priv", "mix.exs", "README.md", "LICENSE", "NOTICE"]
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.MD"],
+      extras: ["README.md"],
       source_ref: "v#{@version}",
-      source_url: "https://github.com/hwatkins/ex_guten"
+      source_url: @source_url
     ]
   end
 end

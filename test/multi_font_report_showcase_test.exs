@@ -1,11 +1,11 @@
-defmodule ExGuten.MultiFontReportShowcaseTest do
+defmodule Tincture.MultiFontReportShowcaseTest do
   use ExUnit.Case
 
-  alias ExGuten.Showcase.MultiFontReport
+  alias Tincture.Showcase.MultiFontReport
 
   test "multi-font report showcase renders headings, narrative text, code block, and table across pages" do
     %{pdf: pdf, pages: pages, metrics_result: metrics_result} = MultiFontReport.build_document()
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pages == 2
     assert metrics_result.rows == 5

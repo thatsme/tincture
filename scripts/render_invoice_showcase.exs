@@ -1,5 +1,5 @@
-defmodule ExGuten.RenderInvoiceShowcaseScript do
-  alias ExGuten.Showcase.Invoice
+defmodule Tincture.RenderInvoiceShowcaseScript do
+  alias Tincture.Showcase.Invoice
 
   def run do
     out_path =
@@ -16,4 +16,4 @@ defmodule ExGuten.RenderInvoiceShowcaseScript do
   end
 end
 
-ExGuten.RenderInvoiceShowcaseScript.run()
+Tincture.RenderInvoiceShowcaseScript.run()

@@ -1,8 +1,8 @@
-defmodule ExGuten.FixtureLockScript do
-  alias ExGuten.Layout.Table
-  alias ExGuten.Showcase.BankStatement
-  alias ExGuten.Showcase.Invoice
-  alias ExGuten.Typography.RichText
+defmodule Tincture.FixtureLockScript do
+  alias Tincture.Layout.Table
+  alias Tincture.Showcase.BankStatement
+  alias Tincture.Showcase.Invoice
+  alias Tincture.Typography.RichText
 
   def run do
     check_only? = parse_env_bool("EX_GUTEN_FIXTURE_LOCK_CHECK", false)
@@ -71,13 +71,13 @@ defmodule ExGuten.FixtureLockScript do
   end
 
   defp core_text_pdf do
-    ExGuten.new()
-    |> ExGuten.page_size(:letter)
-    |> ExGuten.set_font("Times-Roman", 16)
-    |> ExGuten.text_at(72, 720, "Locked fixture: core text")
-    |> ExGuten.text_at_rotated(300, 300, 30, "Rotation")
-    |> ExGuten.line(72, 710, 400, 710)
-    |> ExGuten.export()
+    Tincture.new()
+    |> Tincture.page_size(:letter)
+    |> Tincture.set_font("Times-Roman", 16)
+    |> Tincture.text_at(72, 720, "Locked fixture: core text")
+    |> Tincture.text_at_rotated(300, 300, 30, "Rotation")
+    |> Tincture.line(72, 710, 400, 710)
+    |> Tincture.export()
   end
 
   defp optimal_typography_pdf do
@@ -88,8 +88,8 @@ defmodule ExGuten.FixtureLockScript do
         size: 10
       )
 
-    ExGuten.new()
-    |> ExGuten.text_paragraph(72, 700, rich, 220,
+    Tincture.new()
+    |> Tincture.text_paragraph(72, 700, rich, 220,
       align: :justified,
       line_break: :optimal,
       optimal_cost_model: :box_glue,
@@ -101,7 +101,7 @@ defmodule ExGuten.FixtureLockScript do
       consecutive_hyphen_penalty: 350,
       fitness_class_penalty: 500
     )
-    |> ExGuten.export()
+    |> Tincture.export()
   end
 
   defp table_layout_pdf do
@@ -113,8 +113,8 @@ defmodule ExGuten.FixtureLockScript do
     ]
 
     {pdf, _result} =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
+      Tincture.new()
+      |> Tincture.page_size(:letter)
       |> Table.render(72, 700, :auto, rows,
         header_rows: 1,
         font: "Helvetica",
@@ -124,7 +124,7 @@ defmodule ExGuten.FixtureLockScript do
         table_width: 280
       )
 
-    ExGuten.export(pdf)
+    Tincture.export(pdf)
   end
 
   defp invoice_showcase_pdf do
@@ -166,4 +166,4 @@ defmodule ExGuten.FixtureLockScript do
   end
 end
 
-ExGuten.FixtureLockScript.run()
+Tincture.FixtureLockScript.run()

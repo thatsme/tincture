@@ -1,0 +1,70 @@
+Tincture
+========
+
+Native, high-fidelity PDF generation for Elixir, distilled from the heritage
+of Joe Armstrong.
+
+Tincture is distributed under the MIT License (see LICENSE).
+
+
+Lineage and attribution
+-----------------------
+
+Tincture stands on three prior bodies of work, each of which is gratefully
+acknowledged. The chain is:
+
+    erlguten  ->  NGerlguten  ->  ex_guten  ->  Tincture
+
+1. erlguten — Joe Armstrong
+   The original Erlang typesetting and PDF generation system, named for
+   Gutenberg. Armstrong (co-creator of Erlang) designed the typographic
+   model, the box/glue layout approach, and the PDF object assembly that
+   Tincture still follows. The TeX hyphenation pattern ingestion and the
+   `eg_test*` conformance documents originate here.
+
+2. NGerlguten — Carl Wright
+   https://github.com/CarlWright/NGerlguten
+   The maintained continuation of erlguten, which carried the library
+   forward with font handling and additional layout work. Font metric
+   files under priv/afm/ and priv/standard_fonts/, the hyphenation
+   dictionaries under priv/hyphen/, and several Type 1 font programs
+   under priv/fonts/ derive from this lineage.
+
+3. ex_guten — Hugh Watkins (hwatkins), MIT License, 2026
+   https://github.com/hwatkins/ex_guten
+   The Elixir port that Tincture is forked from. Tincture retains its
+   struct-based (non-gen_server) architecture, its TrueType/OpenType
+   parsing and embedding, its Knuth-Plass line-breaking implementation,
+   and its parity test suite against Armstrong's original eg_test
+   documents. The original MIT copyright notice is preserved in LICENSE.
+
+Tincture is an independent continuation. It is not endorsed by, affiliated
+with, or maintained by any of the above authors.
+
+
+Bundled third-party data
+------------------------
+
+The following files under priv/ are redistributed from upstream sources and
+carry their own terms. See the accompanying README files in each directory
+for provenance details:
+
+  priv/hyphen/          TeX hyphenation patterns (en_GB, da_DK, fi_FI,
+                        nb_NO, sv_SE) and their original .tex sources.
+                        See priv/hyphen/README.upstream.txt.
+
+  priv/fonts/           Type 1 font programs. See priv/fonts/README.upstream.txt,
+                        README.ocr.txt, and README.vsecret.txt.
+
+  priv/afm/             Adobe Font Metrics files.
+
+  priv/standard_fonts/  Metric tables for the PDF Standard 14 fonts.
+
+  priv/hyphen/tb87nemeth.pdf
+                        TUGboat article included as reference documentation
+                        for the hyphenation pattern work.
+
+Adobe, PostScript, and the Standard 14 font names (Helvetica, Times, Courier,
+Symbol, ZapfDingbats) are trademarks of their respective owners. Tincture
+generates references to these font names as required by the PDF specification
+and does not redistribute the corresponding Adobe font programs.

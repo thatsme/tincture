@@ -1,7 +1,7 @@
-defmodule ExGuten.EgTest5ParityTest do
+defmodule Tincture.EgTest5ParityTest do
   use ExUnit.Case
 
-  alias ExGuten.Typography.RichText
+  alias Tincture.Typography.RichText
 
   test "eg5-style rotated paragraph blocks with mixed alignments export rotation matrices" do
     rich =
@@ -12,11 +12,11 @@ defmodule ExGuten.EgTest5ParityTest do
       )
 
     pdf =
-      ExGuten.new()
-      |> ExGuten.text_paragraph(60, 760, rich, 160, align: :left, rotate: 0, line_height: 14)
-      |> ExGuten.text_paragraph(220, 680, rich, 160, align: :center, rotate: 45, line_height: 14)
-      |> ExGuten.text_paragraph(380, 600, rich, 160, align: :right, rotate: 90, line_height: 14)
-      |> ExGuten.text_paragraph(60, 520, rich, 160,
+      Tincture.new()
+      |> Tincture.text_paragraph(60, 760, rich, 160, align: :left, rotate: 0, line_height: 14)
+      |> Tincture.text_paragraph(220, 680, rich, 160, align: :center, rotate: 45, line_height: 14)
+      |> Tincture.text_paragraph(380, 600, rich, 160, align: :right, rotate: 90, line_height: 14)
+      |> Tincture.text_paragraph(60, 520, rich, 160,
         align: :justified,
         rotate: 180,
         line_height: 14
@@ -34,7 +34,7 @@ defmodule ExGuten.EgTest5ParityTest do
     assert Enum.any?(rotated_ops, &match?({:text_at_rotated, _, _, 90, _, _}, &1))
     assert Enum.any?(rotated_ops, &match?({:text_at_rotated, _, _, 180, _, _}, &1))
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pdf_binary =~ "0.7071067812 0.7071067812 -0.7071067812 0.7071067812"
     assert pdf_binary =~ "0.0 1.0 -1.0 0.0"

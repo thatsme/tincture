@@ -1,6 +1,6 @@
-# ExGuten Feature Tour
+# Tincture Feature Tour
 
-ExGuten turns structured content into print-ready PDF with predictable layout.
+Tincture turns structured content into print-ready PDF with predictable layout.
 
 ## Capabilities
 - Precision positioning and vector drawing
@@ -11,9 +11,9 @@ Use [release notes](https://example.com/releases) to track each milestone.
 
 ```elixir
 pdf =
-  ExGuten.new()
-  |> ExGuten.page_size(:letter)
-  |> ExGuten.add_page()
+  Tincture.new()
+  |> Tincture.page_size(:letter)
+  |> Tincture.add_page()
 ```
 
 ## Why This Matters

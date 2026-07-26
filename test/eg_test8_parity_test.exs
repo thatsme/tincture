@@ -1,7 +1,7 @@
-defmodule ExGuten.EgTest8ParityTest do
+defmodule Tincture.EgTest8ParityTest do
   use ExUnit.Case
 
-  alias ExGuten.Layout.Table
+  alias Tincture.Layout.Table
 
   test "eg8-style table rendering supports multiple tables and escaped cell text" do
     primary_rows = [
@@ -17,7 +17,7 @@ defmodule ExGuten.EgTest8ParityTest do
     ]
 
     {pdf, first_result} =
-      ExGuten.new()
+      Tincture.new()
       |> Table.render(50, 700, [140, 180], primary_rows,
         header_rows: 1,
         font: "Helvetica",
@@ -52,7 +52,7 @@ defmodule ExGuten.EgTest8ParityTest do
 
     assert Enum.any?(pdf.operations, &match?({:text_at, _, _, "\\b", {"Helvetica", 10.0}}, &1))
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
     assert pdf_binary =~ "(\\\\b) Tj"
     assert pdf_binary =~ "(\\\\n) Tj"
     assert pdf_binary =~ "(\\\\t) Tj"

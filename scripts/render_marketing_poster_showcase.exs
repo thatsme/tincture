@@ -1,5 +1,5 @@
-defmodule ExGuten.RenderMarketingPosterShowcaseScript do
-  alias ExGuten.Showcase.MarketingPoster
+defmodule Tincture.RenderMarketingPosterShowcaseScript do
+  alias Tincture.Showcase.MarketingPoster
 
   def run do
     out_path =
@@ -16,4 +16,4 @@ defmodule ExGuten.RenderMarketingPosterShowcaseScript do
   end
 end
 
-ExGuten.RenderMarketingPosterShowcaseScript.run()
+Tincture.RenderMarketingPosterShowcaseScript.run()

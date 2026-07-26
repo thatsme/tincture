@@ -1,10 +1,10 @@
-defmodule ExGuten.EgTmoFullParityTest do
+defmodule Tincture.EgTmoFullParityTest do
   use ExUnit.Case
 
-  alias ExGuten.Layout.Table
-  alias ExGuten.Layout.Template
-  alias ExGuten.Layout.Template.DocumentResult
-  alias ExGuten.Typography.RichText
+  alias Tincture.Layout.Table
+  alias Tincture.Layout.Template
+  alias Tincture.Layout.Template.DocumentResult
+  alias Tincture.Typography.RichText
 
   test "full tmo-style multi-page composition renders document flow and table sections" do
     body_text = Enum.map_join(1..60, " ", fn idx -> "section#{idx}" end)
@@ -23,8 +23,8 @@ defmodule ExGuten.EgTmoFullParityTest do
       |> Template.with_footer("Confidential p.{page}", font: "Helvetica", size: 9)
 
     {pdf, doc_result} =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
+      Tincture.new()
+      |> Tincture.page_size(:letter)
       |> Template.render_document(template, body,
         page_number_start: 1,
         page_total: 2,
@@ -47,7 +47,7 @@ defmodule ExGuten.EgTmoFullParityTest do
     assert table_result.rows == 2
     assert table_result.columns == 2
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pdf_binary =~ "/Count 2"
     assert pdf_binary =~ "(TMO Full Fixture 1/2) Tj"

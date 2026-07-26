@@ -1,13 +1,13 @@
-defmodule ExGuten.MarkdownShowcaseTest do
+defmodule Tincture.MarkdownShowcaseTest do
   use ExUnit.Case
 
-  alias ExGuten.Showcase.MarkdownDoc
+  alias Tincture.Showcase.MarkdownDoc
 
   test "markdown showcase renders a markdown subset into a paginated PDF" do
     markdown = """
     # Product Notes
 
-    This document is generated from markdown and rendered with ExGuten.
+    This document is generated from markdown and rendered with Tincture.
 
     ## Roadmap
     - Ship Hex package publishing
@@ -24,7 +24,7 @@ defmodule ExGuten.MarkdownShowcaseTest do
     """
 
     %{pdf: pdf, pages: pages} = MarkdownDoc.build_document(markdown)
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pages == 1
     assert page_count(pdf_binary) == 1
@@ -43,10 +43,10 @@ defmodule ExGuten.MarkdownShowcaseTest do
 
   test "markdown showcase can render from a markdown file path" do
     markdown_path =
-      Path.join(System.tmp_dir!(), "ex_guten_markdown_#{System.unique_integer([:positive])}.md")
+      Path.join(System.tmp_dir!(), "tincture_markdown_#{System.unique_integer([:positive])}.md")
 
     out_path =
-      Path.join(System.tmp_dir!(), "ex_guten_markdown_#{System.unique_integer([:positive])}.pdf")
+      Path.join(System.tmp_dir!(), "tincture_markdown_#{System.unique_integer([:positive])}.pdf")
 
     File.write!(markdown_path, "# File Input\n\n- item one\n- item two\n")
 

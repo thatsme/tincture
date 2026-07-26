@@ -1,7 +1,7 @@
-defmodule ExGuten.BankStatementShowcaseTest do
+defmodule Tincture.BankStatementShowcaseTest do
   use ExUnit.Case
 
-  alias ExGuten.Showcase.BankStatement
+  alias Tincture.Showcase.BankStatement
 
   test "multi-page bank statement showcase renders end-to-end with templates, tables, metadata, and bookmarks" do
     %{
@@ -11,7 +11,7 @@ defmodule ExGuten.BankStatementShowcaseTest do
       summary_result: summary_result
     } = BankStatement.build_document()
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert doc_result.pages_used == 3
     assert length(transaction_results) == 3
@@ -42,7 +42,7 @@ defmodule ExGuten.BankStatementShowcaseTest do
       summary_result: summary_result
     } = BankStatement.build_document(:joint_fee_interest)
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert doc_result.pages_used == 3
     assert length(transaction_results) == 3

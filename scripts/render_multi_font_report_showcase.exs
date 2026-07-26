@@ -1,5 +1,5 @@
-defmodule ExGuten.RenderMultiFontReportShowcaseScript do
-  alias ExGuten.Showcase.MultiFontReport
+defmodule Tincture.RenderMultiFontReportShowcaseScript do
+  alias Tincture.Showcase.MultiFontReport
 
   def run do
     out_path =
@@ -16,4 +16,4 @@ defmodule ExGuten.RenderMultiFontReportShowcaseScript do
   end
 end
 
-ExGuten.RenderMultiFontReportShowcaseScript.run()
+Tincture.RenderMultiFontReportShowcaseScript.run()

@@ -1,4 +1,4 @@
-defmodule ExGuten.EgTest1ParityTest do
+defmodule Tincture.EgTest1ParityTest do
   use ExUnit.Case
 
   test "eg1-style comprehensive feature fixture exports structurally consistent pdf" do
@@ -6,46 +6,46 @@ defmodule ExGuten.EgTest1ParityTest do
     png_path = write_test_png!()
 
     pdf =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
-      |> ExGuten.set_metadata(
+      Tincture.new()
+      |> Tincture.page_size(:letter)
+      |> Tincture.set_metadata(
         title: "EG Test 1",
-        author: "ExGuten",
+        author: "Tincture",
         subject: "Comprehensive parity fixture",
         keywords: "eg_test1,parity"
       )
-      |> ExGuten.set_font("Helvetica", 12)
-      |> ExGuten.text_at(50, 740, "EG Test 1")
-      |> ExGuten.text_at_rotated(300, 700, 30, "Rotated")
-      |> ExGuten.set_stroke_color({0.1, 0.2, 0.8})
-      |> ExGuten.set_fill_color({0.9, 0.2, 0.2})
-      |> ExGuten.set_line_width(2)
-      |> ExGuten.set_line_cap(1)
-      |> ExGuten.set_line_join(2)
-      |> ExGuten.set_dash([6, 3], 0)
-      |> ExGuten.set_miter_limit(7.5)
-      |> ExGuten.line(50, 720, 260, 720)
-      |> ExGuten.rectangle(50, 640, 120, 60)
-      |> ExGuten.circle(240, 670, 24)
-      |> ExGuten.move_to(320, 680)
-      |> ExGuten.line_to(380, 680)
-      |> ExGuten.line_to(350, 630)
-      |> ExGuten.fill_even_odd()
-      |> ExGuten.move_to(410, 680)
-      |> ExGuten.line_to(470, 680)
-      |> ExGuten.line_to(440, 630)
-      |> ExGuten.clip_even_odd()
-      |> ExGuten.image_jpeg(50, 560, 64, 48, jpg_path)
-      |> ExGuten.image_png(130, 560, 48, 48, png_path)
-      |> ExGuten.add_page()
-      |> ExGuten.set_font("Times-Roman", 11)
-      |> ExGuten.text_at(50, 740, "Page 2 body")
-      |> ExGuten.add_bookmark("EG1 Start", 1)
-      |> ExGuten.add_bookmark("EG1 Page 2", 2)
-      |> ExGuten.set_page(1)
-      |> ExGuten.text_at(50, 520, "Back on page 1")
+      |> Tincture.set_font("Helvetica", 12)
+      |> Tincture.text_at(50, 740, "EG Test 1")
+      |> Tincture.text_at_rotated(300, 700, 30, "Rotated")
+      |> Tincture.set_stroke_color({0.1, 0.2, 0.8})
+      |> Tincture.set_fill_color({0.9, 0.2, 0.2})
+      |> Tincture.set_line_width(2)
+      |> Tincture.set_line_cap(1)
+      |> Tincture.set_line_join(2)
+      |> Tincture.set_dash([6, 3], 0)
+      |> Tincture.set_miter_limit(7.5)
+      |> Tincture.line(50, 720, 260, 720)
+      |> Tincture.rectangle(50, 640, 120, 60)
+      |> Tincture.circle(240, 670, 24)
+      |> Tincture.move_to(320, 680)
+      |> Tincture.line_to(380, 680)
+      |> Tincture.line_to(350, 630)
+      |> Tincture.fill_even_odd()
+      |> Tincture.move_to(410, 680)
+      |> Tincture.line_to(470, 680)
+      |> Tincture.line_to(440, 630)
+      |> Tincture.clip_even_odd()
+      |> Tincture.image_jpeg(50, 560, 64, 48, jpg_path)
+      |> Tincture.image_png(130, 560, 48, 48, png_path)
+      |> Tincture.add_page()
+      |> Tincture.set_font("Times-Roman", 11)
+      |> Tincture.text_at(50, 740, "Page 2 body")
+      |> Tincture.add_bookmark("EG1 Start", 1)
+      |> Tincture.add_bookmark("EG1 Page 2", 2)
+      |> Tincture.set_page(1)
+      |> Tincture.text_at(50, 520, "Back on page 1")
 
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert String.starts_with?(pdf_binary, "%PDF-1.4")
     assert pdf_binary =~ "/Type /Catalog"
@@ -54,7 +54,7 @@ defmodule ExGuten.EgTest1ParityTest do
     assert pdf_binary =~ "/Type /Outlines"
     assert pdf_binary =~ "/Info "
     assert pdf_binary =~ "/Title (EG Test 1)"
-    assert pdf_binary =~ "/Author (ExGuten)"
+    assert pdf_binary =~ "/Author (Tincture)"
     assert pdf_binary =~ "/Dest [3 0 R /Fit]"
     assert pdf_binary =~ "/Dest [5 0 R /Fit]"
     assert pdf_binary =~ "/BaseFont /Helvetica"
@@ -88,7 +88,7 @@ defmodule ExGuten.EgTest1ParityTest do
   end
 
   defp write_test_jpeg! do
-    path = Path.join(System.tmp_dir!(), "ex_guten_eg1_#{System.unique_integer([:positive])}.jpg")
+    path = Path.join(System.tmp_dir!(), "tincture_eg1_#{System.unique_integer([:positive])}.jpg")
     :ok = File.write(path, test_jpeg_binary())
     path
   end
@@ -101,7 +101,7 @@ defmodule ExGuten.EgTest1ParityTest do
   end
 
   defp write_test_png! do
-    path = Path.join(System.tmp_dir!(), "ex_guten_eg1_#{System.unique_integer([:positive])}.png")
+    path = Path.join(System.tmp_dir!(), "tincture_eg1_#{System.unique_integer([:positive])}.png")
     :ok = File.write(path, test_png_binary())
     path
   end

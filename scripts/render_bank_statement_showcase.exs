@@ -1,5 +1,5 @@
-defmodule ExGuten.RenderBankStatementShowcaseScript do
-  alias ExGuten.Showcase.BankStatement
+defmodule Tincture.RenderBankStatementShowcaseScript do
+  alias Tincture.Showcase.BankStatement
 
   def run do
     {variant, out_path} =
@@ -49,4 +49,4 @@ defmodule ExGuten.RenderBankStatementShowcaseScript do
   end
 end
 
-ExGuten.RenderBankStatementShowcaseScript.run()
+Tincture.RenderBankStatementShowcaseScript.run()

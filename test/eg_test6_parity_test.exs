@@ -1,13 +1,13 @@
-defmodule ExGuten.EgTest6ParityTest do
+defmodule Tincture.EgTest6ParityTest do
   use ExUnit.Case
 
   test "eg_test6-style pipeline exports expected minimal PDF primitives" do
     pdf_binary =
-      ExGuten.new()
-      |> ExGuten.page_size(:a4)
-      |> ExGuten.set_font("Helvetica", 14)
-      |> ExGuten.text_at(50, 700, "Hello Joe from Gutenberg")
-      |> ExGuten.export()
+      Tincture.new()
+      |> Tincture.page_size(:a4)
+      |> Tincture.set_font("Helvetica", 14)
+      |> Tincture.text_at(50, 700, "Hello Joe from Gutenberg")
+      |> Tincture.export()
 
     assert String.starts_with?(pdf_binary, "%PDF-1.4")
     assert pdf_binary =~ "/MediaBox [0 0 595 842]"
@@ -19,14 +19,14 @@ defmodule ExGuten.EgTest6ParityTest do
 
   test "save/2 writes exported PDF to disk" do
     pdf =
-      ExGuten.new()
-      |> ExGuten.page_size(:letter)
-      |> ExGuten.set_font("Times-Roman", 12)
-      |> ExGuten.text_at(50, 720, "saved from ExGuten")
+      Tincture.new()
+      |> Tincture.page_size(:letter)
+      |> Tincture.set_font("Times-Roman", 12)
+      |> Tincture.text_at(50, 720, "saved from Tincture")
 
-    path = Path.join(System.tmp_dir!(), "ex_guten_eg_test6_parity.pdf")
+    path = Path.join(System.tmp_dir!(), "tincture_eg_test6_parity.pdf")
 
-    assert :ok = ExGuten.save(pdf, path)
+    assert :ok = Tincture.save(pdf, path)
     assert File.exists?(path)
     assert File.stat!(path).size > 0
   end

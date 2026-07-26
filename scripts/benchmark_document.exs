@@ -1,4 +1,4 @@
-defmodule ExGuten.DocumentBenchmarkScript do
+defmodule Tincture.DocumentBenchmarkScript do
   def run do
     iterations = parse_env_int("EX_GUTEN_DOC_BENCH_ITERS", 30)
     warmup = parse_env_int("EX_GUTEN_DOC_BENCH_WARMUP", 5)
@@ -7,7 +7,7 @@ defmodule ExGuten.DocumentBenchmarkScript do
     enforce? = parse_env_bool("EX_GUTEN_DOC_BENCH_ENFORCE", false)
 
     report =
-      ExGuten.Benchmark.Document.run(
+      Tincture.Benchmark.Document.run(
         iterations: iterations,
         warmup: warmup,
         print: true
@@ -16,13 +16,13 @@ defmodule ExGuten.DocumentBenchmarkScript do
     guardrail_opts = [speed_factor: speed_factor, memory_factor: memory_factor]
 
     if enforce? do
-      ExGuten.Benchmark.Document.assert_guardrails!(report, guardrail_opts)
+      Tincture.Benchmark.Document.assert_guardrails!(report, guardrail_opts)
       IO.puts("")
       IO.puts("Benchmark guardrails: PASS")
       :ok
     else
       report
-      |> ExGuten.Benchmark.Document.guardrail_warnings(guardrail_opts)
+      |> Tincture.Benchmark.Document.guardrail_warnings(guardrail_opts)
       |> print_warnings()
     end
   end
@@ -84,4 +84,4 @@ defmodule ExGuten.DocumentBenchmarkScript do
   end
 end
 
-ExGuten.DocumentBenchmarkScript.run()
+Tincture.DocumentBenchmarkScript.run()

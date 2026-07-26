@@ -1,11 +1,11 @@
-defmodule ExGuten.MarketingPosterShowcaseTest do
+defmodule Tincture.MarketingPosterShowcaseTest do
   use ExUnit.Case
 
-  alias ExGuten.Showcase.MarketingPoster
+  alias Tincture.Showcase.MarketingPoster
 
   test "graphics-heavy poster showcase renders vector graphics, image, and strong typography" do
     %{pdf: pdf, pages: pages} = MarketingPoster.build_document()
-    pdf_binary = ExGuten.export(pdf)
+    pdf_binary = Tincture.export(pdf)
 
     assert pages == 1
     assert page_count(pdf_binary) == 1
