@@ -26,6 +26,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF
   alias Tincture.PDF.Encrypt
   alias Tincture.PDF.FontEmbed
+  alias Tincture.PDF.ICC
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
   alias Tincture.PDF.Structure
@@ -77,7 +78,12 @@ defmodule Tincture.PDF.Serialize do
     {struct_tree_ref, structure_objects} =
       build_structure_objects(pdf, page_object_refs, page_numbers, structure_start_id)
 
-    metadata_start_id = structure_start_id + length(structure_objects)
+    output_intent_start_id = structure_start_id + length(structure_objects)
+
+    {output_intent_ref, output_intent_objects} =
+      build_output_intent_objects(pdf, output_intent_start_id)
+
+    metadata_start_id = output_intent_start_id + length(output_intent_objects)
 
     {metadata_ref, metadata_objects} =
       build_metadata_objects(pdf, struct_tree_ref, metadata_start_id)
@@ -124,7 +130,14 @@ defmodule Tincture.PDF.Serialize do
         page_body =
           "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots}#{struct_parents} >>"
 
-        content_body = ["<< /Length #{content_length} >>\nstream\n", content_stream, "endstream"]
+        # The EOL before `endstream` is a delimiter rather than stream data, so
+        # a stream whose own last byte is a newline needs one of each - or
+        # /Length overstates the content by one (ISO 19005-2 clause 6.1.7.1).
+        content_body = [
+          "<< /Length #{content_length} >>\nstream\n",
+          content_stream,
+          "\nendstream"
+        ]
 
         [page_body, content_body]
       end)
@@ -136,13 +149,16 @@ defmodule Tincture.PDF.Serialize do
         pdf.form_fields,
         struct_tree_ref,
         metadata_ref,
+        output_intent_ref,
         pdf
       ),
       "<< /Type /Pages /Kids [#{kids}] /Count #{page_count} >>"
       | page_objects ++
           embedded_font_objects ++
           image_objects ++
-          outline_objects ++ form_field_objects ++ structure_objects ++ metadata_objects
+          outline_objects ++
+          form_field_objects ++
+          structure_objects ++ output_intent_objects ++ metadata_objects
     ]
 
     {object_bodies, info_ref} =
@@ -167,6 +183,7 @@ defmodule Tincture.PDF.Serialize do
          form_fields,
          struct_tree_ref,
          metadata_ref,
+         output_intent_ref,
          pdf
        ) do
     outlines =
@@ -201,9 +218,40 @@ defmodule Tincture.PDF.Serialize do
     viewer_preferences =
       if struct_tree_ref, do: " /ViewerPreferences << /DisplayDocTitle true >>", else: ""
 
+    # PDF/A forbids device colour with no stated meaning: without an output
+    # intent, `1 0 0 rg` means "as red as this device gets", which is not
+    # reproducible in a decade's time.
+    output_intent =
+      case output_intent_ref do
+        nil ->
+          ""
+
+        id ->
+          " /OutputIntents [<< /Type /OutputIntent /S /GTS_PDFA1" <>
+            " /OutputConditionIdentifier " <>
+            Object.format_text(ICC.output_condition_identifier()) <>
+            " /Info " <>
+            Object.format_text(ICC.output_condition_identifier()) <>
+            " /DestOutputProfile #{id} 0 R >>]"
+      end
+
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
       "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language}" <>
-      "#{metadata}#{viewer_preferences} >>"
+      "#{metadata}#{viewer_preferences}#{output_intent} >>"
+  end
+
+  defp build_output_intent_objects(%PDF{pdf_a: nil}, _start_id), do: {nil, []}
+
+  defp build_output_intent_objects(%PDF{}, start_id) do
+    profile = ICC.srgb()
+
+    object = [
+      "<< /N #{ICC.components()} /Length #{byte_size(profile)} >>\nstream\n",
+      profile,
+      "\nendstream"
+    ]
+
+    {start_id, [object]}
   end
 
   # XMP is the metadata format the archival and accessibility standards
@@ -225,7 +273,8 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp xmp_packet(%PDF{metadata: metadata} = pdf, struct_tree_ref) do
-    if map_size(metadata) == 0 and is_nil(struct_tree_ref) and is_nil(pdf.language) do
+    if map_size(metadata) == 0 and is_nil(struct_tree_ref) and is_nil(pdf.language) and
+         is_nil(pdf.pdf_a) do
       nil
     else
       # Claimed only for a tagged document: asserting PDF/UA on an untagged
@@ -242,7 +291,9 @@ defmodule Tincture.PDF.Serialize do
       <?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
       <x:xmpmeta xmlns:x="adobe:ns:meta/">
         <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      #{pdf_a_identification(pdf.pdf_a)}\
       #{ua_id}\
+      #{pdf_ua_extension_schema(struct_tree_ref, pdf.pdf_a)}\
       #{dublin_core_description(metadata, pdf.language)}\
       #{pdf_description(metadata)}\
         </rdf:RDF>
@@ -250,6 +301,52 @@ defmodule Tincture.PDF.Serialize do
       <?xpacket end="w"?>
       """
     end
+  end
+
+  defp pdf_a_identification(nil), do: ""
+
+  defp pdf_a_identification({part, conformance}) do
+    ~s(    <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">\n) <>
+      "      <pdfaid:part>#{part}</pdfaid:part>\n" <>
+      "      <pdfaid:conformance>#{conformance |> Atom.to_string() |> String.upcase()}" <>
+      "</pdfaid:conformance>\n    </rdf:Description>\n"
+  end
+
+  # PDF/A permits only predefined XMP schemas unless the file describes the
+  # others itself. pdfuaid is not among the predefined set, so a document
+  # claiming both PDF/A and PDF/UA must carry this description of it -
+  # otherwise the very property asserting accessibility invalidates the
+  # archival claim.
+  defp pdf_ua_extension_schema(nil, _pdf_a), do: ""
+  defp pdf_ua_extension_schema(_struct_tree_ref, nil), do: ""
+
+  defp pdf_ua_extension_schema(_struct_tree_ref, _pdf_a) do
+    """
+        <rdf:Description rdf:about=""
+            xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
+            xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"
+            xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+          <pdfaExtension:schemas>
+            <rdf:Bag>
+              <rdf:li rdf:parseType="Resource">
+                <pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI>
+                <pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix>
+                <pdfaSchema:schema>PDF/UA identification schema</pdfaSchema:schema>
+                <pdfaSchema:property>
+                  <rdf:Seq>
+                    <rdf:li rdf:parseType="Resource">
+                      <pdfaProperty:category>internal</pdfaProperty:category>
+                      <pdfaProperty:description>Part of ISO 14289 standard</pdfaProperty:description>
+                      <pdfaProperty:name>part</pdfaProperty:name>
+                      <pdfaProperty:valueType>Integer</pdfaProperty:valueType>
+                    </rdf:li>
+                  </rdf:Seq>
+                </pdfaSchema:property>
+              </rdf:li>
+            </rdf:Bag>
+          </pdfaExtension:schemas>
+        </rdf:Description>
+    """
   end
 
   defp dublin_core_description(metadata, language) do
@@ -576,12 +673,15 @@ defmodule Tincture.PDF.Serialize do
         id -> " /Encrypt #{id} 0 R"
       end
 
-    # /ID is required once a document is encrypted, and both halves are the
-    # same for a file that has never been incrementally updated.
+    # /ID is required for every document by PDF/A, not only encrypted ones.
+    # Both halves are the same for a file that has never been incrementally
+    # updated. Derived from the object bytes rather than the clock, so building
+    # the same document twice produces the same file.
     id_part =
       case encryption do
         nil ->
-          ""
+          hex = objects |> :erlang.md5() |> Base.encode16(case: :upper)
+          " /ID [<#{hex}> <#{hex}>]"
 
         context ->
           hex = Base.encode16(Encrypt.id(context), case: :upper)
@@ -978,7 +1078,7 @@ defmodule Tincture.PDF.Serialize do
       "<< /Type /XObject /Subtype /Form /BBox [0 0 #{Object.num(width)} #{Object.num(height)}]",
       " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n",
       content,
-      "endstream"
+      "\nendstream"
     ]
   end
 

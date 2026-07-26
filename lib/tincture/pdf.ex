@@ -148,6 +148,7 @@ defmodule Tincture.PDF do
           structure_stack: [Structure.t()],
           mcid_counters: %{optional(pos_integer()) => non_neg_integer()},
           language: String.t() | nil,
+          pdf_a: {2 | 3, :b | :u | :a} | nil,
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
           form_fields: [form_field()],
@@ -167,6 +168,7 @@ defmodule Tincture.PDF do
             structure_stack: [],
             mcid_counters: %{},
             language: nil,
+            pdf_a: nil,
             bookmarks: [],
             annotations: %{},
             form_fields: [],
@@ -314,6 +316,30 @@ defmodule Tincture.PDF do
 
   def set_language(%__MODULE__{}, other),
     do: raise(ArgumentError, "language must be a non-empty string, got: #{inspect(other)}")
+
+  @doc """
+  Declare a PDF/A conformance level, adding what archival validity requires.
+
+  Sets an sRGB output intent, a `/Metadata` stream carrying the PDF/A
+  identification, and a file identifier.
+  """
+  @spec set_pdf_a(t(), atom()) :: t()
+  def set_pdf_a(%__MODULE__{} = pdf, level) do
+    %__MODULE__{pdf | pdf_a: normalize_pdf_a_level(level)}
+  end
+
+  defp normalize_pdf_a_level(:a2b), do: {2, :b}
+  defp normalize_pdf_a_level(:a2u), do: {2, :u}
+  defp normalize_pdf_a_level(:a2a), do: {2, :a}
+  defp normalize_pdf_a_level(:a3b), do: {3, :b}
+  defp normalize_pdf_a_level(:a3u), do: {3, :u}
+  defp normalize_pdf_a_level(:a3a), do: {3, :a}
+
+  defp normalize_pdf_a_level(other) do
+    raise ArgumentError,
+          "unknown PDF/A level: #{inspect(other)}. " <>
+            "Expected one of :a2b, :a2u, :a2a, :a3b, :a3u, :a3a."
+  end
 
   @doc """
   Whether this document carries logical structure.

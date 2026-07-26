@@ -106,6 +106,35 @@ of 2605 checks:
 
     verapdf --flavour ua1 examples/output/compliant.pdf
 
+## [`archival.exs`](archival.exs) → [`output/archival.pdf`](output/archival.pdf)
+
+A calibration certificate that has to outlive the software that made it,
+claiming **PDF/A-2a** — the accessible archival level, which subsumes 2u (text
+extractable) and 2b (visual reproduction preserved) and additionally requires
+tagging. So one document conforms to both PDF/A and PDF/UA at once.
+
+Shows:
+
+- **`Tincture.set_pdf_a/2`**, which adds the sRGB output intent, the XMP
+  conformance claim and the file identifier.
+- **The built-in ICC profile.** PDF/A forbids device colour with no stated
+  meaning — `1 0 0 rg` alone means "as red as this device gets" — so an output
+  intent has to say which red. `Tincture.PDF.ICC` builds one rather than
+  depending on a profile being installed.
+- **Why the standard 14 fonts are unusable here**: PDF/A requires every font to
+  be embedded, and those are referenced by name for the reader to resolve,
+  which is the outside dependency the format exists to remove.
+
+Output is deterministic — the file identifier comes from the content and the
+ICC profile carries no creation date — so an archived file can be checked
+against a rebuild.
+
+**Validated** at three flavours:
+
+    verapdf --flavour 2a  examples/output/archival.pdf
+    verapdf --flavour 2b  examples/output/archival.pdf
+    verapdf --flavour ua1 examples/output/archival.pdf
+
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 
 Three pages of justified text, with the telemetry events printed as they fire:

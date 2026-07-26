@@ -1153,6 +1153,55 @@ defmodule Tincture do
   end
 
   @doc """
+  Declare a PDF/A conformance level, for a document that has to outlive its
+  software.
+
+  PDF/A (ISO 19005) is what records-retention policies specify. It is mostly a
+  set of constraints rather than new capability, and this adds the three things
+  a document cannot be valid without: an sRGB output intent, so device colour
+  has a defined meaning; XMP metadata carrying the conformance claim; and a
+  file identifier.
+
+      pdf
+      |> Tincture.set_pdf_a(:a2b)
+      |> Tincture.set_metadata(title: "Annual report 2026")
+
+  ## Levels
+
+    * `:a2b` — basic. Visual reproduction is preserved.
+    * `:a2u` — as `:a2b`, and all text has a Unicode mapping, so it can be
+      extracted and searched.
+    * `:a2a` — as `:a2u`, and the document is tagged. Combine with
+      `tag/4` and `set_language/2`.
+
+  `:a3b`, `:a3u` and `:a3a` select part 3, which differs only in permitting
+  arbitrary embedded files.
+
+  ## What this does not do
+
+  Declaring a level does not enforce it. PDF/A also requires every font to be
+  embedded — so the standard 14 are not usable, since they are referenced by
+  name rather than embedded — and forbids encryption. Tincture does not refuse
+  to build a document that breaks those rules, because the check belongs to a
+  validator that can see the whole file.
+
+  Validate the result. `veraPDF` is free:
+
+      verapdf --flavour 2b out.pdf
+
+  ## Colour
+
+  The output intent is sRGB, built into the library rather than read from the
+  system, so a document is reproducible anywhere. Any RGB colour you set is
+  therefore interpreted as sRGB. CMYK is not covered by this output intent and
+  would need its own.
+  """
+  @spec set_pdf_a(PDF.t(), atom()) :: PDF.t()
+  def set_pdf_a(%PDF{} = pdf, level) when is_atom(level) do
+    PDF.set_pdf_a(pdf, level)
+  end
+
+  @doc """
   Whether the document carries logical structure.
   """
   @spec tagged?(PDF.t()) :: boolean()

@@ -13,8 +13,8 @@ Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
-encryption, tagged PDF for accessibility, telemetry. No required runtime
-dependencies. 1,142 tests, 88% coverage, clean Credo and Dialyzer, CI
+encryption, tagged PDF for accessibility, PDF/A archival output, telemetry.
+No required runtime dependencies. 1,183 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -55,22 +55,36 @@ What remains:
 
 ## 2. Archival — PDF/A
 
-**Status: absent.** No `/OutputIntent`, no ICC profiles, no XMP metadata.
+**Status: verified compliant.** `examples/output/archival.pdf` passes veraPDF
+1.30.2 at PDF/A-2b, PDF/A-2u and **PDF/A-2a** — and PDF/UA-1 at the same time,
+since 2a is the accessible archival level and subsumes the tagging requirement.
 
-PDF/A (ISO 19005) is what records-retention policies specify. It is mostly a
-set of constraints rather than new capability: fonts must be embedded (already
-true), an output intent with an ICC profile must be present, metadata must be
-XMP rather than only the info dictionary (**XMP now emitted**), and encryption
-and external references are forbidden.
+    verapdf --flavour 2a  examples/output/archival.pdf
+    verapdf --flavour ua1 examples/output/archival.pdf
 
-PDF/A-1 additionally requires a `/CIDSet` for every subset font. Tincture
-deliberately emits none — an inaccurate CIDSet is a conformance failure where
-an absent one is not, and the retained glyph set is not reliably knowable while
-subsetting can fall back to the whole font. Reinstating it correctly is a
-prerequisite for PDF/A-1 specifically.
+`Tincture.set_pdf_a/2` adds what archival validity needs: an sRGB output
+intent, XMP carrying the conformance claim, and a file identifier. The ICC
+profile is built by `Tincture.PDF.ICC` from published sRGB constants rather
+than read from the system or shipped from elsewhere, so a document is
+reproducible on any machine.
 
-PDF/A-2b is the usual target. PDF/A-2a additionally requires tagging, so it
-depends on item 1.
+Output is deterministic: the file identifier is derived from the content and
+the profile carries no creation date, so an archived file can be checked
+against a rebuild.
+
+What remains:
+
+- **Enforcement.** Declaring a level does not enforce it. PDF/A also requires
+  every font to be embedded — so the standard 14 are unusable — and forbids
+  encryption. Tincture builds what you ask for and leaves the verdict to a
+  validator that can see the whole file. Refusing to export would be the
+  stronger guarantee.
+- **PDF/A-1.** Part 1 is stricter than part 2 and additionally requires a
+  `/CIDSet` for every subset font, which Tincture deliberately does not emit —
+  see the note under item 1. It also forbids transparency.
+- **CMYK output intents.** The built-in intent is sRGB. Print production
+  targeting a CMYK condition needs its own profile, which means accepting one
+  from the caller.
 
 ## 3. Digital signatures
 
@@ -196,7 +210,7 @@ This is arguably a separate library. Listed because evaluators will ask, and
 1. ~~Telemetry~~ — done. **Benchmarks against alternatives** remain.
 2. **Transparency and shading** — small, self-contained, visible.
 3. ~~Tagged PDF~~ — done and validated against veraPDF.
-4. **PDF/A** — mostly constraints, and partly depends on 3.
+4. ~~PDF/A~~ — done and validated at 2a, alongside PDF/UA-1.
 5. **Digital signatures** — self-contained but touches export.
 6. **Object and xref streams** — file size.
 7. **Forms completed** — appearance streams overlap with 5.

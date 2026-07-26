@@ -81,6 +81,7 @@ defmodule Tincture.MixProject do
         "run examples/form.exs",
         "run examples/accessible.exs",
         "run examples/compliant.exs",
+        "run examples/archival.exs",
         "run examples/telemetry.exs"
       ],
       check: [

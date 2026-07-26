@@ -3545,7 +3545,10 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Type /Page"
     assert pdf_binary =~ "/Count 1"
     assert pdf_binary =~ "xref\n0 5\n"
-    assert pdf_binary =~ "trailer\n<< /Size 5 /Root 1 0 R >>\n"
+
+    assert pdf_binary =~
+             ~r|trailer\n<< /Size 5 /Root 1 0 R /ID \[<[0-9A-F]{32}> <[0-9A-F]{32}>\] >>\n|
+
     assert pdf_binary =~ "startxref\n"
     assert String.ends_with?(pdf_binary, "%%EOF\n")
   end

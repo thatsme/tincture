@@ -233,7 +233,10 @@ defmodule Tincture.EncryptTest do
       binary = Tincture.new() |> Tincture.text_at(0, 0, "x") |> Tincture.export()
 
       refute binary =~ "/Encrypt"
-      refute binary =~ "/ID ["
+
+      # /ID is present regardless: PDF/A requires a file identifier on every
+      # document, and for an unencrypted one it is derived from the content.
+      assert binary =~ "/ID ["
     end
 
     test "the trailer references the Encrypt dictionary and carries an ID" do

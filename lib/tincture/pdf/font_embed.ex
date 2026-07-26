@@ -2028,7 +2028,7 @@ defmodule Tincture.PDF.FontEmbed do
     ]
 
     length = IO.iodata_length(cmap_stream)
-    ["<< /Length #{length} >>\nstream\n", cmap_stream, "endstream"]
+    ["<< /Length #{length} >>\nstream\n", cmap_stream, "\nendstream"]
   end
 
   defp normalize_to_unicode_mappings(used_mappings) do

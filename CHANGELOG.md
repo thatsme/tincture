@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PDF/A, verified.** `Tincture.set_pdf_a/2` produces archival output:
+  `examples/output/archival.pdf` passes veraPDF 1.30.2 at PDF/A-2b, 2u and
+  **2a**, and PDF/UA-1 simultaneously. Adds an sRGB output intent, XMP carrying
+  the conformance claim, and a file identifier.
+- **`Tincture.PDF.ICC`** — a built-in sRGB ICC profile, generated from the
+  published constants rather than read from the system or shipped from
+  elsewhere, so archival output is reproducible on any machine. Uses the real
+  sRGB tone curve including its linear segment, not the gamma 2.2 shortcut.
+- **A file identifier on every document.** `/ID` was emitted only for encrypted
+  documents; PDF/A requires one always. Derived from the content rather than the
+  clock, so building the same document twice produces identical bytes and an
+  archived file can be checked against a rebuild.
 - **Verified PDF/UA-1 conformance.** `examples/output/accessible.pdf` passes
   veraPDF 1.30.2 against the PDF/UA-1 profile: 106 of 106 rules, 1701 of 1701
   checks. Validating it found three real defects, all fixed below.
@@ -89,6 +101,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Stream `/Length` was overstated by one byte** on content streams, form
+  XObjects and CMaps. The EOL before `endstream` is a delimiter rather than
+  stream data, so a stream whose own last byte is a newline needs one of each —
+  otherwise its final byte is consumed as the delimiter. Every content stream
+  ends in a newline, so every one was affected. Failed ISO 19005-2 clause
+  6.1.7.1; found by validation.
 - **`/CIDSet` is no longer emitted.** It must identify exactly the CIDs present
   in the embedded program, and subsetting falls back to the whole font on
   several paths while the name keeps its subset tag — so an accurate one cannot
