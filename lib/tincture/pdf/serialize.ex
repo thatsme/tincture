@@ -518,7 +518,18 @@ defmodule Tincture.PDF.Serialize do
     #
     # /DR is the resource dictionary the /DA strings resolve font names
     # against; without it a viewer has no font to render the value with.
-    " /AcroForm << /Fields [#{fields}] /NeedAppearances true" <>
+    # Only fields whose *value* the viewer has to render need it: a checkbox or
+    # radio button carries its own appearance for every state it can be in.
+    # Emitting it regardless would forbid archival output that is otherwise
+    # perfectly valid (ISO 19005-2 clause 6.4.1).
+    need_appearances =
+      if Enum.any?(form_fields, &(&1.type in [:text, :choice])) do
+        " /NeedAppearances true"
+      else
+        ""
+      end
+
+    " /AcroForm << /Fields [#{fields}]#{need_appearances}" <>
       " /DA #{Object.format_text(default_appearance_string(form_fields))}" <>
       " /DR << /Font << #{acro_form_font_resources(form_fields)} >> >> >>"
   end
@@ -1106,7 +1117,11 @@ defmodule Tincture.PDF.Serialize do
        ) do
     rect = "[#{Object.num(x1)} #{Object.num(y1)} #{Object.num(x2)} #{Object.num(y2)}]"
 
-    "<< /Type /Annot /Subtype /Link /Rect #{rect} #{annotation_border_entry(border)} " <>
+    # /F 4 is the Print flag. Every annotation needs an /F, and a link that is
+    # not printable is a link that vanishes when the page is put on paper.
+    # Widget annotations already carried this; link annotations did not, which
+    # failed ISO 19005-2 clause 6.3.2.
+    "<< /Type /Annot /Subtype /Link /Rect #{rect} /F 4 #{annotation_border_entry(border)} " <>
       "#{link_target_entry(target, page_object_refs)} >>"
   end
 

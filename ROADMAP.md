@@ -14,7 +14,7 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, telemetry.
-No required runtime dependencies. 1,183 tests, 88% coverage, clean Credo and Dialyzer, CI
+No required runtime dependencies. 1,205 tests, 88% coverage, clean Credo and Dialyzer, CI
 on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -74,11 +74,11 @@ against a rebuild.
 
 What remains:
 
-- **Enforcement.** Declaring a level does not enforce it. PDF/A also requires
-  every font to be embedded — so the standard 14 are unusable — and forbids
-  encryption. Tincture builds what you ask for and leaves the verdict to a
-  validator that can see the whole file. Refusing to export would be the
-  stronger guarantee.
+- ~~**Enforcement.**~~ **Done.** `export/2` refuses to write a conformance
+  claim into a document that breaks one, naming every violation. See
+  `Tincture.PDF.Archival`. It remains a partial check by construction —
+  Tincture sees the document it built, not the file a validator sees — so
+  passing it means "nothing Tincture knows of is wrong", not "this is PDF/A".
 - **PDF/A-1.** Part 1 is stricter than part 2 and additionally requires a
   `/CIDSet` for every subset font, which Tincture deliberately does not emit —
   see the note under item 1. It also forbids transparency.

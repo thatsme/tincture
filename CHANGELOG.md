@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`Tincture.export/2` refuses a false PDF/A claim.** `set_pdf_a/2` writes a
+  conformance assertion into the file, so a document that declares a level and
+  breaks it lies about itself — and nothing discovers that until someone relies
+  on it. Export now raises, naming every violation and the clause it breaks.
+  `Tincture.pdf_a_violations/1` returns the list without exporting, and
+  `export(pdf, enforce: false)` exports anyway, logging what it let through.
+
+  Every rule was confirmed against veraPDF rather than read off a
+  specification. Refused: unembedded fonts, encryption, text and choice fields,
+  signature fields, push buttons, and level A without tagging. Allowed:
+  checkboxes, radio buttons and links, all verified compliant.
+
+  This is not a conformance check and does not claim to be — Tincture sees the
+  document it built, not the file a validator sees.
 - **PDF/A, verified.** `Tincture.set_pdf_a/2` produces archival output:
   `examples/output/archival.pdf` passes veraPDF 1.30.2 at PDF/A-2b, 2u and
   **2a**, and PDF/UA-1 simultaneously. Adds an sRGB output intent, XMP carrying
@@ -101,6 +115,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Link annotations omitted `/F`.** Every annotation needs one, and a link
+  without it is a link that vanishes when the page is printed. Failed ISO
+  19005-2 clause 6.3.2, which made external links impossible in an archival
+  document. Now `/F 4` (Print), and links are PDF/A-valid.
+- **`/NeedAppearances` was set whenever a document had any form field**, even
+  ones that carry their own appearance streams. Only text and choice fields
+  need it — a checkbox or radio button draws every state itself. It is now
+  emitted only when something actually requires it, which makes checkbox and
+  radio-button forms valid PDF/A where they previously were not.
 - **Stream `/Length` was overstated by one byte** on content streams, form
   XObjects and CMaps. The EOL before `endstream` is a delimiter rather than
   stream data, so a stream whose own last byte is a newline needs one of each —

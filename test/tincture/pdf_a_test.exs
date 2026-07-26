@@ -14,12 +14,22 @@ defmodule Tincture.PDFATest do
 
   defp export(pdf), do: Tincture.export(pdf)
 
-  defp archival_pdf(level \\ :a2b) do
+  setup do
+    path = MeasurableFont.write!()
+    on_exit(fn -> File.rm(path) end)
+    {:ok, font: path}
+  end
+
+  # Deliberately conforming: export/2 refuses a document that declares PDF/A
+  # and breaks it, so a helper using a standard-14 font would test nothing but
+  # the refusal.
+  defp archival_pdf(font, level \\ :a2b) do
     Tincture.new()
+    |> Tincture.register_ttf_font("Body", font)
     |> Tincture.set_metadata(title: "Retained record")
     |> Tincture.set_pdf_a(level)
-    |> Tincture.set_font("Helvetica", 12)
-    |> Tincture.text_at(50, 700, "Kept for a long time.")
+    |> Tincture.set_font("Body", 12)
+    |> Tincture.text_at(50, 700, "AB BA")
   end
 
   describe "set_pdf_a/2" do
@@ -39,16 +49,16 @@ defmodule Tincture.PDFATest do
   end
 
   describe "the output intent" do
-    test "names sRGB and references an embedded profile" do
-      binary = export(archival_pdf())
+    test "names sRGB and references an embedded profile", %{font: font} do
+      binary = export(archival_pdf(font))
 
       assert binary =~ "/OutputIntents [<< /Type /OutputIntent /S /GTS_PDFA1"
       assert binary =~ "/OutputConditionIdentifier (sRGB IEC61966-2.1)"
       assert binary =~ ~r|/DestOutputProfile \d+ 0 R|
     end
 
-    test "embeds the ICC profile itself, with its component count" do
-      binary = export(archival_pdf())
+    test "embeds the ICC profile itself, with its component count", %{font: font} do
+      binary = export(archival_pdf(font))
 
       assert binary =~ "/N 3 /Length #{byte_size(ICC.srgb())}"
       assert String.contains?(binary, ICC.srgb())
@@ -63,15 +73,15 @@ defmodule Tincture.PDFATest do
   end
 
   describe "the XMP identification" do
-    test "states the part and conformance" do
-      binary = export(archival_pdf(:a2u))
+    test "states the part and conformance", %{font: font} do
+      binary = export(archival_pdf(font, :a2u))
 
       assert binary =~ "<pdfaid:part>2</pdfaid:part>"
       assert binary =~ "<pdfaid:conformance>U</pdfaid:conformance>"
     end
 
-    test "reports part 3 as part 3" do
-      assert export(archival_pdf(:a3b)) =~ "<pdfaid:part>3</pdfaid:part>"
+    test "reports part 3 as part 3", %{font: font} do
+      assert export(archival_pdf(font, :a3b)) =~ "<pdfaid:part>3</pdfaid:part>"
     end
 
     test "is absent unless PDF/A is claimed" do
@@ -81,16 +91,18 @@ defmodule Tincture.PDFATest do
       refute binary =~ "pdfaid"
     end
 
-    test "a document claiming both PDF/A and PDF/UA describes the pdfuaid schema" do
+    test "a document claiming both PDF/A and PDF/UA describes the pdfuaid schema",
+         %{font: font} do
       # PDF/A allows only predefined XMP schemas unless the file describes the
       # rest itself, and pdfuaid is not predefined — so without this the very
       # property asserting accessibility would invalidate the archival claim.
       binary =
         Tincture.new()
+        |> Tincture.register_ttf_font("Body", font)
         |> Tincture.set_pdf_a(:a2a)
         |> Tincture.set_language("en-GB")
-        |> Tincture.set_font("Helvetica", 12)
-        |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "tagged"))
+        |> Tincture.set_font("Body", 12)
+        |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "AB"))
         |> export()
 
       assert binary =~ "pdfaExtension:schemas"
@@ -111,30 +123,31 @@ defmodule Tincture.PDFATest do
   end
 
   describe "the file identifier" do
-    test "is present on every document, not only encrypted ones" do
-      assert export(archival_pdf()) =~ ~r|/ID \[<[0-9A-F]{32}> <[0-9A-F]{32}>\]|
+    test "is present on every document, not only encrypted ones", %{font: font} do
+      assert export(archival_pdf(font)) =~ ~r|/ID \[<[0-9A-F]{32}> <[0-9A-F]{32}>\]|
       assert Tincture.new() |> Tincture.text_at(10, 10, "x") |> export() =~ "/ID [<"
     end
 
-    test "is derived from the content, so a rebuild produces the same file" do
+    test "is derived from the content, so a rebuild produces the same file", %{font: font} do
       # An archived document has to be checkable against a rebuild, which a
       # clock-derived identifier would make impossible.
-      first = export(archival_pdf())
-      second = export(archival_pdf())
+      first = export(archival_pdf(font))
+      second = export(archival_pdf(font))
 
       assert first == second
     end
 
-    test "differs when the content differs" do
+    test "differs when the content differs", %{font: font} do
       other =
         Tincture.new()
+        |> Tincture.register_ttf_font("Body", font)
         |> Tincture.set_metadata(title: "Retained record")
         |> Tincture.set_pdf_a(:a2b)
-        |> Tincture.set_font("Helvetica", 12)
-        |> Tincture.text_at(50, 700, "Different text.")
+        |> Tincture.set_font("Body", 12)
+        |> Tincture.text_at(50, 700, "BA AB")
         |> export()
 
-      assert extract_id(export(archival_pdf())) != extract_id(other)
+      assert extract_id(export(archival_pdf(font))) != extract_id(other)
     end
 
     defp extract_id(binary) do
@@ -164,8 +177,8 @@ defmodule Tincture.PDFATest do
       end
     end
 
-    test "at least one stream is checked, so the test above cannot pass vacuously" do
-      binary = export(archival_pdf())
+    test "at least one stream is checked, so the test above cannot pass vacuously", %{font: font} do
+      binary = export(archival_pdf(font))
 
       matches = Regex.scan(~r/<< [^>]*\/Length (\d+)[^>]*>>\nstream\n(.*?)\nendstream/s, binary)
 

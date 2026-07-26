@@ -66,10 +66,13 @@ defmodule Tincture do
 
   import Bitwise
 
+  require Logger
+
   alias Tincture.Font
   alias Tincture.Font.Context
   alias Tincture.Font.UnicodeRanges
   alias Tincture.PDF
+  alias Tincture.PDF.Archival
   alias Tincture.PDF.Ops
   alias Tincture.PDF.Serialize
   alias Tincture.Typography
@@ -1209,19 +1212,77 @@ defmodule Tincture do
 
   @doc """
   Export a PDF struct to a binary.
+
+  ## Options
+
+    * `:enforce` — whether to refuse a document that declares a PDF/A level and
+      breaks it. Defaults to `true`, and only ever applies to a document that
+      called `set_pdf_a/2`; nothing is checked otherwise.
+
+  A conformance claim is written into the file's metadata, so exporting a
+  document that declares PDF/A and violates it produces a file that lies about
+  itself — and nothing discovers that until someone tries to rely on it. Rather
+  than emit one, this raises and names what is wrong.
+
+  Pass `enforce: false` to export anyway. The claim stays in the file, so the
+  result asserts a conformance it does not have; the violations are logged as a
+  warning. It exists for iterating, not for shipping.
+
+      Tincture.export(pdf)                   # refuses a false claim
+      Tincture.export(pdf, enforce: false)   # exports it, and says so
+
+  See `pdf_a_violations/1` to inspect without exporting.
   """
-  @spec export(PDF.t()) :: binary()
-  def export(%PDF{} = pdf) do
-    Serialize.export(pdf)
+  @spec export(PDF.t(), keyword()) :: binary()
+  def export(pdf, opts \\ [])
+
+  def export(%PDF{} = pdf, opts) when is_list(opts) do
+    case {Keyword.get(opts, :enforce, true), Archival.violations(pdf)} do
+      {_enforce, []} ->
+        Serialize.export(pdf)
+
+      {false, violations} ->
+        Logger.warning(
+          "exporting a document that claims PDF/A and does not conform, because " <>
+            "enforce: false was given. The file asserts a conformance it does not have:\n" <>
+            Archival.describe(violations)
+        )
+
+        Serialize.export(pdf)
+
+      {true, violations} ->
+        {part, conformance} = pdf.pdf_a
+        level = "#{part}#{conformance |> Atom.to_string() |> String.upcase()}"
+
+        raise ArgumentError,
+              "this document declares PDF/A-#{level} but does not conform:\n" <>
+                Archival.describe(violations) <>
+                "\n\nExporting would write a conformance claim into a file that does not " <>
+                "meet it. Fix the above, drop set_pdf_a/2, or pass enforce: false to " <>
+                "export regardless."
+    end
   end
 
   @doc """
-  Export and write a PDF to disk.
+  Every PDF/A violation Tincture can detect in this document.
+
+  Empty for a document that declares no level. **Not a conformance check** —
+  Tincture sees the document it built, not the file a validator sees, and
+  PDF/A has requirements no library can settle for you. Validate the output
+  with `verapdf --flavour 2b`.
   """
-  @spec save(PDF.t(), Path.t()) :: :ok | {:error, term()}
-  def save(%PDF{} = pdf, path) when is_binary(path) do
+  @spec pdf_a_violations(PDF.t()) :: [Archival.violation()]
+  def pdf_a_violations(%PDF{} = pdf), do: Archival.violations(pdf)
+
+  @doc """
+  Export and write a PDF to disk.
+
+  Takes the same options as `export/2`.
+  """
+  @spec save(PDF.t(), Path.t(), keyword()) :: :ok | {:error, term()}
+  def save(%PDF{} = pdf, path, opts \\ []) when is_binary(path) and is_list(opts) do
     with :ok <- File.mkdir_p(Path.dirname(path)) do
-      File.write(path, export(pdf))
+      File.write(path, export(pdf, opts))
     end
   end
 
