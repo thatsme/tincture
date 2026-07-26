@@ -57,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurable. `:telemetry` is an **optional** dependency: without it every event
   call compiles away, so Tincture still has no required runtime dependencies.
   See `Tincture.Telemetry`.
+- **`examples/compliant.exs`**, a PDF/UA template with every requirement
+  annotated where it is satisfied — including list structure — validated at
+  106 of 106 rules and 2605 of 2605 checks.
 - **`examples/`**, with the produced PDFs committed. An invoice, an interactive
   form exercising every field type, and a telemetry report. `mix examples` runs
   them all. Font paths are resolved per platform, so they run outside macOS.

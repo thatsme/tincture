@@ -88,6 +88,24 @@ announcing them as content.
 The other examples are not tagged and do not claim conformance; they parse
 cleanly but fail the UA rules about structure, as they should.
 
+## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
+
+The same subject as `accessible.exs` from the other direction: where that is a
+report that happens to be tagged, this is a **template**, with each PDF/UA
+requirement called out at the point it is satisfied. Copy it and fill it in.
+
+Covers the requirements the other example does not — lists (`:list`,
+`:list_item`, `:label`, `:list_body`, so a reader announces "list, four items"
+and can skip it) — alongside headings in order, an artifact rule, a tagged
+table, and a figure with alternative text.
+
+The script prints a checklist of each requirement and where it came from.
+
+**Validated:** passes veraPDF 1.30.2 against PDF/UA-1 — 106 of 106 rules, 2605
+of 2605 checks:
+
+    verapdf --flavour ua1 examples/output/compliant.pdf
+
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 
 Three pages of justified text, with the telemetry events printed as they fire:
