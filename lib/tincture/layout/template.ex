@@ -216,19 +216,28 @@ defmodule Tincture.Layout.Template do
     {page_width, page_height} = Page.media_box(template.page_size)
     _ = page_width
 
+    # A running header and a page number are furniture: they repeat on every
+    # page and say nothing about the document's content. In a tagged document
+    # they must be artifacts, or a reader announces "Quarterly Report, page 4
+    # of 12" before every page of actual text. The body is not marked here -
+    # it flows through Box, which tags itself.
+    tagging? = resolve_tagging(opts, pdf)
+
     with_header =
       case template.header do
         nil ->
           pdf
 
         %Slot{} = slot ->
-          pdf
-          |> Tincture.set_font(slot.font, slot.size)
-          |> Tincture.text_at(
-            template.margins.left,
-            page_height - template.margins.top,
-            expand_slot_text(slot.text, page_number, page_total)
-          )
+          maybe_artifact(pdf, tagging?, fn acc ->
+            acc
+            |> Tincture.set_font(slot.font, slot.size)
+            |> Tincture.text_at(
+              template.margins.left,
+              page_height - template.margins.top,
+              expand_slot_text(slot.text, page_number, page_total)
+            )
+          end)
       end
 
     with_footer =
@@ -237,13 +246,15 @@ defmodule Tincture.Layout.Template do
           with_header
 
         %Slot{} = slot ->
-          with_header
-          |> Tincture.set_font(slot.font, slot.size)
-          |> Tincture.text_at(
-            template.margins.left,
-            template.margins.bottom + slot.size,
-            expand_slot_text(slot.text, page_number, page_total)
-          )
+          maybe_artifact(with_header, tagging?, fn acc ->
+            acc
+            |> Tincture.set_font(slot.font, slot.size)
+            |> Tincture.text_at(
+              template.margins.left,
+              template.margins.bottom + slot.size,
+              expand_slot_text(slot.text, page_number, page_total)
+            )
+          end)
       end
 
     {rendered_pdf, flow_result} =
@@ -257,6 +268,20 @@ defmodule Tincture.Layout.Template do
 
     {rendered_pdf, result}
   end
+
+  # Mirrors `Tincture.Layout.Box` and `Tincture.Layout.Table`: mark up only when
+  # the caller is already tagging.
+  defp resolve_tagging(opts, pdf) do
+    case Keyword.get(opts, :tag, :auto) do
+      :auto -> PDF.tagged?(pdf) or pdf.structure_stack != []
+      true -> true
+      false -> false
+      other -> raise ArgumentError, ":tag must be true, false or :auto, got: #{inspect(other)}"
+    end
+  end
+
+  defp maybe_artifact(pdf, false, fun), do: fun.(pdf)
+  defp maybe_artifact(pdf, true, fun), do: Tincture.artifact(pdf, fun)
 
   @spec render_document(PDF.t(), t(), RichText.t(), [document_option()]) ::
           {PDF.t(), DocumentResult.t()}

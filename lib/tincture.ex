@@ -72,6 +72,7 @@ defmodule Tincture do
   alias Tincture.Font.Context
   alias Tincture.Font.UnicodeRanges
   alias Tincture.PDF
+  alias Tincture.PDF.Accessibility
   alias Tincture.PDF.Archival
   alias Tincture.PDF.Ops
   alias Tincture.PDF.Serialize
@@ -1473,9 +1474,18 @@ defmodule Tincture do
   def export(pdf, opts \\ [])
 
   def export(%PDF{} = pdf, opts) when is_list(opts) do
-    case {Keyword.get(opts, :enforce, true), Archival.violations(pdf)} do
+    enforce? = Keyword.get(opts, :enforce, true)
+
+    pdf
+    |> check_archival(enforce?)
+    |> check_accessibility(enforce?)
+    |> Serialize.export()
+  end
+
+  defp check_archival(%PDF{} = pdf, enforce?) do
+    case {enforce?, Archival.violations(pdf)} do
       {_enforce, []} ->
-        Serialize.export(pdf)
+        pdf
 
       {false, violations} ->
         Logger.warning(
@@ -1484,7 +1494,7 @@ defmodule Tincture do
             Archival.describe(violations)
         )
 
-        Serialize.export(pdf)
+        pdf
 
       {true, violations} ->
         {part, conformance} = pdf.pdf_a
@@ -1499,6 +1509,30 @@ defmodule Tincture do
     end
   end
 
+  defp check_accessibility(%PDF{} = pdf, enforce?) do
+    case {enforce?, Accessibility.violations(pdf)} do
+      {_enforce, []} ->
+        pdf
+
+      {false, violations} ->
+        Logger.warning(
+          "exporting a tagged document that does not meet PDF/UA, because enforce: false " <>
+            "was given. Assistive technology will find structure it cannot describe:\n" <>
+            Accessibility.describe(violations)
+        )
+
+        pdf
+
+      {true, violations} ->
+        raise ArgumentError,
+              "this document is tagged, which claims PDF/UA structure, but does not " <>
+                "meet it:\n" <>
+                Accessibility.describe(violations) <>
+                "\n\nA reader announces an element it cannot describe, which is worse than " <>
+                "no tag at all. Fix the above or pass enforce: false to export regardless."
+    end
+  end
+
   @doc """
   Every PDF/A violation Tincture can detect in this document.
 
@@ -1509,6 +1543,18 @@ defmodule Tincture do
   """
   @spec pdf_a_violations(PDF.t()) :: [Archival.violation()]
   def pdf_a_violations(%PDF{} = pdf), do: Archival.violations(pdf)
+
+  @doc """
+  Every PDF/UA violation Tincture can detect in this document.
+
+  Empty for an untagged document, since nothing is being claimed. **Not a
+  conformance check** — whether a heading level is the right one, or an
+  alternative text accurate rather than merely present, is not something a
+  library can settle. Validate with `verapdf --flavour ua1`, and with PAC,
+  which applies checks veraPDF does not.
+  """
+  @spec pdf_ua_violations(PDF.t()) :: [Accessibility.violation()]
+  def pdf_ua_violations(%PDF{} = pdf), do: Accessibility.violations(pdf)
 
   @doc """
   Export and write a PDF to disk.

@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`Layout.Box` and `Layout.Template` tag themselves.** `Layout.Table` already
+  did; these were the two layout helpers that produced untagged content in a
+  tagged document, which a reader announces as stray noise. Both take `:tag`,
+  defaulting to `:auto` — marking up only when the caller is already tagging,
+  since a structure tree holding one element and nothing else reads worse than
+  none at all.
+
+  `Layout.Box` also takes `:tag_as`, and the value that matters is `:artifact`.
+  A watermark, a running strapline or a repeated sidebar label is text a reader
+  should *skip*; marking it `/P` means it is read out on every page. Structure
+  that is well-formed but wrong is exactly what a conformance checker cannot
+  catch — veraPDF verifies the tree is valid, not that it describes the page.
+
+  `Layout.Template` marks its header and footer as artifacts for the same
+  reason: running furniture repeats on every page and says nothing about the
+  content.
+
+- **`/Tabs /S` on tagged pages.** Tab order now follows the structure tree
+  rather than the order annotations happened to be added in, which is what a
+  keyboard user gets as soon as a page carries both links and form fields.
+  Untagged pages do not carry it — there is no structure to follow, and
+  emitting it always would have rewritten every existing document for nothing.
+
+- **`Tincture.pdf_ua_violations/1`, and export refuses a tagged document that
+  breaks PDF/UA.** Tagging is a claim: the catalog carries `/MarkInfo` and the
+  XMP carries `pdfuaid:part`, and a reader that finds structure trusts it. A
+  `:figure` with no alternative text is then worse than an untagged one — the
+  reader announces an element it cannot describe, and the person using it
+  learns only that something is there.
+
+  So the same treatment as a false PDF/A claim: `export/2` raises, naming each
+  violation and its clause, and `enforce: false` exports anyway with a warning.
+  See `Tincture.PDF.Accessibility`. Only the figure rule is checked so far;
+  whether an alternative text is *accurate* is not something a library can
+  settle.
+
+### Changed
+
+- **The examples embed a vendored font, so their output is reproducible.**
+  An embedded font goes into the file byte for byte, so the committed PDFs
+  under `examples/output/` depended on which fonts the generating machine had:
+  running `mix examples` anywhere else rewrote all of them without a single
+  source change, and the committed output could only be reproduced by whoever
+  produced it.
+
+  `examples/fonts/` now carries Liberation Serif and Liberation Sans 2.1.4,
+  under the SIL Open Font License 1.1 — verified from each font's own `name`
+  table, not taken on trust. Output is now identical on every machine, so a
+  diff there means something changed. `signed.pdf` still differs on every run,
+  because a signature carries the signing time.
+
+  These are **not** in the Hex package: `files:` in `mix.exs` excludes
+  `examples/` entirely, and Tincture still ships no font programs. Nothing here
+  constrains what you embed in your own documents.
+
 ## [0.2.0] — 2026-07-31
 
 ### Added

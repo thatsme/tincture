@@ -146,8 +146,17 @@ defmodule Tincture.PDF.Serialize do
         struct_parents =
           if Map.has_key?(pdf.mcid_counters, page_number), do: " /StructParents #{idx}", else: ""
 
+        # Without this, tabbing through a page follows the order annotations
+        # happen to have been added in. /S means follow the structure tree
+        # instead, which is the order the document is meant to be read in -
+        # the difference shows the moment a page carries both links and form
+        # fields. Only emitted for a tagged document, since there is no
+        # structure to follow otherwise, and emitting it always would rewrite
+        # every existing document for no gain.
+        tabs = if PDF.tagged?(pdf), do: " /Tabs /S", else: ""
+
         page_body =
-          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots}#{struct_parents} >>"
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots}#{struct_parents}#{tabs} >>"
 
         # The EOL before `endstream` is a delimiter rather than stream data, so
         # a stream whose own last byte is a newline needs one of each - or

@@ -25,10 +25,8 @@ forms you need" are different claims.
    radial gradients. See [5](#5-transparency-and-shading); blend modes and
    patterns remain.
 2. **Accessibility completed** — tagging for `Layout.Template` and
-   `Layout.Box`, `/Tabs /S`, and validation against PAC as well as veraPDF.
-   Additive, and the last of the PDF/UA story. Carries the extension point
-   (see [How this is packaged](#how-this-is-packaged)), which is cheapest to
-   define while the surface is still small.
+   `Layout.Box`, `/Tabs /S`, and an audit against PAC as well as veraPDF.
+   Additive, and the last of the PDF/UA story.
 3. **Forms completed** — appearance streams for text and choice fields, which
    would also let signed and archival documents carry form fields. The same
    machinery gives signature widgets an appearance, without which a signed
@@ -117,13 +115,38 @@ Satellites must be buildable on the public API. If one needs a private function,
 the core has to be bumped for every satellite — which is the version matrix with
 none of the benefit, and it is a difficult thing to walk back once published.
 
-So the behaviours come first, defined deliberately rather than discovered:
+The instinct is to define a behaviour for this. It is the wrong instinct, and
+worth writing down why, because it will recur.
+
+A behaviour exists so the core can dispatch into code it does not know about.
+Every satellite on the list above is a **caller**, not an implementer:
 
 ```elixir
-defmodule Tincture.Renderer do
-  @callback draw(Tincture.t(), term(), keyword()) :: Tincture.t()
-end
+Tincture.SVG.place(pdf, svg, x, y)   # takes a document, calls public API,
+                                     # returns a document
 ```
+
+Tincture never invokes it. Nothing dispatches. A `@callback draw/3` would
+therefore describe a relationship that does not exist — and its second argument
+could only be `term()`, which is the tell: a placeholder with a typespec on it
+rather than a design.
+
+A behaviour is right for the *reverse* direction, where the core calls out and a
+package implements: an image codec registry so someone can add WebP, a font
+source, an ICC profile provider. None of the planned satellites are that. When
+one is, define it then.
+
+So the real obligation is narrower and more useful: **the public API has to be
+sufficient to build a satellite against.** The way to find out is to build one:
+
+> Write `tincture_svg` as a spike on a branch, against the public API only, and
+> do not publish it. If it reaches for a private function, that names exactly
+> which seam to cut and what shape it should be. If it does not, the answer was
+> "no extension point needed", learned for free.
+
+Publishing a guessed behaviour costs more than that spike, because it invites
+someone to implement the wrong thing. Marking one "experimental" does not help:
+that reads as binding to everyone except its author.
 
 Two things already bear on this. `Layout.Template.parse_xml/1` uses `:xmerl`,
 which is OTP — so XML in core costs nothing, and `tincture_svg` is a judgement
@@ -156,15 +179,36 @@ operators that draw each element, the parent tree linking them, `/MarkInfo`,
 screen reader reads, and it is what Section 508, EN 301 549 and equivalent
 rules are asking for.
 
+- ~~**Tagging the remaining layout helpers.**~~ **Done.** `Layout.Box` tags
+  flowed text, `Layout.Template` marks its header and footer as artifacts, and
+  `Layout.Table` already emitted its own structure. All three take `:tag`,
+  defaulting to `:auto` — they mark up only when the caller is already tagging,
+  since a tree holding one element and nothing else reads worse than none.
+- ~~`/Tabs /S` on pages.~~ **Done**, on tagged pages: tab order follows the
+  structure tree rather than the order annotations happen to have been added
+  in. Untagged pages do not carry it, having no structure to follow.
+- ~~**Automatic alt text prompting.**~~ **Done**, and stronger than prompting.
+  A `:figure` without `:alt` is a violation, `Tincture.pdf_ua_violations/1`
+  lists them, and `export/2` refuses — the same treatment a false PDF/A claim
+  gets, for the same reason. A reader that finds a figure it cannot describe is
+  worse off than one that finds no tag at all. `enforce: false` still escapes.
+
 What remains:
 
-- **Tagging the remaining layout helpers.** `Layout.Table.render/6` now emits
-  its own structure. `Layout.Template` and `Layout.Box` do not.
-- **PAC.** Only veraPDF has been used. PAC applies some checks veraPDF does not.
-- `/Tabs /S` on pages, so tab order follows structure rather than annotation
-  order.
-- Automatic alt text prompting: nothing forces a `:figure` to carry `:alt`,
-  and a figure without it is invisible to a reader.
+- **PAC — a one-off audit, not a gate.** Only veraPDF has been used, and it
+  cannot be the whole story: it checks that the structure is *well-formed*, not
+  that it is *right*. Announcing a decorative rule as a paragraph passes veraPDF
+  and fails a reader.
+
+  PAC is the tool that catches that class, and it is a free Windows desktop
+  application from axes4 with no CLI and no Linux build. So it cannot join the
+  automated set the way veraPDF has: it is a manual pass on a Windows machine,
+  worth doing deliberately at intervals rather than planned as a regression
+  test. What comes back from it should become assertions here, where they can
+  run in CI.
+- **More of what a library can see.** Only the figure rule is checked so far.
+  Heading-level order, link alternative text and table header association are
+  candidates; whether an alternative text is *accurate* is not.
 
 ## 2. Archival — PDF/A
 

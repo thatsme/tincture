@@ -17,6 +17,28 @@ defmodule Tincture.Layout.Box do
 
   Boxes are `{x, y, width, height}` in PDF user space, with `y` at the box's
   **top** edge — text flows downward from there.
+
+  ## Tagging
+
+  In a tagged document the flowed text is marked up as a `/P`. Two options
+  control that:
+
+    * `:tag` — `:auto` (the default) tags only when the document is already
+      being tagged, `true` always, `false` never
+    * `:tag_as` — the structure element, `:p` by default. Pass `:artifact` for
+      decoration.
+
+  `:artifact` matters more than it looks. A watermark, a running strapline or a
+  repeated sidebar label is text a reader should *skip*, and marking it `/P`
+  means it is announced on every page — worse than not tagging at all. Structure
+  that is well-formed but wrong is the failure a conformance checker cannot see
+  for you.
+
+      # Announced as content.
+      Box.flow_text(pdf, x, y, w, h, body)
+
+      # Skipped, correctly.
+      Box.flow_text(pdf, x, y, w, h, watermark, tag_as: :artifact)
   """
 
   alias Tincture.Font.Context
@@ -65,7 +87,9 @@ defmodule Tincture.Layout.Box do
       raise ArgumentError, "rotate option must be a number of degrees"
     end
 
-    layout_opts = Keyword.drop(opts, [:rotate])
+    tagging? = resolve_tagging(opts, pdf)
+    tag = Keyword.get(opts, :tag_as, :p)
+    layout_opts = Keyword.drop(opts, [:rotate, :tag, :tag_as])
 
     # Widths were measured when the rich text was built, which may have been
     # before this document existed - and embedded font metrics live on the
@@ -88,9 +112,34 @@ defmodule Tincture.Layout.Box do
         Typography.layout_paragraph_with_spill(rich_text, width, max_lines, layout_opts)
       end
 
-    rendered_pdf = render_lines(pdf, x, y, result.lines, rotate)
+    rendered_pdf =
+      maybe_tag(pdf, tagging?, tag, fn acc -> render_lines(acc, x, y, result.lines, rotate) end)
+
     {rendered_pdf, result}
   end
+
+  # Defaults to tagging only when the caller is already tagging, as
+  # `Tincture.Layout.Table.render/6` does. A box is flowed text and belongs in
+  # the structure tree, but a tree holding one paragraph and nothing else reads
+  # worse than no tree at all.
+  defp resolve_tagging(opts, pdf) do
+    case Keyword.get(opts, :tag, :auto) do
+      :auto -> PDF.tagged?(pdf) or pdf.structure_stack != []
+      true -> true
+      false -> false
+      other -> raise ArgumentError, ":tag must be true, false or :auto, got: #{inspect(other)}"
+    end
+  end
+
+  defp maybe_tag(pdf, false, _tag, fun), do: fun.(pdf)
+
+  # Decoration is not content. A watermark, a running strapline, a repeated
+  # sidebar label - flowed text that a reader should skip rather than announce.
+  # Tagging it `/P` is worse than not tagging at all, because the reader then
+  # reads it out on every page, and it is the failure PAC catches that veraPDF
+  # does not: veraPDF checks the structure is well-formed, not that it is right.
+  defp maybe_tag(pdf, true, :artifact, fun), do: Tincture.artifact(pdf, fun)
+  defp maybe_tag(pdf, true, tag, fun), do: Tincture.tag(pdf, tag, [], fun)
 
   @spec flow_across_boxes(PDF.t(), RichText.t(), [box()], [option()]) :: {PDF.t(), FlowResult.t()}
   def flow_across_boxes(%PDF{} = pdf, %RichText{} = rich_text, boxes, opts \\ [])
