@@ -29,15 +29,25 @@ defmodule Examples.Fonts do
   @serif_windows ["georgia.ttf", "times.ttf", "constan.ttf"]
   @sans_windows ["verdana.ttf", "arial.ttf", "segoeui.ttf"]
 
+  # Tried before anything installed, so the output is identical on every
+  # machine. An embedded font goes into the file byte for byte, so without this
+  # `mix examples` rewrote every PDF on a machine with different fonts, and the
+  # committed output could only be reproduced by whoever generated it. See
+  # fonts/README.md - SIL OFL 1.1, and not part of the Hex package.
+  @vendored_serif "fonts/LiberationSerif-Regular.ttf"
+  @vendored_sans "fonts/LiberationSans-Regular.ttf"
+
   @doc """
   A path to a serif TrueType font, or `nil` if none of the candidates exist.
   """
-  def serif, do: find_font(@serif ++ windows_fonts(@serif_windows))
+  def serif, do: find_font([vendored(@vendored_serif) | @serif ++ windows_fonts(@serif_windows)])
 
   @doc """
   A path to a sans TrueType font, or `nil` if none of the candidates exist.
   """
-  def sans, do: find_font(@sans ++ windows_fonts(@sans_windows))
+  def sans, do: find_font([vendored(@vendored_sans) | @sans ++ windows_fonts(@sans_windows)])
+
+  defp vendored(relative), do: __DIR__ |> Path.join("../#{relative}") |> Path.expand()
 
   # Setting TINCTURE_EXAMPLES_NO_FONTS forces the "nothing installed" branch on
   # a machine that does have fonts, so CI can prove the standard-14 fallback

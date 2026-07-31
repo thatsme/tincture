@@ -64,6 +64,21 @@ for provenance details:
   Adobe Font Metrics for additional fonts can be supplied by pointing
   :afm_path at a directory of your own. See Tincture.Font.Metrics.
 
+  examples/fonts/       Liberation Serif Regular and Liberation Sans Regular,
+                        version 2.1.4. Digitized data copyright (c) 2010
+                        Google Corporation; copyright (c) 2012 Red Hat, Inc.
+                        Licensed under the SIL Open Font License 1.1, whose
+                        text is included as examples/fonts/LICENSE.
+
+                        These exist so the example documents render to
+                        identical bytes on every machine, and are NOT part of
+                        the Hex package: examples/ is excluded by the files:
+                        list in mix.exs. See examples/fonts/README.md.
+
+                        Unlike the fonts removed above, the OFL expressly
+                        permits redistribution, including as part of a larger
+                        work under a different licence.
+
   priv/hyphen/tb87nemeth.pdf
                         TUGboat article included as reference documentation
                         for the hyphenation pattern work.

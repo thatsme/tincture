@@ -36,11 +36,11 @@ gates, but a failure discovered after tagging costs a version number.
    candidate families. Both must complete. Examples are not covered by the test
    suite, and they are the first thing a reader runs.
 
-   Note that `examples/output/*.pdf` are committed, and their bytes depend on
-   which font the host had available: regenerating on a different machine will
-   show a diff even though nothing changed. `signed.pdf` differs on every run,
-   because a signature carries the signing time. Only commit regenerated output
-   when the document itself changed.
+   `examples/output/*.pdf` are committed and are reproducible: the examples
+   embed a font vendored under `examples/fonts/`, so regenerating on any
+   machine gives identical bytes and a diff there means something actually
+   changed. The one exception is `signed.pdf`, which differs on every run
+   because a signature carries the signing time.
 
 3. **The docs build clean.**
 

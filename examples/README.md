@@ -7,12 +7,17 @@ anything.
     mix examples          # run them all
     mix run examples/invoice.exs
 
-Each script embeds a real TrueType font. Font paths are not portable, so
-[`support/fonts.exs`](support/fonts.exs) picks the first that exists — Georgia
-and Verdana on macOS, Liberation or DejaVu on Linux, Georgia or Verdana again on
-Windows — and falls back to the standard 14 if none are installed, in which case
-the document still renders but stops demonstrating embedding. That fallback is
-what a container without fonts gets, so it is exercised in CI:
+Each script embeds a real TrueType font, taken from
+[`fonts/`](fonts/) — Liberation Serif and Liberation Sans, under the SIL Open
+Font License. They are vendored so the output is identical on every machine: an
+embedded font goes into the file byte for byte, so without them running these
+scripts elsewhere rewrote every PDF without a single source change.
+
+[`support/fonts.exs`](support/fonts.exs) prefers those, falls back to system
+fonts if the directory is missing, and falls back again to the standard 14 if
+nothing is found — in which case the document still renders but stops
+demonstrating embedding. That last path is what a container without fonts gets,
+so CI exercises it:
 
     TINCTURE_EXAMPLES_NO_FONTS=1 mix examples
 
