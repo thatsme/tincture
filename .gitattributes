@@ -1,0 +1,17 @@
+# Line endings are normalised to LF in the repository and in every working
+# tree, regardless of the cloner's core.autocrlf setting.
+#
+# This is not cosmetic. Tincture.Font.Standard parses the base-14 metric
+# tables out of priv/standard_fonts/eg_font_*.erl with regexes anchored as
+# `;$` under /m, and Erlang's :re treats LF alone as the newline. A CRLF
+# checkout leaves a \r before every \n, no width line matches, and the
+# registry silently loads zero glyph widths — so every string measures 0.0
+# wide and the typography, line-breaking and PDF fixture suites fail with
+# arithmetic assertions that point nowhere near the real cause.
+* text=auto eol=lf
+
+# Binary payloads: never eligible for newline conversion or textual diff.
+# The PDF fixtures are byte-locked against checked-in SHA-256 digests, so a
+# single substituted byte breaks test/tincture/pdf_fixture_lock_test.exs.
+*.pdf binary
+*.cub binary

@@ -77,6 +77,17 @@ defmodule Tincture.Font.Standard do
     with {:ok, font_name} <- parse_font_name(contents) do
       widths = parse_widths(contents)
       kerns = parse_kerns(contents)
+
+      # A shipped metric file always declares widths, so an empty table means
+      # the parse failed rather than that the font has none. Left to itself
+      # that failure is invisible: every glyph would measure zero, every line
+      # would fit, and the first symptom would be a PDF whose text overlaps.
+      if widths == %{} do
+        raise "no glyph widths parsed from #{path}. The file is corrupt or was " <>
+                "checked out with CRLF line endings, which the metric regexes " <>
+                "no longer accept silently. See .gitattributes."
+      end
+
       {:ok, {font_name, %{widths_by_code: widths, kern_by_code: kerns}}}
     else
       _ -> :error
@@ -90,15 +101,18 @@ defmodule Tincture.Font.Standard do
     end
   end
 
+  # `\r?$` rather than `$`: Erlang's :re treats only LF as a line ending, so on
+  # a CRLF checkout the trailing \r sits between the `;` and the newline and no
+  # width line matches at all.
   defp parse_widths(contents) do
-    Regex.scan(~r/^width\((\d+)\)->(-?\d+);$/m, contents, capture: :all_but_first)
+    Regex.scan(~r/^width\((\d+)\)->(-?\d+);\r?$/m, contents, capture: :all_but_first)
     |> Enum.reduce(%{}, fn [code, value], acc ->
       Map.put(acc, String.to_integer(code), String.to_integer(value))
     end)
   end
 
   defp parse_kerns(contents) do
-    Regex.scan(~r/^kern\((\d+),(\d+)\)->(-?\d+);$/m, contents, capture: :all_but_first)
+    Regex.scan(~r/^kern\((\d+),(\d+)\)->(-?\d+);\r?$/m, contents, capture: :all_but_first)
     |> Enum.reduce(%{}, fn [left, right, value], acc ->
       Map.put(acc, {String.to_integer(left), String.to_integer(right)}, String.to_integer(value))
     end)
