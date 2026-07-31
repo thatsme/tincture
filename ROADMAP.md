@@ -24,22 +24,39 @@ forms you need" are different claims.
 1. ~~**Transparency and shading**~~ — **done.** Constant alpha and axial and
    radial gradients. See [5](#5-transparency-and-shading); blend modes and
    patterns remain.
-2. **Forms completed** — appearance streams for text and choice fields, which
+2. **Accessibility completed** — tagging for `Layout.Template` and
+   `Layout.Box`, `/Tabs /S`, and validation against PAC as well as veraPDF.
+   Additive, and the last of the PDF/UA story. Carries the extension point
+   (see [How this is packaged](#how-this-is-packaged)), which is cheapest to
+   define while the surface is still small.
+3. **Forms completed** — appearance streams for text and choice fields, which
    would also let signed and archival documents carry form fields. The same
    machinery gives signature widgets an appearance, without which a signed
    document cannot also be PDF/A.
-3. **Accessibility completed** — tagging for `Layout.Template` and
-   `Layout.Box`, `/Tabs /S`, and validation against PAC as well as veraPDF.
+
+   This one is worth more than its own entry. An `/AP` stream is a form
+   XObject: a nested content stream with its own resources, holding text laid
+   out and clipped. That primitive is what patterns, soft masks on drawn
+   content, and signature appearances all need — so items 5 and 6 get
+   substantially cheaper once it exists, and neither should be attempted first.
 4. **Object and cross-reference streams** — file size; content streams are
    written uncompressed today. Grouped with incremental updates, since both
-   rewrite the file's byte layout and both collide with signing.
-5. **Colour beyond RGB** — spot inks and ICC spaces, for print production. Needs
-   the overprint control that `/ExtGState` now provides a home for.
+   rewrite the file's byte layout and both collide with signing. Incremental
+   updates are also what a second signature, or any later stamping, depends on.
+5. **Colour beyond RGB, and patterns** — spot inks and ICC spaces for print
+   production, plus a gradient as the fill of an arbitrary path. Both
+   prerequisites are then in place: `/ExtGState` gives overprint a home, and
+   item 3 gives patterns their XObject.
 6. **Signature timestamping** — proof of *when*. Ships as `tincture_tsa`, since
-   it needs an HTTP client; the core's part is the extension point it hangs on.
+   it needs an HTTP client. Depends on item 3 for the signature appearance a
+   PAdES-over-PDF/A document cannot do without.
 7. **Complex scripts** — the largest effort, and the narrowest audience unless
    you are targeting those markets.
-8. **Reading PDFs** — probably a sibling library.
+8. **Reading PDFs** — a sibling library. See [10](#10-reading-pdfs).
+
+The ordering is risk-ascending by design: additive work first, the byte layout
+of the serialiser last. Where an item makes a later one cheaper, that is said
+rather than left to be rediscovered.
 
 ## Where it stands today
 
