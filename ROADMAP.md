@@ -42,7 +42,7 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,224 tests, 89%
+signatures, telemetry. No required runtime dependencies. 1,230 tests, 89%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a

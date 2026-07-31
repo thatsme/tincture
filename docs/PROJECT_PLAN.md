@@ -1,6 +1,21 @@
 # Tincture Project Plan
 ## Porting erlguten to Elixir
 
+> **Historical document — completed, and not the release history.**
+>
+> This is the plan that drove the port from erlguten, phases 0 through 6, all
+> of which are done. It is kept for provenance: it records what was ported from
+> where, and in what order.
+>
+> **Its version numbers are not real.** They were milestone labels chosen before
+> the library was renamed, so this file appears to promise a "v1.0.0 —
+> feature-complete" and a "v1.1.x" that were never published under those
+> numbers. The first release under the Tincture name is 0.1.0, and
+> [CHANGELOG.md](../CHANGELOG.md) is the authority on what shipped when.
+>
+> For what is planned next, see [ROADMAP.md](../ROADMAP.md). Nothing here is
+> forward-looking except Phase 7, which is superseded by that roadmap.
+
 ### Overview
 
 erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-generated core is ~15,775 lines, and generated hyphen-rule modules bring the full `src/` total to ~57,267 lines. This plan breaks the port into incremental milestones, each producing a usable, publishable library.

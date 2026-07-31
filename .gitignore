@@ -37,8 +37,10 @@ tincture-*.tar
 /.lexical/
 /.language_server/
 
-# Analysis tooling writes multi-megabyte CubDB files here.
+# Analysis tooling writes multi-megabyte CubDB files here, and generates its
+# own project constitution alongside them.
 /.giulia/
+/GIULIA.md
 
 # Never commit secrets, including a Hex API key.
 .env

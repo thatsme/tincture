@@ -57,7 +57,7 @@ recorded in [CHANGELOG.md](CHANGELOG.md).
 is mature and the standards output is independently verified, but the API under
 this name is new and may still move before 1.0.
 
-1,225 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
+1,230 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
 Elixir 1.16–1.19.
 
 ## What it does

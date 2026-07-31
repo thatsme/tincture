@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Standard font metrics parsed to nothing on a CRLF checkout.** The base-14
+  width and kerning tables are read out of `priv/standard_fonts/eg_font_*.erl`
+  with regexes anchored `;$` under `/m`, and Erlang's `:re` treats LF alone as a
+  line ending — so a `\r` before every newline matched no width line at all.
+  Every one of the fourteen fonts then loaded an empty table, every string
+  measured 0.0 wide, and 44 tests failed in justification, line breaking, box
+  fitting and the PDF fixture hashes, none of them anywhere near the cause.
+
+  Git for Windows sets `core.autocrlf=true` by default and the repository
+  shipped no `.gitattributes`, so this hit any Windows clone. CI runs on Linux
+  and never saw it.
+
+  Three changes, because one was not enough: `.gitattributes` pins the tree to
+  LF so the conversion cannot happen; the regexes accept an optional `\r` so a
+  mangled checkout still parses; and an empty width table now raises where it
+  previously returned silently, since a shipped metric file always declares
+  widths. A parse failure names itself now instead of surfacing as arithmetic.
+
+- **Examples crashed on a machine with no font installed.** `Examples.Fonts`
+  returns `{pdf, embedded?}` and resolves a name to a standard font when nothing
+  could be embedded, but `invoice.exs` and `form.exs` discarded that flag and
+  then drew with `"Body"` — a name the document does not know unless
+  registration succeeded. Both raised `unknown font: Body`.
+
+  Not a Windows problem, though that is where it showed: the candidate list held
+  only macOS and Linux paths, so Windows always took the no-font branch. A slim
+  container takes it too — most base images install no fonts — so this equally
+  broke `elixir:*-slim` and minimal CI runners. Windows font candidates are now
+  included, derived from `WINDIR` rather than assuming `C:`.
+
+  `archival.exs` failed differently and for a real reason: PDF/A forbids
+  unembedded fonts, so with no font available the document breaks the claim it
+  carries and `export/2` correctly refuses it. It said it would still produce
+  the document, which stopped being true when that enforcement was added. It now
+  exports with `enforce: false`, which is what the option is for.
+
+  CI never ran `mix examples`, which is why none of this was caught. It does
+  now, both with a font present and with the helper forced to find none.
+
 - **Embedded fonts could not be laid out.** Font embedding and the typography
   engine — the library's two headline features — did not compose. Every layout
   entry point measured through `Font.text_width/3`, which resolves only the
@@ -21,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code all along.
 
 ### Added
+
+- **Showcase documents.** Five reference documents built with the public API,
+  each with an end-to-end test and a render script under `scripts/`: an invoice,
+  a bank statement, a Markdown-sourced document, a marketing poster and a
+  multi-font report. They are what the library looks like used in anger, rather
+  than a feature demonstrated in isolation.
+
+  Recorded here because they shipped without a changelog entry. Invoice and bank
+  statement additionally carry locked SHA-256 fixtures; the other three are
+  tested but not byte-locked.
 
 - **`Tincture.export/2` refuses a false PDF/A claim.** `set_pdf_a/2` writes a
   conformance assertion into the file, so a document that declares a level and
