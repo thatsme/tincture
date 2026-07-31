@@ -238,17 +238,12 @@ currently holds everything at once.
 
 ## 9. Operability
 
-**Status: absent.**
-
 - ~~**Telemetry.**~~ **Done.** Three spans — document, page and font embed —
   with duration, byte sizes and document shape. `:telemetry` is optional, so
   the zero-required-dependency claim still holds. See `Tincture.Telemetry`.
-- **Benchmarks against alternatives.** The benchmark suite guards against
-  regression but does not compare with ChromicPDF or elixir-pdf, so there is
-  no answer to "how fast is it".
-- **Memory profile.** No measured figure for a large document.
-
-Small, and disproportionately useful for adoption.
+- **Memory profile.** No measured figure for a large document. Worth having
+  before the streaming export in [8](#8-file-size-and-streaming), which cannot
+  be sized without knowing what a thousand-page run currently holds.
 
 ## 10. Reading PDFs
 
