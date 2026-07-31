@@ -50,7 +50,7 @@ recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.1"}
+{:tincture, "~> 0.2"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
