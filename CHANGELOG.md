@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Transparency and shading.** `Tincture.set_alpha/2` sets constant alpha for
+  fill and stroke; `Tincture.linear_gradient/7` and
+  `Tincture.radial_gradient/7` fill a rectangle with an axial or radial
+  gradient. Two stops interpolate directly, more are stitched, so a multi-stop
+  gradient costs nothing extra to ask for.
+
+  Until now the drawing API could not vary a colour across a region or draw
+  anything at less than full opacity — PNG alpha arrived through `/SMask` on an
+  image, and nothing else. A design-led document, which is to say a cover or a
+  marketing page, wanted both.
+
+  A gradient is paint rather than a shape: it ignores the current fill colour,
+  and it clips to its own rectangle and restores the graphics state, so it
+  cannot leave a clip behind. Alpha *is* state and applies until restored,
+  which is the one thing worth remembering about it.
+
+  Both `/ExtGState` and `/Shading` are written inline into the page's resource
+  dictionary. Neither carries a stream, so neither needs an object number, and
+  not allocating one means a document that uses no gradient is byte-for-byte
+  what it was before — every existing fixture lock still passes untouched.
+
+  See [`examples/gradient.exs`](examples/gradient.exs).
+
 ### Fixed
 
 - **Standard font metrics parsed to nothing on a CRLF checkout.** The base-14

@@ -75,6 +75,26 @@ defmodule Tincture.PDF.Ops do
     PDF.append_current_op(pdf, {:set_fill_color, {r, g, b}})
   end
 
+  @spec set_alpha(PDF.t(), number(), number()) :: PDF.t()
+  def set_alpha(%PDF{} = pdf, fill_alpha, stroke_alpha)
+      when is_number(fill_alpha) and fill_alpha >= 0 and fill_alpha <= 1 and
+             is_number(stroke_alpha) and stroke_alpha >= 0 and stroke_alpha <= 1 do
+    PDF.append_current_op(pdf, {:set_alpha, fill_alpha, stroke_alpha})
+  end
+
+  # `sh` paints the current clip region rather than a path, so the operation
+  # carries the rectangle it should fill and the serialiser wraps it in its own
+  # q/re/W n/Q. Doing it here rather than asking the caller to clip keeps the
+  # gradient a single reversible step: clipping is state that outlives the call
+  # that set it, and a stray clip is invisible until something later fails to
+  # draw.
+  @spec shading(PDF.t(), number(), number(), number(), number(), map()) :: PDF.t()
+  def shading(%PDF{} = pdf, x, y, width, height, %{} = shading)
+      when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
+             width > 0 and height > 0 do
+    PDF.append_current_op(pdf, {:shading, x, y, width, height, shading})
+  end
+
   @spec move_to(PDF.t(), number(), number()) :: PDF.t()
   def move_to(%PDF{} = pdf, x, y) when is_number(x) and is_number(y) do
     PDF.append_current_op(pdf, {:move_to, x, y})

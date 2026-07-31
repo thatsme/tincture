@@ -110,17 +110,28 @@ defmodule Tincture.PDF.Serialize do
         operations = PDF.page_operations(pdf, page_number)
         {font_aliases, font_resources} = font_resources(operations, embedded_font_refs)
         xobject_resources = xobject_resources(operations, image_object_refs)
+        {gs_aliases, gs_resources} = ext_gstate_resources(operations)
+        {shading_aliases, shading_entries} = shading_resources(operations)
 
         page_metadata = %{page_number: page_number, operation_count: length(operations)}
 
         {content_stream, content_length} =
           Telemetry.span([:tincture, :page], page_metadata, fn ->
-            stream = content_stream(operations, font_aliases, embedded_font_text_modes)
+            stream =
+              content_stream(
+                operations,
+                font_aliases,
+                embedded_font_text_modes,
+                gs_aliases,
+                shading_aliases
+              )
+
             length = IO.iodata_length(stream)
             {{stream, length}, %{byte_size: length}}
           end)
 
-        resources = resource_dictionary(font_resources, xobject_resources)
+        resources =
+          resource_dictionary(font_resources, xobject_resources, gs_resources, shading_entries)
 
         annots =
           annotations_entry(
@@ -1195,16 +1206,123 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  defp resource_dictionary(font_resources, xobject_resources) do
+  defp resource_dictionary(font_resources, xobject_resources, gs_resources, shading_resources) do
     parts =
       []
       |> maybe_add_resource("/Font << #{font_resources} >>", font_resources)
       |> maybe_add_resource("/XObject << #{xobject_resources} >>", xobject_resources)
+      |> maybe_add_resource("/ExtGState << #{gs_resources} >>", gs_resources)
+      |> maybe_add_resource("/Shading << #{shading_resources} >>", shading_resources)
 
     case parts do
       [] -> ""
       _ -> " /Resources << #{Enum.join(parts, " ")} >>"
     end
+  end
+
+  # Graphics states and shadings are written directly into the page's resource
+  # dictionary rather than as indirect objects. Both are plain dictionaries -
+  # neither carries a stream - so nothing requires an object number, and not
+  # allocating one means adding a gradient does not renumber every object after
+  # it, and leaves the bytes of a document that uses neither untouched.
+  defp ext_gstate_resources(operations) do
+    states =
+      operations
+      |> Enum.flat_map(fn
+        {:set_alpha, fill_alpha, stroke_alpha} -> [{fill_alpha, stroke_alpha}]
+        _ -> []
+      end)
+      |> Enum.uniq()
+
+    aliases =
+      states
+      |> Enum.with_index()
+      |> Map.new(fn {state, index} -> {state, "GS#{index}"} end)
+
+    resources =
+      Enum.map_join(states, " ", fn {fill_alpha, stroke_alpha} = state ->
+        "/#{Map.fetch!(aliases, state)} << /Type /ExtGState" <>
+          " /ca #{Object.num(fill_alpha)} /CA #{Object.num(stroke_alpha)} >>"
+      end)
+
+    {aliases, resources}
+  end
+
+  defp shading_resources(operations) do
+    shadings =
+      operations
+      |> Enum.flat_map(fn
+        {:shading, _x, _y, _width, _height, shading} -> [shading]
+        _ -> []
+      end)
+      |> Enum.uniq()
+
+    aliases =
+      shadings
+      |> Enum.with_index()
+      |> Map.new(fn {shading, index} -> {shading, "Sh#{index}"} end)
+
+    resources =
+      Enum.map_join(shadings, " ", fn shading ->
+        "/#{Map.fetch!(aliases, shading)} #{shading_dictionary(shading)}"
+      end)
+
+    {aliases, resources}
+  end
+
+  defp shading_dictionary(%{type: type, coords: coords, stops: stops, extend: {start?, stop?}}) do
+    "<< /ShadingType #{shading_type_number(type)} /ColorSpace /DeviceRGB" <>
+      " /Coords [#{Enum.map_join(coords, " ", &shading_number/1)}]" <>
+      " /Function #{shading_function(stops)}" <>
+      " /Extend [#{start?} #{stop?}] >>"
+  end
+
+  defp shading_type_number(:axial), do: 2
+  defp shading_type_number(:radial), do: 3
+
+  # Centre and radius arithmetic divides, so a rectangle given in integers
+  # still produces floats, and `Object.num/1` would write "300.0" where "300"
+  # says the same thing in fewer bytes. Local to shadings on purpose: changing
+  # Object.num would rewrite every document ever produced.
+  defp shading_number(value) when is_float(value) do
+    truncated = trunc(value)
+    if value == truncated, do: Object.num(truncated), else: Object.num(value)
+  end
+
+  defp shading_number(value), do: Object.num(value)
+
+  # Two stops interpolate directly. More than two are stitched: one
+  # interpolation per adjacent pair, with /Bounds naming the offsets where one
+  # hands over to the next, which is how the format expresses a multi-stop
+  # gradient at all.
+  defp shading_function([{_first_offset, from}, {_last_offset, to}]) do
+    interpolation_function(from, to)
+  end
+
+  defp shading_function(stops) do
+    pairs = Enum.chunk_every(stops, 2, 1, :discard)
+
+    functions =
+      Enum.map_join(pairs, " ", fn [{_from_offset, from}, {_to_offset, to}] ->
+        interpolation_function(from, to)
+      end)
+
+    bounds =
+      stops
+      |> Enum.drop(1)
+      |> Enum.drop(-1)
+      |> Enum.map_join(" ", fn {offset, _colour} -> shading_number(offset) end)
+
+    encode = Enum.map_join(pairs, " ", fn _pair -> "0 1" end)
+
+    "<< /FunctionType 3 /Domain [0 1] /Functions [#{functions}]" <>
+      " /Bounds [#{bounds}] /Encode [#{encode}] >>"
+  end
+
+  defp interpolation_function({r0, g0, b0}, {r1, g1, b1}) do
+    "<< /FunctionType 2 /Domain [0 1]" <>
+      " /C0 [#{shading_number(r0)} #{shading_number(g0)} #{shading_number(b0)}]" <>
+      " /C1 [#{shading_number(r1)} #{shading_number(g1)} #{shading_number(b1)}] /N 1 >>"
   end
 
   defp maybe_add_resource(resources, _entry, ""), do: resources
@@ -1278,7 +1396,13 @@ defmodule Tincture.PDF.Serialize do
   defp image_color_space_name(:device_rgb), do: "/DeviceRGB"
   defp image_color_space_name(:device_cmyk), do: "/DeviceCMYK"
 
-  defp content_stream(operations, font_aliases, embedded_font_text_modes) do
+  defp content_stream(
+         operations,
+         font_aliases,
+         embedded_font_text_modes,
+         gs_aliases,
+         shading_aliases
+       ) do
     Enum.map_join(operations, "", fn
       {:begin_marked_content, tag, mcid} ->
         "/#{tag} <</MCID #{mcid}>> BDC\n"
@@ -1368,6 +1492,17 @@ defmodule Tincture.PDF.Serialize do
 
       {:image, x, y, width, height, image_id} ->
         "q\n#{Object.num(width)} 0 0 #{Object.num(height)} #{Object.num(x)} #{Object.num(y)} cm\n/Im#{image_id} Do\nQ\n"
+
+      {:set_alpha, fill_alpha, stroke_alpha} ->
+        "/#{Map.fetch!(gs_aliases, {fill_alpha, stroke_alpha})} gs\n"
+
+      # `sh` fills the current clip region and takes no path, so the rectangle
+      # is established as a clip first. Wrapped in q/Q so the clip does not
+      # outlive the gradient - a clipping path cannot be widened once set, only
+      # discarded with the graphics state that carries it.
+      {:shading, x, y, width, height, shading} ->
+        "q\n#{Object.num(x)} #{Object.num(y)} #{Object.num(width)} #{Object.num(height)} re\n" <>
+          "W\nn\n/#{Map.fetch!(shading_aliases, shading)} sh\nQ\n"
     end)
   end
 

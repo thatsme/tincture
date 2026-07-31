@@ -21,28 +21,35 @@ forms you need" are different claims.
 
 **Next, roughly in order**
 
-1. **Transparency and shading** — small, self-contained, immediately visible.
-2. **Benchmarks against alternatives** — there is still no answer to "how fast
-   is it" relative to ChromicPDF or elixir-pdf.
-3. **Object and cross-reference streams** — file size; content streams are
-   written uncompressed today.
-4. **Forms completed** — appearance streams for text and choice fields, which
-   would also let signed and archival documents carry form fields.
-5. **Signature timestamping and incremental updates** — proof of *when*, and
-   more than one signature per document.
-6. **Colour beyond RGB** — spot inks and ICC spaces, for print production.
+1. ~~**Transparency and shading**~~ — **done.** Constant alpha and axial and
+   radial gradients. See [5](#5-transparency-and-shading); blend modes and
+   patterns remain.
+2. **Forms completed** — appearance streams for text and choice fields, which
+   would also let signed and archival documents carry form fields. The same
+   machinery gives signature widgets an appearance, without which a signed
+   document cannot also be PDF/A.
+3. **Accessibility completed** — tagging for `Layout.Template` and
+   `Layout.Box`, `/Tabs /S`, and validation against PAC as well as veraPDF.
+4. **Object and cross-reference streams** — file size; content streams are
+   written uncompressed today. Grouped with incremental updates, since both
+   rewrite the file's byte layout and both collide with signing.
+5. **Colour beyond RGB** — spot inks and ICC spaces, for print production. Needs
+   the overprint control that `/ExtGState` now provides a home for.
+6. **Signature timestamping** — proof of *when*, which means an HTTP client and
+   therefore a dependency decision.
 7. **Complex scripts** — the largest effort, and the narrowest audience unless
    you are targeting those markets.
 8. **Reading PDFs** — probably a sibling library.
 
 ## Where it stands today
 
-Solid: text and vector drawing, TrueType/OpenType embedding with subsetting on
+Solid: text and vector drawing with alpha and gradients, TrueType/OpenType
+embedding with subsetting on
 by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,230 tests, 89%
+signatures, telemetry. No required runtime dependencies. 1,250 tests, 89%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -161,15 +168,20 @@ calibrated spaces, and an overprint control (`/ExtGState`, item 5).
 
 ## 5. Transparency and shading
 
-**Status: absent.** No `/ExtGState`, no `/Shading`, no `/Pattern`.
+**Status: done for alpha and gradients.** `Tincture.set_alpha/2` emits
+`/ExtGState` with `/ca` and `/CA`; `linear_gradient/7` and `radial_gradient/7`
+emit shading types 2 and 3, with any number of stops.
 
-PNG alpha is supported via `/SMask` on images, but there is no way to set
-opacity on drawn content, no blend modes, and no gradients. Any design-led
-document — a report cover, a marketing page — will want at least gradients and
-constant alpha.
+Both are written inline into the page resource dictionary rather than as
+indirect objects, so adding a gradient renumbers nothing and leaves a document
+that uses none byte-identical.
 
-Comparatively small and self-contained: `/ExtGState` for `/CA` and `/ca`,
-shading types 2 and 3 for axial and radial gradients.
+What remains:
+
+- **Blend modes.** `/BM` is not set, so everything composites normally.
+- **Patterns.** No `/Pattern`, so a gradient cannot yet be used as the fill of
+  an arbitrary path — only of a rectangle.
+- **Soft masks on drawn content.** `/SMask` still applies to images only.
 
 ## 6. Forms, completed
 

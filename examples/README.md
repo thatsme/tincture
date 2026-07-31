@@ -9,11 +9,27 @@ anything.
 
 Each script embeds a real TrueType font. Font paths are not portable, so
 [`support/fonts.exs`](support/fonts.exs) picks the first that exists — Georgia
-and Verdana on macOS, Liberation or DejaVu on Linux — and falls back to the
-standard 14 if none are installed, in which case the document still renders but
-stops demonstrating embedding.
+and Verdana on macOS, Liberation or DejaVu on Linux, Georgia or Verdana again on
+Windows — and falls back to the standard 14 if none are installed, in which case
+the document still renders but stops demonstrating embedding. That fallback is
+what a container without fonts gets, so it is exercised in CI:
+
+    TINCTURE_EXAMPLES_NO_FONTS=1 mix examples
 
 ---
+
+## [`gradient.exs`](gradient.exs) → [`output/gradient.pdf`](output/gradient.pdf)
+
+A report cover, and the one example that is about how a page *looks* rather than
+what it contains: a three-stop vertical gradient behind the title, a radial glow
+under the mark, a horizontal gradient rule, and a `DRAFT` watermark at 8%
+opacity.
+
+Gradients are paint rather than shapes — `linear_gradient/7` and
+`radial_gradient/7` fill the rectangle they are given and ignore the current
+fill colour. Alpha is graphics state, so every use here is fenced in
+`save_state/1` and `restore_state/1`; without the fence it would apply to
+everything drawn afterwards.
 
 ## [`invoice.exs`](invoice.exs) → [`output/invoice.pdf`](output/invoice.pdf)
 

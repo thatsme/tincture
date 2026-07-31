@@ -81,6 +81,7 @@ defmodule Tincture.MixProject do
   defp aliases do
     [
       examples: [
+        "run examples/gradient.exs",
         "run examples/invoice.exs",
         "run examples/form.exs",
         "run examples/accessible.exs",

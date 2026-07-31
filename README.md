@@ -57,7 +57,7 @@ recorded in [CHANGELOG.md](CHANGELOG.md).
 is mature and the standards output is independently verified, but the API under
 this name is new and may still move before 1.0.
 
-1,230 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
+1,250 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
 Elixir 1.16–1.19.
 
 ## What it does
@@ -75,7 +75,8 @@ automatic column widths, page templates with headers, footers and numbering,
 XML-driven documents.
 
 **Graphics** — lines, rectangles, circles and Bézier paths with fill, stroke and
-clip; JPEG and PNG embedding with alpha.
+clip; axial and radial gradients with any number of stops; constant alpha on
+fill and stroke; JPEG and PNG embedding with alpha.
 
 **Documents** — metadata, bookmarks, hyperlinks, interactive forms (text,
 choice, checkbox, radio group, push button, signature), AES-256 encryption.
@@ -89,7 +90,7 @@ holds.
 
 ## Examples
 
-Seven runnable scripts, each with its PDF committed so you can see the output
+Eight runnable scripts, each with its PDF committed so you can see the output
 without running anything. See [examples/README.md](examples/README.md).
 
 ```bash
@@ -98,6 +99,7 @@ mix examples
 
 | | |
 |---|---|
+| [`gradient.exs`](examples/gradient.exs) | A report cover — axial and radial gradients, alpha, a watermark |
 | [`invoice.exs`](examples/invoice.exs) | A commercial invoice — embedded fonts, a table, justified terms, a payment link |
 | [`form.exs`](examples/form.exs) | Every interactive field type, with generated appearances |
 | [`accessible.exs`](examples/accessible.exs) | A tagged report — headings, table scope, alt text |

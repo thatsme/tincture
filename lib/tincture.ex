@@ -952,6 +952,184 @@ defmodule Tincture do
   end
 
   @doc """
+  Set constant alpha for everything drawn until the graphics state is restored.
+
+  A number sets both fill and stroke alpha; a keyword list sets them
+  separately. `1.0` is opaque, `0.0` invisible.
+
+  Alpha is graphics state, not a property of a shape: it applies to everything
+  drawn after it. Wrap it in `save_state/1` and `restore_state/1` unless the
+  rest of the page is meant to inherit it.
+
+  ## Examples
+
+      # A watermark behind the content.
+      pdf
+      |> Tincture.save_state()
+      |> Tincture.set_alpha(0.12)
+      |> Tincture.set_fill_color({0.0, 0.0, 0.0})
+      |> Tincture.rectangle(80, 400, 435, 120, :fill)
+      |> Tincture.restore_state()
+
+      # A translucent fill with a solid outline.
+      pdf |> Tincture.set_alpha(fill: 0.4, stroke: 1.0)
+
+  """
+  @spec set_alpha(PDF.t(), number() | keyword()) :: PDF.t()
+  def set_alpha(pdf, opacity_or_opts \\ 1.0)
+
+  def set_alpha(%PDF{} = pdf, opacity) when is_number(opacity) do
+    Ops.set_alpha(pdf, opacity, opacity)
+  end
+
+  def set_alpha(%PDF{} = pdf, opts) when is_list(opts) do
+    Ops.set_alpha(pdf, Keyword.get(opts, :fill, 1.0), Keyword.get(opts, :stroke, 1.0))
+  end
+
+  @doc """
+  Fill a rectangle with a linear gradient.
+
+  `stops` is a list of `{offset, {r, g, b}}`, with offsets ascending from 0.0
+  to 1.0 and at least two entries. Two stops interpolate directly; more are
+  stitched together, so a multi-stop gradient costs nothing extra to ask for.
+
+  Options:
+
+    * `:direction` — `:vertical` (the default, first stop at the top),
+      `:horizontal` (first stop at the left), or an explicit
+      `{x0, y0, x1, y1}` axis in page coordinates
+    * `:extend` — `{before?, after?}`, whether the end colours continue beyond
+      the axis. Defaults to `{true, true}`, which is what makes a gradient
+      whose axis is shorter than its rectangle fill the corners rather than
+      leave them blank.
+
+  Unlike a shape, this paints immediately and does not use the current fill
+  colour — a gradient *is* the paint.
+
+  ## Examples
+
+      # A report cover: deep blue at the top fading to near-black.
+      pdf
+      |> Tincture.linear_gradient(0, 500, 595, 342, [
+        {0.0, {0.05, 0.32, 0.55}},
+        {1.0, {0.02, 0.06, 0.12}}
+      ])
+
+      # Three stops, left to right.
+      pdf
+      |> Tincture.linear_gradient(40, 700, 515, 8, [
+        {0.0, {0.85, 0.20, 0.30}},
+        {0.5, {0.95, 0.70, 0.20}},
+        {1.0, {0.20, 0.55, 0.45}}
+      ], direction: :horizontal)
+
+  """
+  @spec linear_gradient(
+          PDF.t(),
+          number(),
+          number(),
+          number(),
+          number(),
+          [{number(), {number(), number(), number()}}],
+          keyword()
+        ) :: PDF.t()
+  def linear_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
+    coords =
+      case Keyword.get(opts, :direction, :vertical) do
+        # The first stop reads as the top of the rectangle, which is what a
+        # caller means by "vertical" - PDF's y axis points up, so that is the
+        # higher coordinate.
+        :vertical -> [x, y + height, x, y]
+        :horizontal -> [x, y, x + width, y]
+        {x0, y0, x1, y1} -> [x0, y0, x1, y1]
+        other -> raise ArgumentError, "unknown gradient direction: #{inspect(other)}"
+      end
+
+    Ops.shading(pdf, x, y, width, height, %{
+      type: :axial,
+      coords: coords,
+      stops: validate_stops!(stops),
+      extend: Keyword.get(opts, :extend, {true, true})
+    })
+  end
+
+  @doc """
+  Fill a rectangle with a radial gradient.
+
+  `stops` works as in `linear_gradient/7`, running from the centre outwards.
+
+  Options:
+
+    * `:center` — `{x, y}`, defaulting to the centre of the rectangle
+    * `:radius` — the outer radius, defaulting to half the longer side, so the
+      gradient reaches the corners
+    * `:inner_radius` — the radius at which the first stop sits, default `0`
+    * `:extend` — as in `linear_gradient/7`
+
+  ## Examples
+
+      pdf
+      |> Tincture.radial_gradient(180, 480, 240, 240, [
+        {0.0, {1.0, 0.95, 0.80}},
+        {1.0, {0.85, 0.35, 0.10}}
+      ])
+
+  """
+  @spec radial_gradient(
+          PDF.t(),
+          number(),
+          number(),
+          number(),
+          number(),
+          [{number(), {number(), number(), number()}}],
+          keyword()
+        ) :: PDF.t()
+  def radial_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
+    {cx, cy} = Keyword.get(opts, :center, {x + width / 2, y + height / 2})
+    outer = Keyword.get(opts, :radius, max(width, height) / 2)
+    inner = Keyword.get(opts, :inner_radius, 0)
+
+    Ops.shading(pdf, x, y, width, height, %{
+      type: :radial,
+      coords: [cx, cy, inner, cx, cy, outer],
+      stops: validate_stops!(stops),
+      extend: Keyword.get(opts, :extend, {true, true})
+    })
+  end
+
+  # A gradient with one stop is a fill, and one with unordered offsets is a
+  # mistake the format will not report: the viewer draws something, just not
+  # what was asked for. Both are worth refusing here, where the caller can see
+  # which call was wrong.
+  defp validate_stops!(stops) when is_list(stops) and length(stops) >= 2 do
+    Enum.each(stops, fn
+      {offset, {r, g, b}}
+      when is_number(offset) and offset >= 0 and offset <= 1 and
+             is_number(r) and r >= 0 and r <= 1 and
+             is_number(g) and g >= 0 and g <= 1 and
+             is_number(b) and b >= 0 and b <= 1 ->
+        :ok
+
+      other ->
+        raise ArgumentError,
+              "each gradient stop must be {offset, {r, g, b}} with every value " <>
+                "between 0 and 1, got: #{inspect(other)}"
+    end)
+
+    offsets = Enum.map(stops, fn {offset, _colour} -> offset end)
+
+    if offsets != Enum.sort(offsets) do
+      raise ArgumentError, "gradient stop offsets must ascend, got: #{inspect(offsets)}"
+    end
+
+    stops
+  end
+
+  defp validate_stops!(stops) do
+    raise ArgumentError, "a gradient needs at least two stops, got: #{inspect(stops)}"
+  end
+
+  @doc """
   Set stroke line width.
   """
   @spec set_line_width(PDF.t(), number()) :: PDF.t()

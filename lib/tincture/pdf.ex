@@ -61,6 +61,22 @@ defmodule Tincture.PDF do
             optional(:alpha_decode_parms) => map()
           }
   @type image_op :: {:image, number(), number(), number(), number(), pos_integer()}
+  @type alpha_op :: {:set_alpha, number(), number()}
+  @typedoc """
+  A gradient, and the rectangle it fills.
+
+  The shading itself is carried in the operation rather than registered on the
+  document, because it needs no object number: `/ExtGState` and `/Shading` are
+  plain dictionaries and are written inline into the page's resources.
+  """
+  @type shading ::
+          %{
+            required(:type) => :axial | :radial,
+            required(:coords) => [number()],
+            required(:stops) => [{number(), rgb()}],
+            required(:extend) => {boolean(), boolean()}
+          }
+  @type shading_op :: {:shading, number(), number(), number(), number(), shading()}
   @type begin_marked_content_op :: {:begin_marked_content, String.t(), non_neg_integer()}
   @type end_marked_content_op :: {:end_marked_content}
   @type begin_artifact_op :: {:begin_artifact}
@@ -133,6 +149,8 @@ defmodule Tincture.PDF do
           | graphics_state_op()
           | color_op()
           | image_op()
+          | alpha_op()
+          | shading_op()
           | begin_marked_content_op()
           | begin_artifact_op()
           | end_marked_content_op()
