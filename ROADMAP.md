@@ -35,8 +35,8 @@ forms you need" are different claims.
    rewrite the file's byte layout and both collide with signing.
 5. **Colour beyond RGB** — spot inks and ICC spaces, for print production. Needs
    the overprint control that `/ExtGState` now provides a home for.
-6. **Signature timestamping** — proof of *when*, which means an HTTP client and
-   therefore a dependency decision.
+6. **Signature timestamping** — proof of *when*. Ships as `tincture_tsa`, since
+   it needs an HTTP client; the core's part is the extension point it hangs on.
 7. **Complex scripts** — the largest effort, and the narrowest audience unless
    you are targeting those markets.
 8. **Reading PDFs** — probably a sibling library.
@@ -55,6 +55,65 @@ coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 That covers invoices, statements, reports, letters and contracts — documents a
 person reads, keeps, and has to be able to rely on. What follows is what it does
 not yet cover.
+
+---
+
+## How this is packaged
+
+**The split rule is dependency footprint, not feature size.** Anything that
+would drag a new dependency into the core goes in a satellite package. Anything
+pure stays here.
+
+The core — object model, fonts, typography, layout — has zero dependencies, and
+that is the promise rather than an accident of the current feature set. It is
+also what makes a feature request answerable: "not in core, that would be a
+separate package" is an architectural answer, not a refusal. Il nucleo resta
+piccolo per costruzione, non per disciplina.
+
+| | Needs | Where |
+|---|---|---|
+| **`tincture`** | nothing | core, forever |
+| `tincture_svg` | an XML parser (saxy) | satellite |
+| `tincture_markdown` | earmark | satellite |
+| `tincture_tsa` | an HTTP client, for RFC 3161 | satellite |
+| `tincture_phoenix` | Plug, for `send_pdf/3` and controller helpers | satellite |
+
+`tincture_tsa` is the case that shows why the rule earns its keep: PAdES
+long-term validation needs a timestamp authority, and without the split the core
+would grow a Finch or a Req to support it. Compression is the mirror image and
+stays in core — `:zlib` is OTP, so it costs nothing.
+
+**Do not create satellites speculatively.** Each one appears when its first real
+dependency does, and not before. The cost is honest: N packages instead of one,
+each carrying a compatibility range against the core. That is a real job, not a
+formality.
+
+For a borderline case there is a cheaper middle — an optional dependency with a
+`Code.ensure_loaded?/1` guard, which is how `:telemetry` is already carried. One
+package, no version matrix, at the price of compile-time conditionals and a
+`mix.exs` listing things most users will not install. Fine for one or two
+integrations, ugly at five.
+
+### The extension point is the actual work
+
+Satellites must be buildable on the public API. If one needs a private function,
+the core has to be bumped for every satellite — which is the version matrix with
+none of the benefit, and it is a difficult thing to walk back once published.
+
+So the behaviours come first, defined deliberately rather than discovered:
+
+```elixir
+defmodule Tincture.Renderer do
+  @callback draw(Tincture.t(), term(), keyword()) :: Tincture.t()
+end
+```
+
+Two things already bear on this. `Layout.Template.parse_xml/1` uses `:xmerl`,
+which is OTP — so XML in core costs nothing, and `tincture_svg` is a judgement
+about wanting a streaming parser rather than a dependency the rule forces out.
+And `Tincture.Showcase.MarkdownDoc` hand-rolls a small regex markdown parser;
+it is `@moduledoc false`, so it commits to nothing publicly, and it should stay
+that way — that parser is the seed of `tincture_markdown`, not of a core API.
 
 ---
 
@@ -144,8 +203,10 @@ What remains:
 - **Timestamps (RFC 3161).** A signature proves the document has not changed,
   and who signed it as far as the certificate is trusted. It does not prove
   *when*: the time is the signing machine's own claim. Long-term validation
-  (PAdES B-LT, B-LTA) needs a timestamp authority, which means an HTTP client
-  and therefore a dependency decision.
+  (PAdES B-LT, B-LTA) needs a timestamp authority, which means an HTTP client —
+  so this lands as `tincture_tsa` rather than in the core. See
+  [How this is packaged](#how-this-is-packaged). What the core owes it is an
+  extension point good enough to build on without reaching for internals.
 - **Incremental updates**, without which a document can carry only one
   signature and cannot be counter-signed or amended after signing.
 - **Signature appearances.** The widget carries no appearance stream, so a
@@ -232,6 +293,9 @@ small objects. Linearisation ("fast web view") lets a viewer render page one
 before the whole file arrives, which matters when documents are served over
 HTTP.
 
+All of this stays in core: `:zlib` ships with OTP, so compression costs no
+dependency.
+
 Separately, `export/1` builds the entire document in memory. A streaming
 export would bound memory for large documents — a thousand-page statement run
 currently holds everything at once.
@@ -252,8 +316,12 @@ currently holds everything at once.
 Merging documents, stamping an existing file, filling a form template someone
 else produced, extracting text: all common enterprise needs, none possible.
 
-This is arguably a separate library. Listed because evaluators will ask, and
-"no" is a better answer than silence.
+A separate library, though not for the usual reason: reading needs no new
+dependency, so the split rule does not force it out. It is a different problem —
+parsing arbitrary files someone else produced, defensively — and pulling it into
+the core would double the surface a writer has to keep correct.
+
+Listed because evaluators will ask, and "no" is a better answer than silence.
 
 ---
 
