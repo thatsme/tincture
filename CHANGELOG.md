@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Git for Windows sets `core.autocrlf=true` by default and the repository
   shipped no `.gitattributes`, so this hit any Windows clone. CI runs on Linux
-  and never saw it.
+  and never saw it. The published package is unaffected — its tarball carries
+  LF — so this cost contributors rather than users.
 
   Three changes, because one was not enough: `.gitattributes` pins the tree to
   LF so the conversion cannot happen; the regexes accept an optional `\r` so a
@@ -48,29 +49,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI never ran `mix examples`, which is why none of this was caught. It does
   now, both with a font present and with the helper forced to find none.
 
-- **Embedded fonts could not be laid out.** Font embedding and the typography
-  engine — the library's two headline features — did not compose. Every layout
-  entry point measured through `Font.text_width/3`, which resolves only the
-  standard 14 fonts and AFM files on disk. An embedded TrueType font has no
-  AFM; its metrics are parsed at registration and live on the document, so a
-  pure function could never see them. `text_paragraph/6`, `Layout.Box.flow_text/7`,
-  `Layout.Table.render/6` with `:auto` columns and `text_link/6` all raised
-  `unknown font` for any embedded font. The metrics were parsed, correct, and
-  sitting unused: the drawing path had its own private copy of the measurement
-  code all along.
+## [0.1.0] — 2026-07-26
+
+First release under the Tincture name.
+
+Tincture is a fork of [ex_guten](https://github.com/hwatkins/ex_guten) by Hugh
+Watkins (MIT), which is itself an Elixir port of Joe Armstrong's Erlang
+[erlguten](https://github.com/CarlWright/NGerlguten). Most of the engine — the
+TrueType/OpenType parser, the Knuth-Plass line breaker, the TeX hyphenation
+port, the PDF object serialiser — is his work, carried forward here. See
+[NOTICE](NOTICE) for the full attribution chain.
+
+`0.1.0` rather than a higher number is deliberate. The engine is mature, but
+the public API under this name is new and may still move before 1.0.
 
 ### Added
 
-- **Showcase documents.** Five reference documents built with the public API,
-  each with an end-to-end test and a render script under `scripts/`: an invoice,
-  a bank statement, a Markdown-sourced document, a marketing poster and a
-  multi-font report. They are what the library looks like used in anger, rather
-  than a feature demonstrated in isolation.
+- **Tagged PDF, for accessibility.** `Tincture.tag/4` and
+  `Tincture.set_language/2` produce logical structure: a `/StructTreeRoot`,
+  marked content bracketing the operators that draw each element, a parent tree
+  linking the two, `/MarkInfo`, `/Lang`, alternative text, and `/Scope` on table
+  header cells. An untagged PDF is a picture of a document — nothing records
+  which glyphs are a heading or what order to read them in — so this is the
+  layer assistive technology actually reads.
 
-  Recorded here because they shipped without a changelog entry. Invoice and bank
-  statement additionally carry locked SHA-256 fixtures; the other three are
-  tested but not byte-locked.
-
+  This produces the structure; it does not *certify* PDF/UA. Conformance is a
+  validation exercise against a checker such as veraPDF or PAC, which enforces
+  further rules a library cannot check on your behalf.
+- **Verified PDF/UA-1 conformance.** `examples/output/accessible.pdf` passes
+  veraPDF 1.30.2 against the PDF/UA-1 profile: 106 of 106 rules, 1701 of 1701
+  checks. Validating it found three real defects, all fixed below.
+- **PDF/A, verified.** `Tincture.set_pdf_a/2` produces archival output:
+  `examples/output/archival.pdf` passes veraPDF 1.30.2 at PDF/A-2b, 2u and
+  **2a**, and PDF/UA-1 simultaneously. Adds an sRGB output intent, XMP carrying
+  the conformance claim, and a file identifier.
 - **`Tincture.export/2` refuses a false PDF/A claim.** `set_pdf_a/2` writes a
   conformance assertion into the file, so a document that declares a level and
   breaks it lies about itself — and nothing discovers that until someone relies
@@ -97,10 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   No timestamp authority yet, so a signature proves the document has not
   changed — not when it was signed.
-- **PDF/A, verified.** `Tincture.set_pdf_a/2` produces archival output:
-  `examples/output/archival.pdf` passes veraPDF 1.30.2 at PDF/A-2b, 2u and
-  **2a**, and PDF/UA-1 simultaneously. Adds an sRGB output intent, XMP carrying
-  the conformance claim, and a file identifier.
 - **`Tincture.PDF.ICC`** — a built-in sRGB ICC profile, generated from the
   published constants rather than read from the system or shipped from
   elsewhere, so archival output is reproducible on any machine. Uses the real
@@ -109,25 +117,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documents; PDF/A requires one always. Derived from the content rather than the
   clock, so building the same document twice produces identical bytes and an
   archived file can be checked against a rebuild.
-- **Verified PDF/UA-1 conformance.** `examples/output/accessible.pdf` passes
-  veraPDF 1.30.2 against the PDF/UA-1 profile: 106 of 106 rules, 1701 of 1701
-  checks. Validating it found three real defects, all fixed below.
 - **XMP metadata.** The catalog now carries a `/Metadata` stream — Dublin Core
   title, creator and description, plus `pdfuaid:part` for a tagged document.
   The info dictionary alone satisfies neither PDF/UA nor PDF/A.
 - **`/ViewerPreferences << /DisplayDocTitle true >>`** on tagged documents, so a
   reader shows the document's title rather than its file name.
-- **Tagged PDF, for accessibility.** `Tincture.tag/4` and
-  `Tincture.set_language/2` produce logical structure: a `/StructTreeRoot`,
-  marked content bracketing the operators that draw each element, a parent tree
-  linking the two, `/MarkInfo`, `/Lang`, alternative text, and `/Scope` on table
-  header cells. An untagged PDF is a picture of a document — nothing records
-  which glyphs are a heading or what order to read them in — so this is the
-  layer assistive technology actually reads.
-
-  This produces the structure; it does not *certify* PDF/UA. Conformance is a
-  validation exercise against a checker such as veraPDF or PAC, which enforces
-  further rules a library cannot check on your behalf.
 - **`Tincture.Layout.Table.render/6` tags itself.** Inside a tagged document it
   emits `/Table`, `/THead`, `/TBody`, `/TR` and a `/TH` or `/TD` per cell, gives
   header cells a `/Scope`, and marks its own borders as artifacts. It could not
@@ -144,12 +138,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurable. `:telemetry` is an **optional** dependency: without it every event
   call compiles away, so Tincture still has no required runtime dependencies.
   See `Tincture.Telemetry`.
-- **`examples/compliant.exs`**, a PDF/UA template with every requirement
-  annotated where it is satisfied — including list structure — validated at
-  106 of 106 rules and 2605 of 2605 checks.
-- **`examples/`**, with the produced PDFs committed. An invoice, an interactive
-  form exercising every field type, and a telemetry report. `mix examples` runs
-  them all. Font paths are resolved per platform, so they run outside macOS.
+- **Hyperlinks and annotations** — external URLs and internal page targets, via
+  `Tincture.link/6` and `Tincture.text_link/5`. Previously the library emitted
+  no `/Annot` objects at all.
+- **Interactive forms (AcroForm)** — text fields, checkboxes and choice fields,
+  via `Tincture.text_field/7`, `Tincture.checkbox/6` and
+  `Tincture.choice_field/7`. Supports field flags (multiline, password,
+  read-only, required, dropdown, editable, sort), maximum length, tooltips and
+  initial values.
 - **The remaining form field types.** `Tincture.radio_group/4`,
   `Tincture.push_button/7` and `Tincture.signature_field/7` complete the field
   set. A radio group is the first field that is not a single object: the
@@ -162,6 +158,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server-side, and a push button, whose face is nothing but appearance, showed
   nothing at all. A radio button additionally cannot work without one, since
   its export value *is* the name of its "on" appearance state.
+- **AES-256 encryption** — `Tincture.encrypt/2`, standard security handler
+  revision 6 (`/V 5 /R 6`, PDF 2.0). User and owner passwords, permission
+  flags, optional metadata encryption. Note that an owner password alone is
+  advisory: the document is then encrypted under the empty user password and
+  any reader can open it. Only a user password is real protection.
 - `Tincture.Font.Context` — a measurement context pairing a document's embedded
   metrics with the static ones, so anything holding a document can measure any
   font that document can draw. The document-aware entry points build one
@@ -173,9 +174,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RichText.remeasure/2` and a `:context` option on `RichText.from_plain/2` and
   `from_runs/2`, for laying text out through `Tincture.Typography` directly.
 - `RichText.unmeasured_fonts/1`, reporting which fonts are still estimates.
+- `Tincture.Font.UnicodeRanges` — the complete OpenType `OS/2 ulUnicodeRange`
+  bit table.
+- **Showcase documents.** Five reference documents built with the public API,
+  each with an end-to-end test and a render script under `scripts/`: an invoice,
+  a bank statement, a Markdown-sourced document, a marketing poster and a
+  multi-font report. Invoice and bank statement additionally carry locked
+  SHA-256 fixtures; the other three are tested but not byte-locked.
+- **`examples/`**, with the produced PDFs committed. An invoice, an interactive
+  form exercising every field type, and a telemetry report. `mix examples` runs
+  them all. Font paths are resolved per platform.
+- **`examples/compliant.exs`**, a PDF/UA template with every requirement
+  annotated where it is satisfied — including list structure — validated at
+  106 of 106 rules and 2605 of 2605 checks.
+- `mix check`, which runs every gate CI runs, in the same order.
 
 ### Changed
 
+- **Font subsetting is now on by default** (`subset: :used_text`). Only the
+  glyphs a document draws are embedded, which typically cuts an embedded font
+  by 70–90%. Previously it defaulted to `:none` and was undocumented. Pass
+  `subset: :none` for the old behaviour.
 - **Link annotations omitted `/F`.** Every annotation needs one, and a link
   without it is a link that vanishes when the page is printed. Failed ISO
   19005-2 clause 6.3.2, which made external links impossible in an archival
@@ -214,46 +233,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refuses to lay those out — so a mistyped font name still fails loudly, with a
   better message, at the point where the answer is actually knowable rather
   than silently producing a plausible-looking but wrong paragraph.
-
-## [0.1.0] — 2026-07-26
-
-First release under the Tincture name.
-
-Tincture is a fork of [ex_guten](https://github.com/hwatkins/ex_guten) by Hugh
-Watkins (MIT), which is itself an Elixir port of Joe Armstrong's Erlang
-[erlguten](https://github.com/CarlWright/NGerlguten). Most of the engine — the
-TrueType/OpenType parser, the Knuth-Plass line breaker, the TeX hyphenation
-port, the PDF object serialiser — is his work, carried forward here. See
-[NOTICE](NOTICE) for the full attribution chain.
-
-`0.1.0` rather than a higher number is deliberate. The engine is mature, but
-the public API under this name is new and may still move before 1.0.
-
-### Added
-
-- **Hyperlinks and annotations** — external URLs and internal page targets, via
-  `Tincture.link/6` and `Tincture.text_link/5`. Previously the library emitted
-  no `/Annot` objects at all.
-- **Interactive forms (AcroForm)** — text fields, checkboxes and choice fields,
-  via `Tincture.text_field/7`, `Tincture.checkbox/6` and
-  `Tincture.choice_field/7`. Supports field flags (multiline, password,
-  read-only, required, dropdown, editable, sort), maximum length, tooltips and
-  initial values.
-- **AES-256 encryption** — `Tincture.encrypt/2`, standard security handler
-  revision 6 (`/V 5 /R 6`, PDF 2.0). User and owner passwords, permission
-  flags, optional metadata encryption. Note that an owner password alone is
-  advisory: the document is then encrypted under the empty user password and
-  any reader can open it. Only a user password is real protection.
-- `Tincture.Font.UnicodeRanges` — the complete OpenType `OS/2 ulUnicodeRange`
-  bit table.
-- `mix check`, which runs every gate CI runs, in the same order.
-
-### Changed
-
-- **Font subsetting is now on by default** (`subset: :used_text`). Only the
-  glyphs a document draws are embedded, which typically cuts an embedded font
-  by 70–90%. Previously it defaulted to `:none` and was undocumented. Pass
-  `subset: :none` for the old behaviour.
 - Decomposed the two modules that held most of the library. `Font.TTF` went
   from 4,530 lines with a single public function to a coordinator delegating to
   `TTF.Cmap`, `TTF.Glyf`, `TTF.Name`, `OpenType.GPOS`, `OpenType.GSUB`,
@@ -265,6 +244,16 @@ the public API under this name is new and may still move before 1.0.
 
 ### Fixed
 
+- **Embedded fonts could not be laid out.** Font embedding and the typography
+  engine — the library's two headline features — did not compose. Every layout
+  entry point measured through `Font.text_width/3`, which resolves only the
+  standard 14 fonts and AFM files on disk. An embedded TrueType font has no
+  AFM; its metrics are parsed at registration and live on the document, so a
+  pure function could never see them. `text_paragraph/6`, `Layout.Box.flow_text/7`,
+  `Layout.Table.render/6` with `:auto` columns and `text_link/6` all raised
+  `unknown font` for any embedded font. The metrics were parsed, correct, and
+  sitting unused: the drawing path had its own private copy of the measurement
+  code all along.
 - **Subsetting silently fell back to embedding the whole font** for any text
   containing a space. A glyph with no outline is encoded as zero bytes, which
   the subsetter treated as malformed, aborting the subset. Since almost every
