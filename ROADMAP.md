@@ -111,9 +111,10 @@ end
 Two things already bear on this. `Layout.Template.parse_xml/1` uses `:xmerl`,
 which is OTP — so XML in core costs nothing, and `tincture_svg` is a judgement
 about wanting a streaming parser rather than a dependency the rule forces out.
-And `Tincture.Showcase.MarkdownDoc` hand-rolls a small regex markdown parser;
-it is `@moduledoc false`, so it commits to nothing publicly, and it should stay
-that way — that parser is the seed of `tincture_markdown`, not of a core API.
+And the Markdown showcase (`lib/tincture/showcase/markdown_doc.ex`) hand-rolls a
+small regex markdown parser; it is `@moduledoc false`, so it commits to nothing
+publicly, and it should stay that way — that parser is the seed of
+`tincture_markdown`, not of a core API.
 
 ---
 

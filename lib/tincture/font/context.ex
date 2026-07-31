@@ -2,7 +2,7 @@ defmodule Tincture.Font.Context do
   @moduledoc """
   A measurement context — how wide a string will be, in any font a document knows.
 
-  `Tincture.Font.text_width/3` is pure, and can only resolve the standard 14
+  Measuring without a document is pure, and can only resolve the standard 14
   fonts and AFM files on disk. An embedded TrueType font has no AFM: its
   metrics are parsed out of the file at registration time and live on the
   `t:Tincture.PDF.t/0` struct. So a pure function cannot measure one, and for a
@@ -29,7 +29,8 @@ defmodule Tincture.Font.Context do
   Unicode variation sequences honoured. That is the same arithmetic the drawing
   path uses, so a measured width matches what is actually rendered.
 
-  For everything else it defers to `Tincture.Font.text_width/3`.
+  For everything else it defers to the static metrics — the standard 14 and any
+  AFM file on the configured path.
 
   ## Name precedence
 
@@ -58,7 +59,7 @@ defmodule Tincture.Font.Context do
   @doc """
   An empty context, resolving only the standard 14 fonts and AFM files.
 
-  Equivalent to measuring through `Tincture.Font.text_width/3` directly.
+  Equivalent to measuring against the static metrics directly.
   """
   @spec new() :: t()
   def new, do: %__MODULE__{}
@@ -87,7 +88,7 @@ defmodule Tincture.Font.Context do
   ## Options
 
     * `:on_unknown` — what to do with a font this context cannot resolve.
-      `:raise` (the default) lets `Tincture.Font.text_width/3` raise, which
+      `:raise` (the default) lets the underlying measurement raise, which
       catches a mistyped font name during layout. `:estimate` returns a rough
       width from the point size instead, which is what the drawing path needs:
       `Tincture.set_font/3` does not validate, so a document can already be

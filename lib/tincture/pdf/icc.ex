@@ -20,7 +20,7 @@ defmodule Tincture.PDF.ICC do
   The three channel curves share one tag, which the format allows and which
   keeps the profile around 2.5 kB.
 
-  `Tincture.Font.AFM` aside, this is the only place in the library holding
+  The AFM parser aside, this is the only place in the library holding
   numeric constants from an external specification, so they are written out in
   full rather than folded into expressions.
   """

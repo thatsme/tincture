@@ -175,17 +175,20 @@ and patches the result.
 
 ### Module mapping (erlguten → Tincture)
 
+Names in plain text are internal — they record where the code came from, not an
+API you can call.
+
 | erlguten module | Tincture module | Purpose |
 |---|---|---|
 | `eg_pdf` | `Tincture.PDF` | Core PDF state |
-| `eg_pdf_page` | `Tincture.PDF.Page` | Page management |
-| `eg_pdf_lib` | `Tincture.PDF.Ops` | Drawing operations |
+| `eg_pdf_page` | Tincture.PDF.Page | Page management |
+| `eg_pdf_lib` | Tincture.PDF.Ops | Drawing operations |
 | `eg_pdf_obj` / `eg_pdf_op` | `Tincture.PDF.Serialize`, `.Object`, `.FontEmbed` | Binary assembly |
-| `eg_pdf_image` | `Tincture.PDF.Image` | Image embedding |
-| `eg_font_map` | `Tincture.Font` | Font registry and metrics |
-| `eg_afm` | `Tincture.Font.AFM` | Adobe Font Metrics parsing |
+| `eg_pdf_image` | Tincture.PDF.Image | Image embedding |
+| `eg_font_map` | Tincture.Font | Font registry and metrics |
+| `eg_afm` | Tincture.Font.AFM | Adobe Font Metrics parsing |
 | `eg_richText` | `Tincture.Typography.RichText` | Rich text representation |
-| `eg_line_break` | `Tincture.Typography.LineBreak` | Line breaking |
+| `eg_line_break` | Tincture.Typography.LineBreak | Line breaking |
 | `eg_hyphenate` | `Tincture.Typography.Hyphen` | TeX hyphenation |
 | `eg_table` | `Tincture.Layout.Table` | Table layout |
 | `eg_block` | `Tincture.Layout.Box` | Text box layout |
