@@ -117,3 +117,49 @@ jobs:
 
       - name: Run tests
         run: mix test
+
+  # The examples are the first thing a reader runs and nothing else covers them.
+  # Run them twice: once with a font installed, which exercises embedding and
+  # subsetting, and once with the helper forced to find none. That second run is
+  # what a slim container gets — no fonts are installed in most base images —
+  # and it is where two examples crashed undetected, because CI never ran them.
+  examples:
+    name: Examples (Elixir 1.19.5 / OTP 28.1)
+    runs-on: ubuntu-latest
+    # Examples are run the way a reader runs them, not under MIX_ENV=test.
+    env:
+      MIX_ENV: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-examples-1.19.5-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-examples-1.19.5-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run examples with an embedded font
+        run: mix examples
+
+      # PDF/A forbids unembedded fonts, so archival.exs cannot conform on this
+      # path and exports with `enforce: false` instead. That it still runs is
+      # the point: a missing font must not crash an example.
+      - name: Run examples with no font installed
+        run: mix examples
+        env:
+          TINCTURE_EXAMPLES_NO_FONTS: "1"

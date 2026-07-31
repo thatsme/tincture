@@ -51,7 +51,7 @@ terms =
     "Please quote the invoice number with any remittance so that payment can be " <>
     "reconciled without correspondence."
 
-pdf =
+{pdf, embedded?} =
   Tincture.new()
   |> Tincture.page_size(:a4)
   |> Tincture.set_metadata(
@@ -60,7 +60,13 @@ pdf =
     subject: "Invoice for calibration and service work",
     keywords: "invoice, calibration, service"
   )
-  |> then(&elem(Examples.Fonts.register(&1, "Body", "Sans"), 0))
+  |> Examples.Fonts.register("Body", "Sans")
+
+# Resolve through the helper rather than naming "Body" directly: on a machine
+# with none of the candidate fonts installed nothing was registered, and the
+# document does not know that name.
+body = Examples.Fonts.resolve("Body", embedded?)
+sans = Examples.Fonts.resolve("Sans", embedded?)
 
 # --- header band ----------------------------------------------------------
 # rectangle/6 takes a paint mode. Before that existed the band silently did
@@ -81,11 +87,11 @@ pdf =
   |> Tincture.line(logo_cx, logo_cy, logo_cx + 9, logo_cy + 8)
   |> Tincture.set_fill_color({1.0, 1.0, 1.0})
   |> Tincture.circle(logo_cx, logo_cy, 2.6, :fill)
-  |> Tincture.set_font("Body", 22)
+  |> Tincture.set_font(body, 22)
   |> Tincture.text_at(margin + 42, page_h - 52, "Northgate Instruments")
-  |> Tincture.set_font("Sans", 8.5)
+  |> Tincture.set_font(sans, 8.5)
   |> Tincture.text_at(margin + 42, page_h - 70, "Unit 7, Brasshouse Works · Sheffield S3 8QP · United Kingdom")
-  |> Tincture.set_font("Body", 26)
+  |> Tincture.set_font(body, 26)
   |> Tincture.text_at(page_w - margin - 92, page_h - 52, "INVOICE")
 
 # --- invoice meta, right column -------------------------------------------
@@ -105,10 +111,10 @@ pdf =
 
     acc
     |> Tincture.set_fill_color(muted)
-    |> Tincture.set_font("Sans", 8)
+    |> Tincture.set_font(sans, 8)
     |> Tincture.text_at(meta_x, y, String.upcase(label))
     |> Tincture.set_fill_color(ink)
-    |> Tincture.set_font("Body", 10)
+    |> Tincture.set_font(body, 10)
     |> Tincture.text_at(meta_x + 96, y, value)
   end)
 
@@ -116,12 +122,12 @@ pdf =
 pdf =
   pdf
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 8)
+  |> Tincture.set_font(sans, 8)
   |> Tincture.text_at(margin, meta_y, "BILL TO")
   |> Tincture.set_fill_color(ink)
-  |> Tincture.set_font("Body", 11)
+  |> Tincture.set_font(body, 11)
   |> Tincture.text_at(margin, meta_y - 18, "Harlow Process Systems Ltd")
-  |> Tincture.set_font("Body", 10)
+  |> Tincture.set_font(body, 10)
   |> Tincture.text_at(margin, meta_y - 33, "Attn: Accounts Payable")
   |> Tincture.text_at(margin, meta_y - 47, "14 Pinnacle Way")
   |> Tincture.text_at(margin, meta_y - 61, "Harlow CM19 5QT")
@@ -136,8 +142,8 @@ pdf = Tincture.set_stroke_color(pdf, rule)
 {pdf, table} =
   Table.render(pdf, margin, table_y, [252, 46, 78, 90], items,
     header_rows: 1,
-    font: "Body",
-    header_font: "Sans",
+    font: body,
+    header_font: sans,
     font_size: 9.5,
     padding: 7,
     table_width: content_w
@@ -170,10 +176,10 @@ pdf =
 
     acc
     |> Tincture.set_fill_color(if(emphasis, do: ink, else: muted))
-    |> Tincture.set_font(if(emphasis, do: "Sans", else: "Body"), size)
+    |> Tincture.set_font(if(emphasis, do: sans, else: body), size)
     |> Tincture.text_at(page_w - margin - 214, y, label)
     |> Tincture.set_fill_color(ink)
-    |> Tincture.set_font("Body", size)
+    |> Tincture.set_font(body, size)
     |> Tincture.text_at(page_w - margin - 72, y, "£" <> value)
   end)
 
@@ -183,10 +189,10 @@ terms_y = totals_y - 92
 pdf =
   pdf
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 8)
+  |> Tincture.set_font(sans, 8)
   |> Tincture.text_at(margin, terms_y + 22, "PAYMENT TERMS")
   |> Tincture.set_fill_color(ink)
-  |> Tincture.set_font("Body", 9.5)
+  |> Tincture.set_font(body, 9.5)
 
 # The typography engine measures against the document, so this paragraph is
 # justified and hyphenated using Georgia's real metrics. Rich text built this
@@ -197,7 +203,7 @@ pdf =
      pdf,
      margin,
      terms_y,
-     RichText.from_plain(terms, font: "Body", size: 9.5),
+     RichText.from_plain(terms, font: body, size: 9.5),
      content_w - 150,
      align: :justified,
      line_break: :optimal,
@@ -213,11 +219,11 @@ pay_y = terms_y - 92
 pdf =
   pdf
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 8)
+  |> Tincture.set_font(sans, 8)
   |> Tincture.text_at(margin, pay_y + 20, "PAY ONLINE")
   # The clickable rectangle is measured from the drawn string, in whatever font
   # is current - embedded or not.
-  |> Tincture.set_font("Body", 10)
+  |> Tincture.set_font(body, 10)
   |> Tincture.text_link(
     margin,
     pay_y,
@@ -234,7 +240,7 @@ pdf =
   |> Tincture.line(margin, 74, page_w - margin, 74)
   |> Tincture.stroke()
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 7.5)
+  |> Tincture.set_font(sans, 7.5)
   |> Tincture.text_at(margin, 60, "Northgate Instruments Ltd · Registered in England 04471902 · VAT GB 812 4471 02")
   |> Tincture.text_at(margin, 48, "Bank: Lloyds · Sort 30-96-14 · Account 41780255 · IBAN GB29 LOYD 3096 1441 7802 55")
 

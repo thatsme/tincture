@@ -23,15 +23,39 @@ defmodule Examples.Fonts do
     "/usr/share/fonts/TTF/DejaVuSans.ttf"
   ]
 
+  # Georgia and Verdana ship with Windows too, so the output matches the macOS
+  # choice. The directory comes from the environment because Windows is not
+  # always installed on C:.
+  @serif_windows ["georgia.ttf", "times.ttf", "constan.ttf"]
+  @sans_windows ["verdana.ttf", "arial.ttf", "segoeui.ttf"]
+
   @doc """
   A path to a serif TrueType font, or `nil` if none of the candidates exist.
   """
-  def serif, do: Enum.find(@serif, &File.exists?/1)
+  def serif, do: find_font(@serif ++ windows_fonts(@serif_windows))
 
   @doc """
   A path to a sans TrueType font, or `nil` if none of the candidates exist.
   """
-  def sans, do: Enum.find(@sans, &File.exists?/1)
+  def sans, do: find_font(@sans ++ windows_fonts(@sans_windows))
+
+  # Setting TINCTURE_EXAMPLES_NO_FONTS forces the "nothing installed" branch on
+  # a machine that does have fonts, so CI can prove the standard-14 fallback
+  # still renders. That branch is what a slim container gets, and two examples
+  # crashed on it undetected because nothing ever ran them without fonts.
+  defp find_font(candidates) do
+    case System.get_env("TINCTURE_EXAMPLES_NO_FONTS") do
+      value when value in [nil, "", "0"] -> Enum.find(candidates, &File.exists?/1)
+      _forced -> nil
+    end
+  end
+
+  defp windows_fonts(filenames) do
+    case System.get_env("WINDIR") do
+      nil -> []
+      windir -> Enum.map(filenames, &Path.join([windir, "Fonts", &1]))
+    end
+  end
 
   @doc """
   Register `body` and `heading` fonts on a document.

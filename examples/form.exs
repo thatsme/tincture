@@ -21,7 +21,7 @@ muted = {0.42, 0.45, 0.50}
 accent = {0.06, 0.35, 0.55}
 rule = {0.85, 0.86, 0.88}
 
-pdf =
+{pdf, embedded?} =
   Tincture.new()
   |> Tincture.page_size(:a4)
   |> Tincture.set_metadata(
@@ -29,7 +29,13 @@ pdf =
     author: "Northgate Instruments Ltd",
     subject: "Interactive application form"
   )
-  |> then(&elem(Examples.Fonts.register(&1, "Body", "Sans"), 0))
+  |> Examples.Fonts.register("Body", "Sans")
+
+# Resolve through the helper rather than naming "Body" directly: on a machine
+# with none of the candidate fonts installed nothing was registered, and the
+# document does not know that name.
+body = Examples.Fonts.resolve("Body", embedded?)
+sans = Examples.Fonts.resolve("Sans", embedded?)
 
 # --- header ---------------------------------------------------------------
 pdf =
@@ -37,9 +43,9 @@ pdf =
   |> Tincture.set_fill_color(accent)
   |> Tincture.rectangle(0, page_h - 96, page_w, 96, :fill)
   |> Tincture.set_fill_color({1.0, 1.0, 1.0})
-  |> Tincture.set_font("Body", 22)
+  |> Tincture.set_font(body, 22)
   |> Tincture.text_at(margin, page_h - 52, "Supplier account application")
-  |> Tincture.set_font("Sans", 8.5)
+  |> Tincture.set_font(sans, 8.5)
   |> Tincture.text_at(
     margin,
     page_h - 70,
@@ -50,7 +56,7 @@ pdf =
 section = fn pdf, y, title ->
   pdf
   |> Tincture.set_fill_color(accent)
-  |> Tincture.set_font("Sans", 8)
+  |> Tincture.set_font(sans, 8)
   |> Tincture.text_at(margin, y, String.upcase(title))
   |> Tincture.set_stroke_color(rule)
   |> Tincture.set_line_width(0.75)
@@ -61,7 +67,7 @@ end
 label = fn pdf, x, y, text ->
   pdf
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 7.5)
+  |> Tincture.set_font(sans, 7.5)
   |> Tincture.text_at(x, y, String.upcase(text))
 end
 
@@ -135,7 +141,7 @@ pdf =
     tooltip: "Priority accounts are invoiced monthly in arrears"
   )
   |> Tincture.set_fill_color(ink)
-  |> Tincture.set_font("Body", 10)
+  |> Tincture.set_font(body, 10)
   |> Tincture.text_at(margin + 20, radio_y - 9, "Standard — invoiced per order")
   |> Tincture.text_at(margin + 20, radio_y - 29, "Priority — invoiced monthly in arrears")
   |> Tincture.text_at(margin + 20, radio_y - 49, "Trial — three months, then review")
@@ -172,7 +178,7 @@ pdf =
   )
   |> Tincture.checkbox(margin, check_y - 22, 12, "newsletter", border: :none)
   |> Tincture.set_fill_color(ink)
-  |> Tincture.set_font("Body", 10)
+  |> Tincture.set_font(body, 10)
   |> Tincture.text_at(margin + 20, check_y + 3, "I accept the standard terms of supply (required)")
   |> Tincture.text_at(margin + 20, check_y - 19, "Send me occasional product updates")
 
@@ -231,7 +237,7 @@ pdf =
   |> Tincture.line(margin, 66, page_w - margin, 66)
   |> Tincture.stroke()
   |> Tincture.set_fill_color(muted)
-  |> Tincture.set_font("Sans", 7.5)
+  |> Tincture.set_font(sans, 7.5)
   |> Tincture.text_at(
     margin,
     52,

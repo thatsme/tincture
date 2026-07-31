@@ -44,8 +44,11 @@ unless embedded? do
   IO.puts("""
   No embeddable TrueType font was found on this machine, so this document would
   fall back to the standard 14 fonts — which PDF/A forbids, because they are
-  referenced by name rather than carried in the file. The document below is
-  still produced, but will not validate.
+  referenced by name rather than carried in the file.
+
+  export/2 refuses a conformance claim it can see is false, so the document
+  below is exported with `enforce: false`: it is still produced, and it will
+  not validate.
   """)
 end
 
@@ -178,7 +181,10 @@ pdf =
     end)
   end)
 
-binary = Tincture.export(pdf)
+# Without an embedded font the document breaks the PDF/A claim it carries, and
+# export refuses a false claim by design. `enforce: false` is the documented way
+# past that, and this is exactly the case it exists for.
+binary = if embedded?, do: Tincture.export(pdf), else: Tincture.export(pdf, enforce: false)
 path = Examples.Fonts.output_path("archival.pdf")
 File.write!(path, binary)
 
