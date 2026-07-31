@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-31
+
 ### Added
 
 - **Transparency and shading.** `Tincture.set_alpha/2` sets constant alpha for
@@ -312,5 +314,6 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/thatsme/tincture/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thatsme/tincture/releases/tag/v0.1.0

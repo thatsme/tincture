@@ -1,13 +1,17 @@
 # Release Checklist
 
-Each release is published to Hex.pm via GitHub Actions in
-`.github/workflows/publish_hex.yml`.
+Releases are published to Hex.pm **manually, by a maintainer**, with
+`mix hex.publish`. That is how 0.1.0 went out, and it is deliberate: the upload
+is the one step that cannot be undone, so it stays a decision rather than a
+consequence of pushing a tag.
 
-## One-time setup
+There is no publish workflow. One existed, fired on the `v0.1.0` tag with no
+`HEX_API_KEY` configured, failed, and was removed rather than left sitting red.
+**Tagging records the release on GitHub; it does not publish to Hex.**
 
-GitHub secret, under environment `hex-publish`:
-
-- `HEX_API_KEY` — a Hex API key with `api:write`
+Should this ever move into CI, it needs a Hex API key with `api:write` held as a
+repository secret, and a workflow triggered on `v*` tags that verifies the tag
+matches `@version` in `mix.exs` before uploading.
 
 ## Before every release
 
@@ -71,14 +75,23 @@ gates, but a failure discovered after tagging costs a version number.
 
 ## Publishing
 
-1. Commit the version bump and changelog.
+1. Commit the version bump and changelog, and let CI go green on `main`.
 2. Tag and push:
 
        git tag vX.Y.Z
        git push origin main --tags
 
-3. Confirm the `Publish Hex` workflow succeeds.
-4. Confirm <https://hexdocs.pm/tincture> shows the new version.
+3. Publish to Hex, from a maintainer's machine:
+
+       mix hex.publish
+
+   This uploads the package *and* the documentation, and asks for confirmation
+   before doing either. Check the file list it prints: `examples/` and `docs/`
+   should not be in it.
+
+4. Confirm <https://hex.pm/packages/tincture> lists the new release, and
+   <https://hexdocs.pm/tincture> serves its docs.
+5. Draft the GitHub release for the tag, with the changelog section as its body.
 
 ## After publishing
 
@@ -88,5 +101,7 @@ gates, but a failure discovered after tagging costs a version number.
 ## Notes
 
 - The tag must match `mix.exs` exactly — `v0.2.0` for `version: "0.2.0"`.
-- A manual publish is available via `workflow_dispatch`.
+- A Hex release cannot be unpublished after an hour, and a version number can
+  never be reused. Check the file list `mix hex.publish` prints before saying
+  yes to it.
 - `0.x` means the API may still move. Say so in the release notes when it does.
