@@ -107,15 +107,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from `n`. A link created inside `tag(:link, ...)` is associated
   automatically, so no call site changes.
 
-  Those three things are what is fixed. This is not a claim that a tagged link
-  is now conformant in every respect — whether a link annotation additionally
-  requires an alternate description in `/Contents` is unresolved, and is not
-  implemented.
+  Those three things are what is fixed, and they are not the whole of link
+  conformance. A tagged link also requires an alternate description in
+  `/Contents` — ISO 14289-1 clauses 7.18.1 and 7.18.5, both machine-checked —
+  which Tincture does not yet write. Measured against veraPDF 1.30.2, a tagged
+  link failed clauses 7.18.1 test 2, 7.18.5 test 1 and 7.18.5 test 2 before
+  this change, and fails 7.18.1 test 2 and 7.18.5 test 2 after it. Supplying
+  `/Contents` clears both remaining rules; that is not in this release.
 
-  Worth knowing how this survived two releases: veraPDF passed the broken
-  output, 106/106. Several Matterhorn link checkpoints are human-verification
-  only, so the validator had nothing to say about them. A clean
-  `--flavour ua1` run narrows the question rather than closing it.
+  Worth knowing how the structure gap survived two releases. veraPDF does check
+  it — clause 7.18.5 test 1 is a machine rule — but `compliant.pdf`, the
+  example behind the 106/106 figure, carries no link annotations, so the rule
+  never fired. The gap was in the validated corpus, not in the validator.
 
 ## [0.2.0] — 2026-07-31
 
