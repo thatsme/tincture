@@ -155,6 +155,13 @@ gates, but a failure discovered after tagging costs a version number.
 ## Notes
 
 - The tag must match `mix.exs` exactly — `v0.2.0` for `version: "0.2.0"`.
+- **A tag may be re-cut before publishing, never after.** Until a version
+  exists on Hex nothing has consumed the tag, and a tag that does not reproduce
+  the published tarball is worse than one that moved once. Check what actually
+  changed: only the paths in `files:` affect the package, so a commit touching
+  `docs/`, `examples/` or `test/` leaves the tarball identical and the tag can
+  stay. Once `mix hex.publish` has run, the tag is a permanent record of what
+  was uploaded and the next change is a new version.
 - A Hex release cannot be unpublished after an hour, and a version number can
   never be reused. Check the file list `mix hex.publish` prints before saying
   yes to it.
