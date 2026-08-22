@@ -64,7 +64,7 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,285 tests, 89.5%
+signatures, telemetry. No required runtime dependencies. 1,288 tests, 89.5%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -203,14 +203,17 @@ rules are asking for.
 
 What remains:
 
-- **The corpus audit.** The `/OBJR` defect survived two releases of a green
-  veraPDF run because `compliant.pdf` contained no link annotations, and a rule
-  with nothing to match counts as passed. That is not a link problem, it is a
-  coverage problem: every construct the library can emit but the validated
-  documents never do is a set of rules that has never run. Tables, lists,
-  nested structure, figures with and without alt, annotations of other kinds.
-  Enumerate what the corpus emits against what the API offers, and close the
-  difference.
+- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 18 of 37
+  structure types are exercised by the validated documents; the other 19 have
+  never been through a validator. The README lists them, and a test fails when
+  the set drifts. Closing the gap is ongoing work — the audit was the part that
+  had never been done.
+- **`:note` has no `/ID`, and fails clause 7.9.** Confirmed against veraPDF.
+  Next release.
+- **Form fields cannot be made PDF/UA conformant.** Clause 7.18.4 requires a
+  widget annotation to be nested in a `Form` structure element, and there is no
+  such tag. The `/OBJR` machinery links now use is the same machinery this
+  needs, so the seam exists; the vocabulary and the association do not.
 - **PAC — a one-off audit, not a gate.** Only veraPDF has been used, and it
   cannot be the whole story: it checks that the structure is *well-formed*, not
   that it is *right*. Announcing a decorative rule as a paragraph passes veraPDF

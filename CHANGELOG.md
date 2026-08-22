@@ -34,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Untagged pages do not carry it — there is no structure to follow, and
   emitting it always would have rewritten every existing document for nothing.
 
+- **What the validated corpus actually exercises, written down.** veraPDF
+  scores rules, not features, and a rule with nothing to match counts as
+  passed — which is how tagged links scored 106 of 106 for two releases while
+  being unreachable from the structure tree.
+
+  The README now lists it: of the 37 structure types Tincture can emit, the
+  validated documents emit 18. The other 19 have never been through a
+  validator. Two of those are known broken rather than merely unexercised —
+  `:note` fails clause 7.9 for want of an `/ID` (fixed in 0.3.1), and form
+  fields cannot be made conformant at all, since clause 7.18.4 wants a widget
+  nested in a `Form` element and Tincture has no such tag.
+
+  A test pins the set, so it fails when a type becomes covered and when a new
+  uncovered one arrives. The list is meant to shrink.
+
 - **`:contents` on `link/7` and `text_link/6`,** the link's alternate
   description. A link's rectangle describes nothing on its own, so a reader
   that reaches the annotation has only `/Contents` to announce. Say where the
