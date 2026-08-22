@@ -64,7 +64,8 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,298 tests, 89.5%
+signatures, links within and between documents, telemetry. No required runtime
+dependencies. 1,320 tests, 89.6%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -390,6 +391,13 @@ currently holds everything at once.
 - ~~**Telemetry.**~~ **Done.** Three spans — document, page and font embed —
   with duration, byte sizes and document shape. `:telemetry` is optional, so
   the zero-required-dependency claim still holds. See `Tincture.Telemetry`.
+- ~~**Links between documents.**~~ **Done** in 0.3.2, closing
+  [#1](https://github.com/thatsme/tincture/issues/1). `{:file, path}` and
+  `{:file, path, page}` emit a `/GoToR` action resolved relative to the
+  document carrying the link, so a set of files that ship together can refer
+  to each other. Named destinations are reserved and unimplemented; the page
+  index is a promise about a file Tincture never reads, which is the
+  limitation to know. Browser-embedded viewers do not follow these links.
 - **Memory profile.** No measured figure for a large document. Worth having
   before the streaming export in [8](#8-file-size-and-streaming), which cannot
   be sized without knowing what a thousand-page run currently holds.

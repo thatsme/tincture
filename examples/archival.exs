@@ -168,14 +168,37 @@ pdf =
         end)
         |> rule_at.(table_bottom - 96)
 
-      Tincture.tag(pdf, :p, fn pdf ->
+      pdf =
+        Tincture.tag(pdf, :p, fn pdf ->
+          pdf
+          |> Tincture.set_fill_color(muted)
+          |> Tincture.set_font(sans, 7.5)
+          |> Tincture.text_at(
+            margin,
+            table_bottom - 112,
+            "Retained under ISO/IEC 17025. Archived as PDF/A-2a."
+          )
+        end)
+
+      # A link into another file, which is what a set of documents archived
+      # together needs. ISO 19005-2 clause 6.5.1 lists the actions PDF/A
+      # permits, and GoToR is on it - the rule is an allowlist, confirmed from
+      # veraPDF's own profile. It only tells us anything if a validated
+      # document actually carries one, which is what this is for: a rule with
+      # nothing to match counts as passed.
+      #
+      # A remote link is still a link, so it is tagged and described like any
+      # other. compliant.pdf really does sit beside this file.
+      Tincture.tag(pdf, :link, fn pdf ->
         pdf
-        |> Tincture.set_fill_color(muted)
+        |> Tincture.set_fill_color(accent)
         |> Tincture.set_font(sans, 7.5)
-        |> Tincture.text_at(
+        |> Tincture.text_link(
           margin,
-          table_bottom - 112,
-          "Retained under ISO/IEC 17025. Archived as PDF/A-2a."
+          table_bottom - 126,
+          "See the accessibility checklist, page 1",
+          {:file, "compliant.pdf", 1},
+          contents: "compliant.pdf, the PDF/UA checklist archived alongside this report"
         )
       end)
     end)
@@ -200,6 +223,7 @@ What PDF/A needed, and where it came from:
   file identifier         always        #{if binary =~ "/ID [<", do: "ok", else: "MISSING"}
   fonts embedded          register_ttf  #{if embedded?, do: "ok", else: "NO - standard 14 in use"}
   tagged (needed for 2a)  tag/4         #{if binary =~ "/StructTreeRoot", do: "ok", else: "MISSING"}
+  remote link permitted   GoToR         #{if binary =~ "/S /GoToR", do: "ok", else: "MISSING"}
 
 Building the same document twice produces identical bytes: the file identifier
 is derived from the content and the ICC profile carries no creation date, so an

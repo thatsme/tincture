@@ -50,3 +50,6 @@ tincture-*.tar
 # Generated documents from examples and manual checks.
 /output/*
 !/output/.gitkeep
+
+# Hand-written GoToR spike artefacts (issue #1). Scratch, not a deliverable.
+/examples/gotor-spike/

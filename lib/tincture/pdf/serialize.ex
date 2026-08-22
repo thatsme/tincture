@@ -1386,7 +1386,7 @@ defmodule Tincture.PDF.Serialize do
     # Widget annotations already carried this; link annotations did not, which
     # failed ISO 19005-2 clause 6.3.2.
     "<< /Type /Annot /Subtype /Link /Rect #{rect} /F 4 #{annotation_border_entry(border)} " <>
-      "#{link_target_entry(target, page_object_refs)}" <>
+      "#{link_target_entry(target, page_object_refs, annotation)}" <>
       annotation_contents_entry(annotation) <>
       struct_parent_entry(annotation, tagged) <> " >>"
   end
@@ -1418,11 +1418,39 @@ defmodule Tincture.PDF.Serialize do
   defp annotation_border_entry({horizontal, vertical, width}),
     do: "/Border [#{Object.num(horizontal)} #{Object.num(vertical)} #{Object.num(width)}]"
 
-  defp link_target_entry({:url, url}, _page_object_refs) do
+  defp link_target_entry({:url, url}, _page_object_refs, _annotation) do
     "/A << /S /URI /URI #{Object.format_text(url)} >>"
   end
 
-  defp link_target_entry({:page, page_number}, page_object_refs) do
+  # A link into another file. /F is a file specification in string form,
+  # resolved by the reader against the document that carries it.
+  #
+  # The 1-based to 0-based conversion happens here and nowhere else. The API
+  # counts pages from 1 everywhere, so {:file, path, 13} is the thirteenth page
+  # and serialises as /D [12 /Fit]. Exposing the raw index would make "page"
+  # mean two different things depending on the target type, and the resulting
+  # off-by-one lands in a document the author no longer has, pointing at the
+  # wrong page rather than failing visibly. Confirmed against SumatraPDF:
+  # /D [12 /Fit] opens the thirteenth page.
+  #
+  # Note what cannot be checked. A {:page, n} pointing nowhere raises below,
+  # because the document knows its own pages. A {:file, path, n} pointing
+  # nowhere can never be detected, because Tincture never reads the target -
+  # not the path, not the page count. n > 0 at normalisation is the only
+  # validation this will ever have.
+  defp link_target_entry({:file, path, page_number}, _page_object_refs, annotation) do
+    "/A << /S /GoToR /F #{Object.format_text(path)} /D [#{page_number - 1} /Fit]" <>
+      new_window_entry(annotation) <> " >>"
+  end
+
+  # No destination: the reader opens the target at its beginning. Confirmed
+  # against SumatraPDF, including when the document was already open at
+  # another page.
+  defp link_target_entry({:file, path}, _page_object_refs, annotation) do
+    "/A << /S /GoToR /F #{Object.format_text(path)}" <> new_window_entry(annotation) <> " >>"
+  end
+
+  defp link_target_entry({:page, page_number}, page_object_refs, _annotation) do
     case Map.fetch(page_object_refs, page_number) do
       {:ok, object_id} ->
         # /XYZ with null coordinates means "top of the page, keep the current
@@ -1436,6 +1464,13 @@ defmodule Tincture.PDF.Serialize do
               "link points at page #{page_number}, which does not exist in the document"
     end
   end
+
+  # Only ever written when the caller said something. Omitting the key leaves
+  # the choice to the reader's viewer, which is a different instruction from
+  # writing false.
+  defp new_window_entry(%{new_window: true}), do: " /NewWindow true"
+  defp new_window_entry(%{new_window: false}), do: " /NewWindow false"
+  defp new_window_entry(_annotation), do: ""
 
   defp resource_dictionary(font_resources, xobject_resources, gs_resources, shading_resources) do
     parts =

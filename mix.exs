@@ -1,7 +1,7 @@
 defmodule Tincture.MixProject do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.3.2"
   @source_url "https://github.com/thatsme/tincture"
 
   def project do
@@ -88,7 +88,8 @@ defmodule Tincture.MixProject do
         "run examples/compliant.exs",
         "run examples/archival.exs",
         "run examples/signed.exs",
-        "run examples/telemetry.exs"
+        "run examples/telemetry.exs",
+        "run examples/remote_links.exs"
       ],
       check: [
         "format --check-formatted",

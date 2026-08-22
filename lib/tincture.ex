@@ -162,8 +162,52 @@ defmodule Tincture do
   @doc """
   Add a clickable link over a rectangular region of the current page.
 
-  `target` is either a URL string (or `{:url, url}`) for an external link, or
-  `{:page, page_number}` for an internal cross-reference.
+  `target` is one of:
+
+    * a URL string, or `{:url, url}` — an external link;
+    * `{:page, page_number}` — a cross-reference within this document;
+    * `{:file, path}` — another PDF file, opened at its first page;
+    * `{:file, path, page_number}` — another PDF file, at a given page.
+
+  Page numbers count from 1 everywhere, including into a remote file:
+  `{:file, "report.pdf", 13}` means the thirteenth page.
+
+  ## Linking to another file
+
+  `path` is relative to the document that carries the link, which is how a set
+  of documents that ship together refer to each other:
+
+      Main.pdf
+      Attached documents/
+          Secondary-1.pdf
+
+      Tincture.link(pdf, 72, 700, 200, 14,
+        {:file, "Attached documents/Secondary-1.pdf", 13},
+        contents: "appendix B, page 13"
+      )
+
+  Backslashes are converted to forward slashes, since a PDF file specification
+  uses them regardless of the platform that wrote the file. Absolute paths and
+  non-ASCII paths are refused: the first names a location on your machine
+  rather than the reader's, and the second cannot be carried portably by the
+  string form this uses.
+
+  Two limitations worth knowing before you rely on this.
+
+  **The page number is a promise about a file Tincture never reads.** Nothing
+  can check it — not the path, not the page count. If the target is
+  regenerated with an extra page near the front, every link into it is
+  silently off by one, in a document you may no longer control. Named
+  destinations would survive that; they are not implemented. Tincture also
+  cannot detect a missing or renamed target, and what a viewer does with a
+  file specification that resolves to nothing is not specified here — it has
+  not been observed.
+
+  **Viewer support is not universal.** Desktop readers follow these links;
+  browser-embedded viewers generally do not, because they refuse local-file
+  navigation as a matter of policy. Verified during development: SumatraPDF
+  follows them, Microsoft Edge renders the link but does nothing on click, and
+  Firefox's viewer does not act on them.
 
   Coordinates are in PDF user space, with the origin at the bottom-left of the
   page — the same space `text_at/4` and `rectangle/5` use. The rectangle is
@@ -192,6 +236,10 @@ defmodule Tincture do
     * `:border` — `:none` (default) or `{horizontal, vertical, width}`. The
       default suppresses the black rectangle most viewers would otherwise draw
       around every link.
+    * `:new_window` — `true` or `false`, for a link into another file. Both
+      write `/NewWindow`; **omitting the option omits the key**, which is a
+      different instruction — it leaves the choice to the reader's viewer
+      rather than overriding a preference they may have set.
     * `:contents` — the link's alternate description, written as `/Contents`.
       A reader that reaches the annotation has nothing else to announce, so
       say where the link goes: `"the 2026 tariff schedule"`, not `"link"`.
@@ -209,7 +257,7 @@ defmodule Tincture do
       Tincture.link(pdf, 72, 660, 120, 14, "https://hex.pm", page: 1)
 
   """
-  @spec link(PDF.t(), number(), number(), number(), number(), PDF.link_target() | String.t()) ::
+  @spec link(PDF.t(), number(), number(), number(), number(), PDF.link_target()) ::
           PDF.t()
   def link(%PDF{} = pdf, x, y, width, height, target) do
     link(pdf, x, y, width, height, target, [])
@@ -221,7 +269,7 @@ defmodule Tincture do
           number(),
           number(),
           number(),
-          PDF.link_target() | String.t(),
+          PDF.link_target(),
           keyword()
         ) :: PDF.t()
   def link(%PDF{} = pdf, x, y, width, height, target, opts)
@@ -240,6 +288,11 @@ defmodule Tincture do
       change is wrapped in a save/restore of the graphics state, so it does not
       leak into later drawing. Defaults to leaving the colour alone, so links
       are not silently recoloured.
+
+  A remote link is still a link, so a tagged document needs the same two things
+  from it: create it inside `tag(:link, ...)` and give it `:contents`.
+  "Secondary-1.pdf" tells a reader nothing, and the target is a document they
+  cannot see, so the description matters more here rather than less.
 
   `:contents` additionally accepts `:text`, which reuses the drawn text as the
   alternate description. It is opt-in and deliberately not the default: a
@@ -264,7 +317,7 @@ defmodule Tincture do
       Tincture.text_link(pdf, 72, 680, "Hex", "https://hex.pm", color: {0.0, 0.3, 0.8})
 
   """
-  @spec text_link(PDF.t(), number(), number(), String.t(), PDF.link_target() | String.t()) ::
+  @spec text_link(PDF.t(), number(), number(), String.t(), PDF.link_target()) ::
           PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target) do
     text_link(pdf, x, y, text, target, [])
@@ -275,7 +328,7 @@ defmodule Tincture do
           number(),
           number(),
           String.t(),
-          PDF.link_target() | String.t(),
+          PDF.link_target(),
           keyword()
         ) :: PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target, opts)

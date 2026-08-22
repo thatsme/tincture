@@ -50,6 +50,8 @@ gates, but a failure discovered after tagging costs a version number.
        verapdf --flavour 2u  examples/output/archival.pdf
        verapdf --flavour 2a  examples/output/archival.pdf
        verapdf --flavour ua1 examples/output/archival.pdf
+       verapdf --flavour ua1 "examples/output/linked/Main-report.pdf"
+       verapdf --flavour ua1 "examples/output/linked/Attached documents/Appendix-A.pdf"
 
    All must report `PASS`. CI runs the same five and uploads the reports, so
    this is a pre-flight rather than the only run — but veraPDF belongs on the

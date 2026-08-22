@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-08-22
+
+### Added
+
+- **Links into another PDF file.** `{:file, path}` opens the target document,
+  `{:file, path, page_number}` opens it at a page, on both `link/7` and
+  `text_link/6`. This is a `/GoToR` action: `path` is a file specification
+  resolved by the reader against the document that carries the link, so a set
+  of documents that ship together can refer to each other and still resolve
+  after being moved or zipped.
+
+      Tincture.link(pdf, 72, 700, 200, 14,
+        {:file, "Attached documents/Appendix-A.pdf", 3},
+        contents: "Appendix A, page 3: calibration procedure"
+      )
+
+  Page numbers count from 1 everywhere, including into a remote file. The
+  1-based to 0-based conversion happens once, at serialisation: page 13 writes
+  `/D [12 /Fit]`. Confirmed in a viewer before the code was written — a
+  hand-written `/D [12 /Fit]` opens the thirteenth page in SumatraPDF — because
+  an off-by-one here lands in a document the author no longer controls,
+  pointing at the wrong page rather than failing visibly.
+
+  Everything checkable is checked when the link is created, since a file target
+  resolves nothing and nothing downstream can catch a mistake. Absolute paths
+  are refused, because they name a location on the machine that wrote the file.
+  Non-ASCII paths are refused, because the string form cannot carry them
+  portably. Backslashes become forward slashes, which is the one silent
+  transformation and earns it: a path that works on the author's machine and
+  fails on the reader's is the failure mode worth designing out.
+
+  Two limitations, stated here because they decide whether the feature suits
+  you. **The page number is a promise about a file Tincture never reads** —
+  nothing checks it, and if the target gains a page near the front, every link
+  into it is silently off by one. Named destinations would survive that; the
+  `{:file, path, {:named, name}}` shape is reserved and not implemented, so it
+  can land later as a pure addition. **Tincture also cannot detect a missing or
+  renamed target**, and what a viewer does with a file specification that
+  resolves to nothing has not been observed here.
+
+  Viewer support is not universal. Desktop readers follow these links; browser-
+  embedded viewers generally do not, refusing local-file navigation as policy.
+  Measured while building this: SumatraPDF follows them, Microsoft Edge renders
+  the link and does nothing on click, Firefox's viewer does not act on them.
+
+- **`:new_window` on `link/7` and `text_link/6`.** A genuine tri-state: `true`
+  and `false` both write `/NewWindow`, and omitting the option omits the key.
+  That is a different instruction, not a shorthand for `false` — it leaves the
+  choice to the reader's viewer instead of overriding a preference they may
+  have set. With the key absent, SumatraPDF opened a new tab of its own accord.
+
+- **A two-document example.** `examples/remote_links.exs` writes a report and a
+  linked appendix beside it, the first example that produces more than one
+  file. Both are tagged and both pass PDF/UA-1: a main document that is
+  accessible and an appendix that is not makes a set half-readable, with no way
+  for a reader to tell before opening it.
+
+### Changed
+
+- **`archival.pdf` carries a remote link.** ISO 19005-2 clause 6.5.1 lists the
+  actions PDF/A permits and `GoToR` is on it — the rule is an allowlist,
+  confirmed from veraPDF's own profile XML and then against real bytes. That
+  only means something if a validated document actually contains one, so now
+  one does. `PDF.Archival` gains no rule; the standard permits this.
+
+- **CI validates the linked pair too.** Eight claims now rather than six.
+
 ## [0.3.1] — 2026-08-22
 
 ### Fixed
@@ -503,7 +570,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/thatsme/tincture/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/thatsme/tincture/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thatsme/tincture/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thatsme/tincture/compare/v0.1.0...v0.2.0

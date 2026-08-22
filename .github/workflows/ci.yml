@@ -203,7 +203,8 @@ jobs:
           status=0
           while read -r flavour document; do
             pdf="examples/output/$document.pdf"
-            "$verapdf" --flavour "$flavour" --format mrr "$pdf" > "verapdf-reports/$document-$flavour.xml"
+            report="verapdf-reports/$(echo "$document" | tr '/ ' '__')-$flavour.xml"
+            "$verapdf" --flavour "$flavour" --format mrr "$pdf" > "$report"
 
             if "$verapdf" --flavour "$flavour" --format text "$pdf" | grep -q '^PASS'; then
               echo "PASS  $document  $flavour"
@@ -218,6 +219,8 @@ jobs:
           2u archival
           2a archival
           ua1 archival
+          ua1 linked/Main-report
+          ua1 linked/Attached documents/Appendix-A
           CLAIMS
 
           exit $status

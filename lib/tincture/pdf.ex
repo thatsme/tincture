@@ -81,7 +81,12 @@ defmodule Tincture.PDF do
   @type end_marked_content_op :: {:end_marked_content}
   @type begin_artifact_op :: {:begin_artifact}
   @type bookmark :: %{required(:title) => String.t(), required(:page_number) => pos_integer()}
-  @type link_target :: {:url, String.t()} | {:page, pos_integer()}
+  @type link_target ::
+          {:url, String.t()}
+          | {:page, pos_integer()}
+          | {:file, String.t()}
+          | {:file, String.t(), pos_integer()}
+          | String.t()
   @type annotation_border :: :none | {number(), number(), number()}
   @type annotation ::
           %{
@@ -90,7 +95,8 @@ defmodule Tincture.PDF do
             required(:rect) => {number(), number(), number(), number()},
             required(:target) => link_target(),
             required(:border) => annotation_border(),
-            required(:contents) => String.t() | nil
+            required(:contents) => String.t() | nil,
+            required(:new_window) => boolean() | nil
           }
   @type form_field_type :: :text | :checkbox | :choice | :radio | :push_button | :signature
   @typedoc """
@@ -711,7 +717,8 @@ defmodule Tincture.PDF do
       rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
       target: normalize_link_target(pdf, target),
       border: normalize_annotation_border(Keyword.get(opts, :border, :none)),
-      contents: normalize_link_contents(Keyword.get(opts, :contents))
+      contents: normalize_link_contents(Keyword.get(opts, :contents)),
+      new_window: normalize_new_window(Keyword.get(opts, :new_window))
     }
 
     page_number = Keyword.get(opts, :page, pdf.current_page)
@@ -753,14 +760,90 @@ defmodule Tincture.PDF do
     {:page, page_number}
   end
 
+  # A file target resolves nothing, ever - Tincture never reads the document it
+  # points at - so unlike {:page, n}, everything checkable is checked now.
+  # Nothing downstream will catch a mistake here.
+  defp normalize_link_target(%__MODULE__{}, {:file, path}) when is_binary(path) do
+    {:file, normalize_link_path(path)}
+  end
+
+  defp normalize_link_target(%__MODULE__{}, {:file, path, page_number})
+       when is_binary(path) and is_integer(page_number) and page_number > 0 do
+    {:file, normalize_link_path(path), page_number}
+  end
+
+  defp normalize_link_target(%__MODULE__{}, {:file, path, page_number}) when is_binary(path) do
+    raise ArgumentError,
+          "a remote link's page must be a positive integer, counting from 1, got: " <>
+            "#{inspect(page_number)}. Tincture cannot read the target document, so this " <>
+            "is the only check there will ever be"
+  end
+
   defp normalize_link_target(%__MODULE__{} = pdf, url) when is_binary(url) do
     normalize_link_target(pdf, {:url, url})
   end
 
   defp normalize_link_target(%__MODULE__{}, other) do
     raise ArgumentError,
-          "link target must be a URL string, {:url, url}, or {:page, page_number}, got: " <>
-            inspect(other)
+          "link target must be a URL string, {:url, url}, {:page, page_number}, " <>
+            "{:file, path} or {:file, path, page_number}, got: " <> inspect(other)
+  end
+
+  # A path that works on the author's machine and silently fails on the
+  # reader's is the failure mode worth designing out, so this is strict about
+  # everything except the separator.
+  defp normalize_link_path(path) do
+    path
+    |> reject_blank_path()
+    |> reject_absolute_path()
+    |> reject_non_ascii_path()
+    # The one silent transformation, and it earns its place: a PDF file
+    # specification uses forward slashes regardless of the platform that wrote
+    # it, and a backslash reaches the reader as a literal character.
+    |> String.replace("\\", "/")
+  end
+
+  defp reject_blank_path(path) do
+    if String.trim(path) == "" do
+      raise ArgumentError, "a remote link needs a path to the target document"
+    end
+
+    path
+  end
+
+  defp reject_absolute_path(path) do
+    if String.starts_with?(path, "/") or String.starts_with?(path, "\\") or
+         Regex.match?(~r/^[A-Za-z]:/, path) do
+      raise ArgumentError,
+            "a remote link's path must be relative to the document that carries it, got: " <>
+              "#{inspect(path)}. An absolute path names a location on the machine that " <>
+              "wrote the file, and will not resolve on the reader's"
+    end
+
+    path
+  end
+
+  defp reject_non_ascii_path(path) do
+    if String.to_charlist(path) |> Enum.any?(&(&1 > 127)) do
+      raise ArgumentError,
+            "a remote link's path must be ASCII, got: #{inspect(path)}. The string form of " <>
+              "a PDF file specification cannot carry anything else portably, and the " <>
+              "/Filespec dictionary that could is not implemented"
+    end
+
+    path
+  end
+
+  # A genuine tri-state. true and false both write /NewWindow; omitting the
+  # option omits the key, which is a different instruction - it leaves the
+  # choice to the reader's own preference rather than overriding it.
+  defp normalize_new_window(nil), do: nil
+  defp normalize_new_window(value) when is_boolean(value), do: value
+
+  defp normalize_new_window(other) do
+    raise ArgumentError,
+          "link :new_window must be true or false, got: #{inspect(other)}. Omit the option " <>
+            "to leave the choice to the reader's viewer"
   end
 
   # An explicit /ID, for a caller who needs to reference an element from

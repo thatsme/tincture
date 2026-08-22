@@ -106,7 +106,11 @@ defmodule Examples.Fonts do
   """
   def output_path(filename) do
     dir = Path.join(__DIR__, "../output") |> Path.expand()
-    File.mkdir_p!(dir)
-    Path.join(dir, filename)
+    path = Path.join(dir, filename)
+    # The parent rather than the output directory itself, so an example that
+    # writes a tree - remote_links.exs writes a main document and a folder of
+    # attachments beside it - does not have to create directories by hand.
+    File.mkdir_p!(Path.dirname(path))
+    path
   end
 end
