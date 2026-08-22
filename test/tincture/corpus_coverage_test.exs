@@ -27,17 +27,14 @@ defmodule Tincture.CorpusCoverageTest do
   # covered — delete it — or a new type arrived uncovered, in which case adding
   # it is the cheap part and knowing what it owes is the point.
   #
-  # Two are known defects rather than merely unexercised:
-  #
-  #   * `Note` fails ISO 14289-1 clause 7.9 outright. A Note element requires
-  #     an /ID entry and Tincture writes none. Fixed in 0.3.1.
-  #   * `Form` does not exist in the vocabulary at all, so a widget annotation
-  #     cannot be nested in one as clause 7.18.4 requires. Form fields are
-  #     therefore not usable in a PDF/UA document.
+  # One is a known defect rather than merely unexercised: `Form` does not exist
+  # in the vocabulary at all, so a widget annotation cannot be nested in one as
+  # clause 7.18.4 requires, and form fields are not usable in a PDF/UA
+  # document. It has no entry below because it is not a type Tincture emits.
   #
   # `H3` through `H6` are the quiet ones: heading levels the corpus stops short
   # of, so clause 7.4's nesting rules have only ever seen two levels deep.
-  @never_validated ~w(Art BlockQuote Code Div Formula H H3 H4 H5 H6 Index Note
+  @never_validated ~w(Art BlockQuote Code Div Formula H H3 H4 H5 H6 Index
                       Part Quote Reference Span TFoot TOC TOCI)
 
   defp emitted_structure_types do

@@ -271,6 +271,7 @@ defmodule Tincture.PDF do
       |> put_structure_option(:lang, Keyword.get(opts, :lang))
       |> put_structure_option(:title, Keyword.get(opts, :title))
       |> put_structure_option(:scope, normalize_scope(tag, Keyword.get(opts, :scope)))
+      |> put_structure_option(:id, normalize_structure_id(Keyword.get(opts, :id)))
 
     %__MODULE__{pdf | structure_stack: [element | pdf.structure_stack]}
   end
@@ -760,6 +761,24 @@ defmodule Tincture.PDF do
     raise ArgumentError,
           "link target must be a URL string, {:url, url}, or {:page, page_number}, got: " <>
             inspect(other)
+  end
+
+  # An explicit /ID, for a caller who needs to reference an element from
+  # outside the document. Generated automatically otherwise, since /ID is a
+  # machine identifier with no semantic content - unlike a link's :contents,
+  # which is human-meaningful and so cannot be invented.
+  defp normalize_structure_id(nil), do: nil
+
+  defp normalize_structure_id(id) when is_binary(id) do
+    if String.trim(id) == "" do
+      raise ArgumentError, "structure :id must not be blank"
+    end
+
+    id
+  end
+
+  defp normalize_structure_id(other) do
+    raise ArgumentError, "structure :id must be a string, got: #{inspect(other)}"
   end
 
   defp normalize_link_contents(nil), do: nil

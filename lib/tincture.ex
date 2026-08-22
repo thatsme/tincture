@@ -1296,6 +1296,10 @@ defmodule Tincture do
     * `:title` — a human-readable title for the element.
     * `:scope` — `:row`, `:column` or `:both`. Only valid on `:th`, and what
       tells a reader which cells a header governs.
+    * `:id` — an identifier for the element, registered in the document's
+      `/IDTree`. Only `:note` carries one, and one is generated automatically,
+      so this is for a caller who needs a stable name to reference from
+      outside the document. Must be unique within the document.
 
   ## What this does and does not give you
 

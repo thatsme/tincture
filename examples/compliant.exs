@@ -238,16 +238,33 @@ pdf =
       #     something to announce when it does (clauses 7.18.1 and 7.18.5,
       #     test 2). The description says where the link goes; repeating the
       #     visible text would satisfy the checker and help nobody.
-      Tincture.tag(pdf, :link, fn pdf ->
+      pdf =
+        Tincture.tag(pdf, :link, fn pdf ->
+          pdf
+          |> Tincture.set_fill_color(accent)
+          |> Tincture.set_font(sans, 9)
+          |> Tincture.text_link(
+            margin,
+            table_bottom - 190,
+            "the PDF/UA specification",
+            {:url, "https://www.iso.org/standard/64599.html"},
+            contents: "ISO 14289-1, the PDF/UA specification, at iso.org"
+          )
+        end)
+
+      # (9) A note carries an /ID so that something can refer to it, and the
+      #     identifier resolves through /IDTree on the structure tree root.
+      #     Clause 7.9 requires the /ID and requires it to be unique; Tincture
+      #     generates both, since an identifier is a machine detail rather than
+      #     something an author should have to invent.
+      Tincture.tag(pdf, :note, fn pdf ->
         pdf
-        |> Tincture.set_fill_color(accent)
-        |> Tincture.set_font(sans, 9)
-        |> Tincture.text_link(
+        |> Tincture.set_fill_color(muted)
+        |> Tincture.set_font(sans, 8)
+        |> Tincture.text_at(
           margin,
-          table_bottom - 190,
-          "the PDF/UA specification",
-          {:url, "https://www.iso.org/standard/64599.html"},
-          contents: "ISO 14289-1, the PDF/UA specification, at iso.org"
+          table_bottom - 212,
+          "Note — clause numbers here are read from veraPDF's validation profiles."
         )
       end)
     end)
@@ -274,6 +291,7 @@ Checklist, and where each is satisfied:
   list structure         :list / :list_item / :label        #{if binary =~ "/S /LBody", do: "ok", else: "MISSING"}
   link in a :link element  /OBJR                            #{if binary =~ "/OBJR", do: "ok", else: "MISSING"}
   link alternate text    :contents                          #{if binary =~ "/Contents (", do: "ok", else: "MISSING"}
+  note identifier        /ID + /IDTree                     #{if binary =~ "/IDTree", do: "ok", else: "MISSING"}
 
 Verify independently:
 

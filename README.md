@@ -63,24 +63,23 @@ asking — so here is the answer, kept honest by a test that fails when it drift
 
 ### What the validated documents actually exercise
 
-Of the 37 structure types Tincture can emit, the validated corpus emits **18**:
+Of the 37 structure types Tincture can emit, the validated corpus emits **19**:
 
-`Caption` `Document` `Figure` `H1` `H2` `L` `LBody` `LI` `Lbl` `Link` `P`
-`Sect` `TBody` `TD` `TH` `THead` `TR` `Table`
+`Caption` `Document` `Figure` `H1` `H2` `L` `LBody` `LI` `Lbl` `Link` `Note`
+`P` `Sect` `TBody` `TD` `TH` `THead` `TR` `Table`
 
-The other **19** have never been through a validator. Their PDF/UA rules have
+The other **18** have never been through a validator. Their PDF/UA rules have
 never run against Tincture's output, so a clean run says nothing about them:
 
 `Art` `BlockQuote` `Code` `Div` `Formula` `H` `H3` `H4` `H5` `H6` `Index`
-`Note` `Part` `Quote` `Reference` `Span` `TFoot` `TOC` `TOCI`
+`Part` `Quote` `Reference` `Span` `TFoot` `TOC` `TOCI`
 
-Two of those are known to be broken rather than merely unexercised, and both
-are worth knowing before you rely on them:
+One construct is known to be broken rather than merely unexercised, and is
+worth knowing before you rely on it:
 
 | Construct | Status |
 |---|---|
-| `:note` | **Fails PDF/UA.** ISO 14289-1 clause 7.9 requires a `Note` element to carry an `/ID`; Tincture writes none. Confirmed against veraPDF. Fixed in 0.3.1. |
-| Form fields | **Not usable in a tagged document.** Clause 7.18.4 requires a widget annotation to be nested in a `Form` structure element, and Tincture has no such tag. Form fields work; they cannot be made PDF/UA conformant. |
+| Form fields | **Not usable in a tagged document.** ISO 14289-1 clause 7.18.4 requires a widget annotation to be nested in a `Form` structure element, and Tincture has no such tag. Form fields work; they cannot be made PDF/UA conformant. |
 
 `H3`–`H6` are unexercised rather than known-bad: clause 7.4's heading-nesting
 rules have only ever been run two levels deep.
@@ -99,7 +98,7 @@ shrink.
 is mature and the standards output is independently verified, but the API under
 this name is new and may still move before 1.0.
 
-1,288 tests · 89.5% coverage · Credo `--strict` clean · Dialyzer clean · CI on
+1,298 tests · 89.5% coverage · Credo `--strict` clean · Dialyzer clean · CI on
 Elixir 1.16–1.19.
 
 ## What it does

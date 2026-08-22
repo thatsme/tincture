@@ -64,7 +64,7 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,288 tests, 89.5%
+signatures, telemetry. No required runtime dependencies. 1,298 tests, 89.5%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -208,8 +208,10 @@ What remains:
   never been through a validator. The README lists them, and a test fails when
   the set drifts. Closing the gap is ongoing work — the audit was the part that
   had never been done.
-- **`:note` has no `/ID`, and fails clause 7.9.** Confirmed against veraPDF.
-  Next release.
+- ~~**`:note` has no `/ID`, and fails clause 7.9.**~~ **Done** in 0.3.1. The
+  identifier is generated and resolves through a new `/IDTree` on the structure
+  tree root, which no veraPDF profile checks — an `/ID` with no tree is
+  unusable rather than merely unverified.
 - **Form fields cannot be made PDF/UA conformant.** Clause 7.18.4 requires a
   widget annotation to be nested in a `Form` structure element, and there is no
   such tag. The `/OBJR` machinery links now use is the same machinery this

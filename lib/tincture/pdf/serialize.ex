@@ -465,9 +465,15 @@ defmodule Tincture.PDF.Serialize do
   defp build_structure_objects(pdf, page_object_refs, page_numbers, tagged, start_id) do
     root_id = start_id
     parent_tree_id = start_id + 1
-    first_element_id = start_id + 2
 
     flattened = Structure.flatten(pdf.structure_tree)
+    element_ids = structure_element_ids(flattened)
+
+    # The ID tree is emitted only when something is registered in it, so a
+    # document with no Note elements serialises exactly as it did before.
+    id_tree_id = if element_ids == %{}, do: nil, else: start_id + 2
+    first_element_id = if id_tree_id, do: start_id + 3, else: start_id + 2
+
     ids = flattened |> Enum.with_index(first_element_id) |> Map.new(fn {el, id} -> {el, id} end)
 
     # Depth-first, parents first, so a parent's kids are already numbered.
@@ -477,17 +483,109 @@ defmodule Tincture.PDF.Serialize do
 
     element_objects =
       Enum.map(flattened, fn element ->
-        structure_element_body(element, ids, root_id, parents, page_object_refs, tagged)
+        structure_element_body(
+          element,
+          ids,
+          root_id,
+          parents,
+          page_object_refs,
+          tagged,
+          element_ids
+        )
       end)
 
     root_kids =
       Enum.map_join(pdf.structure_tree, " ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
 
+    id_tree_entry = if id_tree_id, do: " /IDTree #{id_tree_id} 0 R", else: ""
+
     root =
       "<< /Type /StructTreeRoot /K [#{root_kids}] /ParentTree #{parent_tree_id} 0 R" <>
+        id_tree_entry <>
         " /ParentTreeNextKey #{length(page_numbers) + map_size(tagged)} >>"
 
-    {root_id, [root, parent_tree_body(flattened, ids, page_numbers, tagged) | element_objects]}
+    id_tree_objects = if id_tree_id, do: [id_tree_body(element_ids, ids)], else: []
+
+    {root_id,
+     [root, parent_tree_body(flattened, ids, page_numbers, tagged)] ++
+       id_tree_objects ++ element_objects}
+  end
+
+  defp structure_id_entry(element, element_ids) do
+    case Map.fetch(element_ids, element) do
+      {:ok, id} -> " /ID #{Object.format_text(id)}"
+      :error -> ""
+    end
+  end
+
+  # A structure element's /ID is a key into /IDTree, the name tree on
+  # /StructTreeRoot that ISO 32000-1 makes the mechanism for dereferencing it.
+  # An /ID with no tree to resolve it through is not merely unverified, it is
+  # unusable - and no veraPDF profile carries a rule about the tree at all, so
+  # nothing would have said so. Clause 7.9's two rules look only at the element:
+  # that an /ID is present, and that it is unique.
+  #
+  # The mechanism is general - any structure element may carry an /ID - and is
+  # applied narrowly. Only Note elements register one, because nothing in
+  # Tincture emits a reference to a structure element by ID, and an /ID on every
+  # element would grow every tagged document to no purpose. Extending it later
+  # is a call site, not a redesign.
+  defp registers_id?(%{tag: :note}), do: true
+  defp registers_id?(_element), do: false
+
+  defp structure_element_ids(flattened) do
+    registered = Enum.filter(flattened, &registers_id?/1)
+
+    # /Names is ordered by byte comparison, not numerically, so "note10" sorts
+    # between "note1" and "note2". Zero-padding to a fixed width makes the two
+    # orders agree, and the array is sorted by the string as well, so neither
+    # is load-bearing alone. A misordered name tree fails silently: most
+    # viewers scan linearly and find the key regardless.
+    width = registered |> length() |> Integer.digits() |> length() |> max(4)
+
+    {pairs, _next} =
+      Enum.map_reduce(registered, 1, fn element, counter ->
+        case element[:id] do
+          nil ->
+            generated = "note" <> String.pad_leading(Integer.to_string(counter), width, "0")
+            {{element, generated}, counter + 1}
+
+          explicit ->
+            {{element, explicit}, counter}
+        end
+      end)
+
+    element_ids = Map.new(pairs)
+    assert_unique_ids!(element_ids)
+    element_ids
+  end
+
+  # ISO 14289-1 clause 7.9 test 2: each Note shall have a unique ID. Only an
+  # explicit :id can collide, since generated ones count upwards.
+  defp assert_unique_ids!(element_ids) do
+    values = Map.values(element_ids)
+
+    case values -- Enum.uniq(values) do
+      [] ->
+        :ok
+
+      duplicates ->
+        raise ArgumentError,
+              "structure element ids must be unique within a document, repeated: " <>
+                inspect(Enum.uniq(duplicates))
+    end
+  end
+
+  defp id_tree_body(element_ids, ids) do
+    names =
+      element_ids
+      |> Enum.map(fn {element, id} -> {id, Map.fetch!(ids, element)} end)
+      |> Enum.sort_by(fn {id, _object_id} -> id end)
+      |> Enum.map_join(" ", fn {id, object_id} ->
+        "#{Object.format_text(id)} #{object_id} 0 R"
+      end)
+
+    "<< /Names [#{names}] >>"
   end
 
   # One number tree, two kinds of entry. A page's /StructParents key maps to an
@@ -531,7 +629,15 @@ defmodule Tincture.PDF.Serialize do
     "<< /Nums [#{nums}] >>"
   end
 
-  defp structure_element_body(element, ids, root_id, parents, page_object_refs, tagged) do
+  defp structure_element_body(
+         element,
+         ids,
+         root_id,
+         parents,
+         page_object_refs,
+         tagged,
+         element_ids
+       ) do
     parent_id =
       case Map.get(parents, element) do
         nil -> root_id
@@ -562,6 +668,7 @@ defmodule Tincture.PDF.Serialize do
     "<< /Type /StructElem /S /#{Structure.tag_name(element.tag)}" <>
       " /P #{parent_id} 0 R /Pg #{page_ref} 0 R" <>
       kids_entry <>
+      structure_id_entry(element, element_ids) <>
       structure_text_entry(" /Alt ", element[:alt]) <>
       structure_text_entry(" /ActualText ", element[:actual_text]) <>
       structure_text_entry(" /T ", element[:title]) <>

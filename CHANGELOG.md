@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-08-22
+
+### Fixed
+
+- **A `:note` carries an `/ID`, resolvable through `/IDTree`.** ISO 14289-1
+  clause 7.9 requires a Note element to have an `/ID`, and requires it to be
+  unique. Tincture wrote neither, so a tagged document containing a `:note`
+  failed PDF/UA — measured with veraPDF 1.30.2 against 0.3.0, not inferred from
+  the clause.
+
+  The identifier is generated: sequential, zero-padded, derived from position
+  in the structure tree, so output stays byte-reproducible. An `:id` option on
+  `tag/4` overrides it for a caller who needs a stable external reference, and
+  a collision raises rather than shipping a document that breaks test 2.
+
+  Generating it is the right call here and the opposite of the `:contents`
+  decision in 0.3.0, which is deliberate: `/Contents` is human-meaningful text
+  a machine cannot invent, so auto-filling it would manufacture conformance
+  while telling a screen-reader user nothing. An `/ID` carries no meaning.
+  Requiring authors to invent unique strings would produce collisions and
+  nothing else.
+
+  `/StructTreeRoot` now also emits an `/IDTree`. ISO 32000-1 makes that name
+  tree the mechanism by which an `/ID` is dereferenced, so an `/ID` without one
+  is unusable rather than merely unverified — and no veraPDF profile carries a
+  rule about the tree at all, so nothing would have reported it. Its `/Names`
+  array is ordered by byte comparison, which a conforming consumer is entitled
+  to binary-search; the identifiers are zero-padded so that lexical and
+  numeric order agree past `note0009`.
+
+  The tree is emitted only when something registers an identifier, so a
+  document with no `:note` serialises exactly as it did under 0.3.0.
+
+  `compliant.pdf` now carries a tagged note, so clause 7.9 is exercised on
+  every release rather than passing for want of anything to match.
+
 ## [0.3.0] — 2026-08-22
 
 ### Added
@@ -467,7 +503,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/thatsme/tincture/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thatsme/tincture/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thatsme/tincture/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thatsme/tincture/releases/tag/v0.1.0
