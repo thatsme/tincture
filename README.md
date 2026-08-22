@@ -46,6 +46,13 @@ not, including every content stream declaring a `/Length` one byte too large,
 and `/Scope` on table headers being written somewhere readers ignore. Those are
 recorded in [CHANGELOG.md](CHANGELOG.md).
 
+A clean run narrows the question rather than closing it. Several Matterhorn
+checkpoints — including ones covering link annotations — are human-verification
+only, and veraPDF reports nothing about them. Tincture passed 106/106 for two
+releases while writing `/Link` structure elements that never referenced their
+annotation, which no machine check was looking for. Read the table as "the
+machine-checkable rules hold", not "this document is conformant".
+
 ## Install
 
 ```elixir

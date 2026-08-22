@@ -32,20 +32,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Untagged pages do not carry it — there is no structure to follow, and
   emitting it always would have rewritten every existing document for nothing.
 
-- **`Tincture.pdf_ua_violations/1`, and export refuses a tagged document that
-  breaks PDF/UA.** Tagging is a claim: the catalog carries `/MarkInfo` and the
-  XMP carries `pdfuaid:part`, and a reader that finds structure trusts it. A
-  `:figure` with no alternative text is then worse than an untagged one — the
-  reader announces an element it cannot describe, and the person using it
-  learns only that something is there.
+- **`Tincture.pdf_ua_violations/1`.** Tagging is a claim: the catalog carries
+  `/MarkInfo` and the XMP carries `pdfuaid:part`, and a reader that finds
+  structure trusts it. This lists every PDF/UA violation Tincture can detect,
+  without exporting — a `:figure` with no alternative text, a link annotation
+  outside the structure tree, a link nested in an element other than `:link`.
+  See `Tincture.PDF.Accessibility`.
 
-  So the same treatment as a false PDF/A claim: `export/2` raises, naming each
-  violation and its clause, and `enforce: false` exports anyway with a warning.
-  See `Tincture.PDF.Accessibility`. Only the figure rule is checked so far;
-  whether an alternative text is *accurate* is not something a library can
-  settle.
+  Only what is structural and therefore visible to a library. Whether an
+  alternative text is *accurate*, or whether a reading order matches intent, is
+  not something this can settle for you.
 
 ### Changed
+
+- **`export/2` refuses a tagged document that breaks a PDF/UA rule Tincture can
+  see.** The same treatment a false PDF/A claim already got: it raises, naming
+  each violation and its clause, and `enforce: false` exports anyway with a
+  warning.
+
+  Three rules are checked, and all three previously wrote without complaint, so
+  a document that exported under 0.2.0 may now raise:
+
+  - a `:figure` with no alternative text. The reader announces an element it
+    cannot describe, and the person using it learns only that something is
+    there — worse than leaving the document untagged;
+  - a link annotation outside the structure tree;
+  - a link annotation nested in an element other than `:link`.
+
+  Wrap links in `tag(:link, ...)`, pass `alt:` to a `:figure`, or pass
+  `enforce: false` to export regardless.
+
+- **A tagged link annotation is written as an indirect object.** It used to be
+  a dictionary inline in the page's `/Annots` array, which has no object number
+  for `/OBJR` to name. Object numbering therefore shifts in any tagged document
+  that contains a link — relevant only if you diff, checksum or byte-pin your
+  output.
+
+  An untagged link is still written inline, deliberately: a fix for tagged
+  documents should not renumber objects for people it does not apply to.
+  Untagged output is unchanged byte for byte, confirmed across all eight
+  examples.
 
 - **The examples embed a vendored font, so their output is reproducible.**
   An embedded font goes into the file byte for byte, so the committed PDFs
@@ -63,6 +89,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   These are **not** in the Hex package: `files:` in `mix.exs` excludes
   `examples/` entirely, and Tincture still ships no font programs. Nothing here
   constrains what you embed in your own documents.
+
+### Fixed
+
+- **A `/Link` structure element now references its annotation.** Three things
+  PDF/UA-1 requires, and that no tagged document Tincture has written — 0.1.0
+  and 0.2.0 included — had:
+
+  - the `/Link` element's `/K` now holds `<< /Type /OBJR /Obj n 0 R >>`, naming
+    the annotation as a child of the element;
+  - the link annotation now carries `/StructParent`;
+  - `/ParentTree` now resolves both directions — an annotation key to its
+    structure element, a page key to its array of marked-content parents.
+
+  `/StructParent` and a page's `/StructParents` index the same number tree, so
+  the keys come from one counter: pages take `0..n-1`, annotations continue
+  from `n`. A link created inside `tag(:link, ...)` is associated
+  automatically, so no call site changes.
+
+  Those three things are what is fixed. This is not a claim that a tagged link
+  is now conformant in every respect — whether a link annotation additionally
+  requires an alternate description in `/Contents` is unresolved, and is not
+  implemented.
+
+  Worth knowing how this survived two releases: veraPDF passed the broken
+  output, 106/106. Several Matterhorn link checkpoints are human-verification
+  only, so the validator had nothing to say about them. A clean
+  `--flavour ua1` run narrows the question rather than closing it.
 
 ## [0.2.0] — 2026-07-31
 

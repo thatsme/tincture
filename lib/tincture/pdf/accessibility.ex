@@ -42,7 +42,9 @@ defmodule Tincture.PDF.Accessibility do
   @spec violations(PDF.t()) :: [violation()]
   def violations(%PDF{} = pdf) do
     if PDF.tagged?(pdf) do
-      Enum.flat_map([&figures_without_alt/1], fn check -> check.(pdf) end)
+      Enum.flat_map([&figures_without_alt/1, &links_outside_structure/1], fn check ->
+        check.(pdf)
+      end)
     else
       []
     end
@@ -76,6 +78,52 @@ defmodule Tincture.PDF.Accessibility do
             "Pass alt: \"...\" to tag/4"
       }
     end)
+  end
+
+  # A link annotation is not content, so marked content cannot carry it: the
+  # structure tree has to own it outright, through a /Link element holding an
+  # /OBJR reference. A tagged document whose links sit outside the tree has
+  # promised a structure that does not describe everything on the page, and the
+  # link is unreachable to anyone navigating by structure rather than by sight.
+  defp links_outside_structure(%PDF{} = pdf) do
+    owners =
+      pdf.structure_tree
+      |> Structure.flatten()
+      |> Enum.flat_map(fn element ->
+        Enum.map(Map.get(element, :annotation_ids, []), &{&1, element})
+      end)
+      |> Map.new()
+
+    for page_number <- PDF.page_numbers(pdf),
+        annotation <- PDF.page_annotations(pdf, page_number),
+        violation = link_structure_violation(annotation, page_number, owners) do
+      violation
+    end
+  end
+
+  defp link_structure_violation(annotation, page_number, owners) do
+    case Map.fetch(owners, Map.get(annotation, :id)) do
+      {:ok, %{tag: :link}} ->
+        nil
+
+      {:ok, element} ->
+        %{
+          rule: :link_in_wrong_element,
+          clause: "7.18",
+          message:
+            "a link annotation on page #{page_number} is inside a :#{element.tag} element " <>
+              "rather than a :link one. A reader announces a link by its /Link tag"
+        }
+
+      :error ->
+        %{
+          rule: :link_outside_structure,
+          clause: "7.18",
+          message:
+            "a link annotation on page #{page_number} is not in the structure tree. " <>
+              "Create it inside tag(:link, fn ...) so a reader can reach it"
+        }
+    end
   end
 
   defp blank?(nil), do: true

@@ -174,6 +174,15 @@ defmodule Tincture do
   clickable in one call, or pair this with your own `rectangle/5` and
   `set_fill_color/2` calls.
 
+  In a tagged document, create the link inside `tag(:link, ...)`. That is what
+  puts the annotation in the structure tree, which is how a reader navigating
+  by structure reaches the link at all — PDF/UA requires it and `export/2`
+  refuses a tagged document without it:
+
+      Tincture.tag(pdf, :link, fn page ->
+        Tincture.text_link(page, 72, 700, "Elixir", "https://elixir-lang.org")
+      end)
+
   ## Options
 
     * `:page` — which page to attach the link to. Defaults to the current page.

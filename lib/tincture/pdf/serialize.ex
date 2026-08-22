@@ -81,10 +81,21 @@ defmodule Tincture.PDF.Serialize do
         signature_ref: signature_ref
       })
 
-    structure_start_id = form_fields_start_id + length(form_field_objects)
+    annotations_start_id = form_fields_start_id + length(form_field_objects)
+
+    {tagged_annotations, annotation_objects} =
+      build_link_annotation_objects(pdf, page_object_refs, page_numbers, annotations_start_id)
+
+    structure_start_id = annotations_start_id + length(annotation_objects)
 
     {struct_tree_ref, structure_objects} =
-      build_structure_objects(pdf, page_object_refs, page_numbers, structure_start_id)
+      build_structure_objects(
+        pdf,
+        page_object_refs,
+        page_numbers,
+        tagged_annotations,
+        structure_start_id
+      )
 
     output_intent_start_id = structure_start_id + length(structure_objects)
 
@@ -137,7 +148,8 @@ defmodule Tincture.PDF.Serialize do
           annotations_entry(
             PDF.page_annotations(pdf, page_number),
             widget_refs_for_page(widget_refs, page_number),
-            page_object_refs
+            page_object_refs,
+            tagged_annotations
           )
 
         # The key into the structure parent tree. It is the page index rather
@@ -187,6 +199,7 @@ defmodule Tincture.PDF.Serialize do
           outline_objects ++
           signature_objects ++
           form_field_objects ++
+          annotation_objects ++
           structure_objects ++ output_intent_objects ++ metadata_objects
     ]
 
@@ -446,9 +459,10 @@ defmodule Tincture.PDF.Serialize do
     |> String.replace(">", "&gt;")
   end
 
-  defp build_structure_objects(%PDF{structure_tree: []}, _refs, _pages, _start_id), do: {nil, []}
+  defp build_structure_objects(%PDF{structure_tree: []}, _refs, _pages, _tagged, _start_id),
+    do: {nil, []}
 
-  defp build_structure_objects(pdf, page_object_refs, page_numbers, start_id) do
+  defp build_structure_objects(pdf, page_object_refs, page_numbers, tagged, start_id) do
     root_id = start_id
     parent_tree_id = start_id + 1
     first_element_id = start_id + 2
@@ -463,7 +477,7 @@ defmodule Tincture.PDF.Serialize do
 
     element_objects =
       Enum.map(flattened, fn element ->
-        structure_element_body(element, ids, root_id, parents, page_object_refs)
+        structure_element_body(element, ids, root_id, parents, page_object_refs, tagged)
       end)
 
     root_kids =
@@ -471,37 +485,53 @@ defmodule Tincture.PDF.Serialize do
 
     root =
       "<< /Type /StructTreeRoot /K [#{root_kids}] /ParentTree #{parent_tree_id} 0 R" <>
-        " /ParentTreeNextKey #{length(page_numbers)} >>"
+        " /ParentTreeNextKey #{length(page_numbers) + map_size(tagged)} >>"
 
-    {root_id, [root, parent_tree_body(flattened, ids, page_numbers) | element_objects]}
+    {root_id, [root, parent_tree_body(flattened, ids, page_numbers, tagged) | element_objects]}
   end
 
-  # Maps each page's /StructParents key to an array indexed by MCID, so a
-  # reader that finds marked content can get back to the element owning it.
-  defp parent_tree_body(flattened, ids, page_numbers) do
+  # One number tree, two kinds of entry. A page's /StructParents key maps to an
+  # array indexed by MCID, so a reader that finds marked content can get back to
+  # the element owning it. An annotation's /StructParent key maps straight to
+  # its element, since an annotation is one object rather than a sequence.
+  defp parent_tree_body(flattened, ids, page_numbers, tagged) do
     by_page =
       flattened
       |> Enum.filter(& &1.mcid)
       |> Enum.group_by(& &1.page_number)
 
-    nums =
+    page_entries =
       page_numbers
       |> Enum.with_index()
       |> Enum.filter(fn {page_number, _idx} -> Map.has_key?(by_page, page_number) end)
-      |> Enum.map_join(" ", fn {page_number, idx} ->
+      |> Enum.map(fn {page_number, idx} ->
         refs =
           by_page
           |> Map.fetch!(page_number)
           |> Enum.sort_by(& &1.mcid)
           |> Enum.map_join(" ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
 
-        "#{idx} [#{refs}]"
+        {idx, "[#{refs}]"}
       end)
+
+    annotation_entries =
+      for element <- flattened,
+          annotation_id <- Map.get(element, :annotation_ids, []),
+          {_object_id, key} = Map.fetch!(tagged, annotation_id) do
+        {key, "#{Map.fetch!(ids, element)} 0 R"}
+      end
+
+    # /Nums has to be ascending by key: it is a number tree, and a reader is
+    # entitled to binary-search it.
+    nums =
+      (page_entries ++ annotation_entries)
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.map_join(" ", fn {key, value} -> "#{key} #{value}" end)
 
     "<< /Nums [#{nums}] >>"
   end
 
-  defp structure_element_body(element, ids, root_id, parents, page_object_refs) do
+  defp structure_element_body(element, ids, root_id, parents, page_object_refs, tagged) do
     parent_id =
       case Map.get(parents, element) do
         nil -> root_id
@@ -510,11 +540,22 @@ defmodule Tincture.PDF.Serialize do
 
     page_ref = Map.fetch!(page_object_refs, element.page_number)
 
+    # /OBJR is how a structure element owns an annotation rather than content:
+    # it says "my child is that object", which is what makes a link reachable
+    # from the structure tree at all.
+    object_refs =
+      Enum.map(Map.get(element, :annotation_ids, []), fn annotation_id ->
+        {object_id, _key} = Map.fetch!(tagged, annotation_id)
+        "<< /Type /OBJR /Obj #{object_id} 0 R >>"
+      end)
+
     kids =
       case element.mcid do
         nil -> []
         mcid -> [Integer.to_string(mcid)]
-      end ++ Enum.map(element.kids, fn kid -> "#{Map.fetch!(ids, kid)} 0 R" end)
+      end ++
+        Enum.map(element.kids, fn kid -> "#{Map.fetch!(ids, kid)} 0 R" end) ++
+        object_refs
 
     kids_entry = if kids == [], do: "", else: " /K [#{Enum.join(kids, " ")}]"
 
@@ -803,15 +844,66 @@ defmodule Tincture.PDF.Serialize do
   # array rather than as indirect objects. The specification permits either,
   # and keeping them direct means adding a link does not renumber every object
   # that follows it.
-  defp annotations_entry([], [], _page_object_refs), do: ""
+  defp annotations_entry([], [], _page_object_refs, _tagged), do: ""
 
-  defp annotations_entry(annotations, widget_refs, page_object_refs) do
-    # Link annotations are written inline; form widgets have to be indirect,
-    # because the catalog's /AcroForm /Fields array references the very same
-    # dictionaries and an array cannot hold two copies of one object.
-    inline = Enum.map(annotations, &annotation_dictionary(&1, page_object_refs))
+  defp annotations_entry(annotations, widget_refs, page_object_refs, tagged) do
+    # A tagged link has to be indirect: its structure element points at it
+    # through /OBJR, and an inline dictionary has no object number to point at.
+    # Form widgets are indirect for a related reason - the catalog's /AcroForm
+    # /Fields array references the very same dictionaries, and an array cannot
+    # hold two copies of one object. Everything else stays inline.
+    entries =
+      Enum.map(annotations, fn annotation ->
+        case Map.fetch(tagged, Map.get(annotation, :id)) do
+          {:ok, {object_id, _key}} -> "#{object_id} 0 R"
+          :error -> annotation_dictionary(annotation, page_object_refs, tagged)
+        end
+      end)
+
     indirect = Enum.map(widget_refs, fn id -> "#{id} 0 R" end)
-    " /Annots [#{Enum.join(inline ++ indirect, " ")}]"
+    " /Annots [#{Enum.join(entries ++ indirect, " ")}]"
+  end
+
+  # The branch point between the two shapes an annotation can take, and the
+  # reason there are two.
+  #
+  # An annotation needs an object number only when something has to point at
+  # it, and only a tagged one does - /OBJR names an object, and an inline
+  # dictionary has no name. Promoting every annotation unconditionally would be
+  # simpler to read, and it would also renumber every object in every document
+  # that has a link, tagged or not, for the benefit of the tagged ones alone.
+  # That is not a trade worth making in a fix release: this shipped to correct
+  # non-conformant output, and it should not move bytes for anyone whose output
+  # was already correct. Verified across all eight examples - only tagged
+  # documents changed.
+  #
+  # Revisit at 1.0. If tagging becomes the default posture rather than an
+  # opt-in, uniform promotion is cleaner than carrying this fork forever, and a
+  # major version is where renumbering everyone's objects is allowed.
+  defp build_link_annotation_objects(pdf, page_object_refs, page_numbers, start_id) do
+    associated =
+      pdf.structure_tree
+      |> Structure.flatten()
+      |> Enum.flat_map(&Map.get(&1, :annotation_ids, []))
+      |> MapSet.new()
+
+    promoted =
+      page_numbers
+      |> Enum.flat_map(&PDF.page_annotations(pdf, &1))
+      |> Enum.filter(&MapSet.member?(associated, Map.get(&1, :id)))
+
+    # /StructParent and /StructParents index the same number tree, so the keys
+    # come from one counter: pages take 0..n-1, annotations continue from n.
+    tagged =
+      promoted
+      |> Enum.with_index()
+      |> Map.new(fn {annotation, offset} ->
+        {annotation.id, {start_id + offset, length(page_numbers) + offset}}
+      end)
+
+    objects = Enum.map(promoted, &annotation_dictionary(&1, page_object_refs, tagged))
+
+    {tagged, objects}
   end
 
   defp build_form_field_objects([], _page_object_refs, _start_id, _signing), do: {[], [], []}
@@ -1176,8 +1268,9 @@ defmodule Tincture.PDF.Serialize do
   defp button_caption_entry(_field), do: ""
 
   defp annotation_dictionary(
-         %{type: :link, rect: {x1, y1, x2, y2}, target: target, border: border},
-         page_object_refs
+         %{type: :link, rect: {x1, y1, x2, y2}, target: target, border: border} = annotation,
+         page_object_refs,
+         tagged
        ) do
     rect = "[#{Object.num(x1)} #{Object.num(y1)} #{Object.num(x2)} #{Object.num(y2)}]"
 
@@ -1186,7 +1279,19 @@ defmodule Tincture.PDF.Serialize do
     # Widget annotations already carried this; link annotations did not, which
     # failed ISO 19005-2 clause 6.3.2.
     "<< /Type /Annot /Subtype /Link /Rect #{rect} /F 4 #{annotation_border_entry(border)} " <>
-      "#{link_target_entry(target, page_object_refs)} >>"
+      "#{link_target_entry(target, page_object_refs)}" <>
+      struct_parent_entry(annotation, tagged) <> " >>"
+  end
+
+  # The annotation's half of the association: /StructParent is the key under
+  # which /ParentTree holds the structure element that owns this annotation.
+  # Singular, and keyed into the same tree as a page's plural /StructParents -
+  # what differs is the value, an element here and an array of them there.
+  defp struct_parent_entry(annotation, tagged) do
+    case Map.fetch(tagged, Map.get(annotation, :id)) do
+      {:ok, {_object_id, key}} -> " /StructParent #{key}"
+      :error -> ""
+    end
   end
 
   # A zero-width border is the sane default: viewers otherwise draw a black box
