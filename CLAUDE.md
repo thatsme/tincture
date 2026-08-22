@@ -38,6 +38,31 @@ So: when a release adds a construct, the question is not "does the corpus still
 pass" but **"does the corpus emit the new construct at all?"** If it does not,
 the rules covering it have never run.
 
+## Value present, connection absent, rule passes
+
+The failure that has produced every conformance defect in this library so far.
+Three instances in three releases:
+
+| | the value | the missing connection |
+|---|---|---|
+| `/OBJR` (0.3.0) | a `/Link` structure element existed | it never referenced its annotation, so the link was unreachable from the tree |
+| `/Contents` (0.3.0) | 106 of 106 rules green | the corpus held no link annotations, so the rules never ran |
+| `/ID` (0.3.1) | would have satisfied both clause 7.9 rules | no `/IDTree` to resolve the identifier through, making it unusable |
+
+Two of the three had **no machine rule covering the connection at all**. No
+veraPDF profile mentions `/IDTree`; clause 7.9 checks only that the Note
+carries an id and that it is unique. So a validator cannot be the thing that
+finds this class — by construction, it is looking at the value.
+
+The operational form, when adding a construct: **ask what connects it to the
+rest of the document, not only which keys it carries.** A key is easy to see
+and easy to test. An association is neither, and it is where the meaning lives.
+
+Form tagging (0.4) is set up to be the fourth instance. `/Form` is a *tag*, and
+reaching for the tag is exactly the "which keys does it carry" instinct. The
+real question is what associates a widget annotation with its structure
+element — the same `/OBJR` machinery links use, which already exists.
+
 ## Assert the complement, not the members
 
 When a claim is about coverage, test for what is *absent*. Presence-only
