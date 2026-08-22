@@ -42,9 +42,10 @@ defmodule Tincture.PDF.Accessibility do
   @spec violations(PDF.t()) :: [violation()]
   def violations(%PDF{} = pdf) do
     if PDF.tagged?(pdf) do
-      Enum.flat_map([&figures_without_alt/1, &links_outside_structure/1], fn check ->
-        check.(pdf)
-      end)
+      Enum.flat_map(
+        [&figures_without_alt/1, &links_outside_structure/1, &links_without_description/1],
+        fn check -> check.(pdf) end
+      )
     else
       []
     end
@@ -101,6 +102,24 @@ defmodule Tincture.PDF.Accessibility do
     end
   end
 
+  # A link's rectangle is not self-describing: without /Contents a reader
+  # reaches the annotation and has nothing to announce but that a link is
+  # there. Required rather than advisory - veraPDF checks it twice, under
+  # clause 7.18.1 and again under 7.18.5.
+  defp links_without_description(%PDF{} = pdf) do
+    for page_number <- PDF.page_numbers(pdf),
+        annotation <- PDF.page_annotations(pdf, page_number),
+        blank?(Map.get(annotation, :contents)) do
+      %{
+        rule: :link_without_description,
+        clause: "7.18.5",
+        message:
+          "a link annotation on page #{page_number} has no alternate description. " <>
+            "Pass contents: \"...\" saying where the link goes"
+      }
+    end
+  end
+
   defp link_structure_violation(annotation, page_number, owners) do
     case Map.fetch(owners, Map.get(annotation, :id)) do
       {:ok, %{tag: :link}} ->
@@ -109,7 +128,7 @@ defmodule Tincture.PDF.Accessibility do
       {:ok, element} ->
         %{
           rule: :link_in_wrong_element,
-          clause: "7.18",
+          clause: "7.18.5",
           message:
             "a link annotation on page #{page_number} is inside a :#{element.tag} element " <>
               "rather than a :link one. A reader announces a link by its /Link tag"
@@ -118,7 +137,7 @@ defmodule Tincture.PDF.Accessibility do
       :error ->
         %{
           rule: :link_outside_structure,
-          clause: "7.18",
+          clause: "7.18.5",
           message:
             "a link annotation on page #{page_number} is not in the structure tree. " <>
               "Create it inside tag(:link, fn ...) so a reader can reach it"

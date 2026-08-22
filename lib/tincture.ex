@@ -174,13 +174,16 @@ defmodule Tincture do
   clickable in one call, or pair this with your own `rectangle/5` and
   `set_fill_color/2` calls.
 
-  In a tagged document, create the link inside `tag(:link, ...)`. That is what
-  puts the annotation in the structure tree, which is how a reader navigating
-  by structure reaches the link at all — PDF/UA requires it and `export/2`
-  refuses a tagged document without it:
+  In a tagged document a link needs two things, and `export/2` refuses without
+  either. Create it inside `tag(:link, ...)`, which puts the annotation in the
+  structure tree so a reader navigating by structure can reach it at all; and
+  give it `:contents`, the alternate description that reader announces:
 
       Tincture.tag(pdf, :link, fn page ->
-        Tincture.text_link(page, 72, 700, "Elixir", "https://elixir-lang.org")
+        Tincture.text_link(page, 72, 700, "Elixir",
+          "https://elixir-lang.org",
+          contents: "the Elixir home page"
+        )
       end)
 
   ## Options
@@ -189,6 +192,10 @@ defmodule Tincture do
     * `:border` — `:none` (default) or `{horizontal, vertical, width}`. The
       default suppresses the black rectangle most viewers would otherwise draw
       around every link.
+    * `:contents` — the link's alternate description, written as `/Contents`.
+      A reader that reaches the annotation has nothing else to announce, so
+      say where the link goes: `"the 2026 tariff schedule"`, not `"link"`.
+      Required in a tagged document, where `export/2` refuses without it.
 
   ## Examples
 
@@ -234,6 +241,19 @@ defmodule Tincture do
       leak into later drawing. Defaults to leaving the colour alone, so links
       are not silently recoloured.
 
+  `:contents` additionally accepts `:text`, which reuses the drawn text as the
+  alternate description. It is opt-in and deliberately not the default: a
+  description that mechanically repeats the link text satisfies a validator
+  while telling a screen reader user nothing, and `"click here"` is precisely
+  the case where it does harm. Use it where the text already says where the
+  link goes.
+
+      # The text is the description.
+      Tincture.text_link(pdf, 72, 700, "Elixir home page", url, contents: :text)
+
+      # The text is not.
+      Tincture.text_link(pdf, 72, 680, "here", url, contents: "the Elixir home page")
+
   ## Examples
 
       pdf
@@ -260,6 +280,16 @@ defmodule Tincture do
         ) :: PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
+    # `contents: :text` reuses the drawn text as the alternate description.
+    # Opt-in rather than the default: an alternate description that mechanically
+    # repeats the link text passes a validator and tells a screen reader user
+    # nothing, and "click here" is exactly where that goes wrong.
+    opts =
+      case Keyword.get(opts, :contents) do
+        :text -> Keyword.put(opts, :contents, text)
+        _other -> opts
+      end
+
     {font_name, font_size} = pdf.current_font
     width = text_width_for_font(pdf, font_name, font_size, text)
 

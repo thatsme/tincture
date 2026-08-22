@@ -1280,8 +1280,18 @@ defmodule Tincture.PDF.Serialize do
     # failed ISO 19005-2 clause 6.3.2.
     "<< /Type /Annot /Subtype /Link /Rect #{rect} /F 4 #{annotation_border_entry(border)} " <>
       "#{link_target_entry(target, page_object_refs)}" <>
+      annotation_contents_entry(annotation) <>
       struct_parent_entry(annotation, tagged) <> " >>"
   end
+
+  # /Contents on an annotation is its alternate description - what a screen
+  # reader announces in place of a rectangle it cannot otherwise describe.
+  # Valid on any annotation, so it is written whenever the caller supplied one;
+  # only a tagged document is *required* to have it.
+  defp annotation_contents_entry(%{contents: contents}) when is_binary(contents),
+    do: " /Contents #{Object.format_text(contents)}"
+
+  defp annotation_contents_entry(_annotation), do: ""
 
   # The annotation's half of the association: /StructParent is the key under
   # which /ParentTree holds the structure element that owns this annotation.

@@ -93,11 +93,15 @@ defmodule Tincture.LinkStructureTest do
     |> Tincture.tag(:document, fn doc ->
       doc
       |> Tincture.tag(:link, fn page ->
-        Tincture.text_link(page, 72, 700, "first", {:url, "https://example.org/one"})
+        Tincture.text_link(page, 72, 700, "first", {:url, "https://example.org/one"},
+          contents: "the first example target"
+        )
       end)
       |> Tincture.add_page()
       |> Tincture.tag(:link, fn page ->
-        Tincture.text_link(page, 72, 700, "second", {:url, "https://example.org/two"})
+        Tincture.text_link(page, 72, 700, "second", {:url, "https://example.org/two"},
+          contents: "the second example target"
+        )
       end)
     end)
     |> Tincture.export()
@@ -188,6 +192,69 @@ defmodule Tincture.LinkStructureTest do
     end
   end
 
+  describe "the alternate description" do
+    test "is written as /Contents" do
+      binary =
+        Tincture.new()
+        |> Tincture.link(72, 700, 120, 14, "https://example.org", contents: "the example page")
+        |> Tincture.export()
+
+      assert binary =~ "/Contents (the example page)"
+    end
+
+    # Valid on any annotation, so the option is not gated on tagging even
+    # though the requirement is.
+    test "is accepted on an untagged link, and required on a tagged one" do
+      untagged =
+        Tincture.new()
+        |> Tincture.link(72, 700, 120, 14, "https://example.org")
+
+      assert Tincture.pdf_ua_violations(untagged) == []
+
+      tagged =
+        Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.tag(:document, fn doc ->
+          Tincture.tag(doc, :link, fn page ->
+            Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"})
+          end)
+        end)
+
+      assert [%{rule: :link_without_description, clause: "7.18.5"}] =
+               Tincture.pdf_ua_violations(tagged)
+
+      assert_raise ArgumentError, ~r/no alternate description/, fn ->
+        Tincture.export(tagged)
+      end
+    end
+
+    test "contents: :text reuses the drawn text, but only when asked" do
+      binary =
+        Tincture.new()
+        |> Tincture.set_font("Helvetica", 12)
+        |> Tincture.text_link(72, 700, "Elixir home page", {:url, "https://elixir-lang.org"},
+          contents: :text
+        )
+        |> Tincture.export()
+
+      assert binary =~ "/Contents (Elixir home page)"
+    end
+
+    test "contents: :text is refused on link/7, which has no text to reuse" do
+      assert_raise ArgumentError, ~r/only available on text_link\/6/, fn ->
+        Tincture.new()
+        |> Tincture.link(72, 700, 120, 14, "https://example.org", contents: :text)
+      end
+    end
+
+    test "a blank description is refused rather than written" do
+      assert_raise ArgumentError, ~r/blank string is not one/, fn ->
+        Tincture.new()
+        |> Tincture.link(72, 700, 120, 14, "https://example.org", contents: "   ")
+      end
+    end
+  end
+
   describe "an untagged link" do
     test "stays an inline dictionary, so untagged documents do not move" do
       binary =
@@ -213,7 +280,9 @@ defmodule Tincture.LinkStructureTest do
             |> Tincture.text_at(72, 720, "body")
           end)
         end)
-        |> Tincture.link(72, 700, 120, 14, "https://example.org")
+        |> Tincture.link(72, 700, 120, 14, "https://example.org",
+          contents: "the example home page"
+        )
 
       assert [violation] = Tincture.pdf_ua_violations(pdf)
       assert violation.rule == :link_outside_structure
@@ -230,7 +299,9 @@ defmodule Tincture.LinkStructureTest do
         |> Tincture.set_language("en-GB")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
-            Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"})
+            Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"},
+              contents: "the example home page"
+            )
           end)
         end)
 
@@ -259,6 +330,7 @@ defmodule Tincture.LinkStructureTest do
         |> Tincture.add_page()
         |> Tincture.link(72, 700, 120, 14, {:page, 1})
         |> Tincture.link(72, 660, 120, 14, "https://example.org/three", page: 1)
+        |> Tincture.link(72, 640, 120, 14, "https://example.org/four", contents: "optional here")
 
       assert Tincture.pdf_ua_violations(pdf) == []
 
@@ -281,7 +353,7 @@ defmodule Tincture.LinkStructureTest do
           end)
         end)
         |> Tincture.add_page()
-        |> Tincture.link(72, 700, 120, 14, "https://example.org")
+        |> Tincture.link(72, 700, 120, 14, "https://example.org", contents: "the example page")
 
       assert [%{rule: :link_outside_structure}] = Tincture.pdf_ua_violations(pdf)
     end

@@ -42,18 +42,38 @@ gates, but a failure discovered after tagging costs a version number.
    changed. The one exception is `signed.pdf`, which differs on every run
    because a signature carries the signing time.
 
-3. **The docs build clean.**
+3. **The validators, against the documents that exercise the features.**
+
+       verapdf --flavour ua1 examples/output/compliant.pdf
+       verapdf --flavour ua1 examples/output/accessible.pdf
+       verapdf --flavour 2b  examples/output/archival.pdf
+       verapdf --flavour 2u  examples/output/archival.pdf
+       verapdf --flavour 2a  examples/output/archival.pdf
+
+   All must report `PASS`. veraPDF belongs on the machine where the work
+   happens, not only in CI: a conformance question that has to wait for a tool
+   somewhere else is a question that gets answered by reasoning instead.
+
+   Read the pass with the corpus in mind. veraPDF scores rules, not features,
+   and a rule with nothing to match counts as passed — which is how 0.1.0 and
+   0.2.0 scored 106/106 on PDF/UA while writing link annotations that were
+   unreachable from the structure tree. `compliant.pdf` had no links in it. So
+   when a release adds a construct, the checklist question is not "does the
+   corpus still pass" but **"does the corpus emit the new construct at all?"**
+   If it does not, the rules covering it have never run.
+
+4. **The docs build clean.**
 
        mix docs
 
-4. **The package builds, and contains what it should.**
+5. **The package builds, and contains what it should.**
 
        mix hex.build
 
    `examples/` and `docs/` are deliberately not shipped — see `files:` in
    `mix.exs`. Check that `priv/plts` has not crept in.
 
-5. **CHANGELOG is honest.**
+6. **CHANGELOG is honest.**
 
    - Move everything under `## [Unreleased]` to a new `## [X.Y.Z] — YYYY-MM-DD`
      heading, leaving `[Unreleased]` empty.
@@ -63,14 +83,14 @@ gates, but a failure discovered after tagging costs a version number.
    - Anything shipped in `lib/` belongs in there. Code that reaches users
      without a changelog entry is how a release becomes hard to describe.
 
-6. **Version and counts.**
+7. **Version and counts.**
 
    - Bump `@version` in `mix.exs`.
    - Update the test count and coverage figure in `README.md` and `ROADMAP.md`
      if they have moved. `mix test` prints the count; `mix coveralls` prints the
      percentage.
 
-7. **ROADMAP reflects what just shipped.** Move completed items out of "next"
+8. **ROADMAP reflects what just shipped.** Move completed items out of "next"
    and strike them through in their section, as the existing entries do.
 
 ## Publishing

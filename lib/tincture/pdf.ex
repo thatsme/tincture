@@ -89,7 +89,8 @@ defmodule Tincture.PDF do
             required(:type) => :link,
             required(:rect) => {number(), number(), number(), number()},
             required(:target) => link_target(),
-            required(:border) => annotation_border()
+            required(:border) => annotation_border(),
+            required(:contents) => String.t() | nil
           }
   @type form_field_type :: :text | :checkbox | :choice | :radio | :push_button | :signature
   @typedoc """
@@ -708,7 +709,8 @@ defmodule Tincture.PDF do
       # normalise rather than emitting a rect a viewer would treat as empty.
       rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
       target: normalize_link_target(pdf, target),
-      border: normalize_annotation_border(Keyword.get(opts, :border, :none))
+      border: normalize_annotation_border(Keyword.get(opts, :border, :none)),
+      contents: normalize_link_contents(Keyword.get(opts, :contents))
     }
 
     page_number = Keyword.get(opts, :page, pdf.current_page)
@@ -758,6 +760,30 @@ defmodule Tincture.PDF do
     raise ArgumentError,
           "link target must be a URL string, {:url, url}, or {:page, page_number}, got: " <>
             inspect(other)
+  end
+
+  defp normalize_link_contents(nil), do: nil
+
+  defp normalize_link_contents(contents) when is_binary(contents) do
+    if String.trim(contents) == "" do
+      raise ArgumentError,
+            "link :contents is an alternate description, so a blank string is not one. " <>
+              "Say where the link goes, or omit the option"
+    end
+
+    contents
+  end
+
+  # Resolved in text_link/6, which is the only caller that knows the text.
+  # Reaching here means it was passed to link/7, which does not.
+  defp normalize_link_contents(:text) do
+    raise ArgumentError,
+          "contents: :text is only available on text_link/6, which has text to reuse. " <>
+            "link/7 draws nothing, so pass a string describing where the link goes"
+  end
+
+  defp normalize_link_contents(other) do
+    raise ArgumentError, "link :contents must be a string, got: #{inspect(other)}"
   end
 
   defp normalize_annotation_border(:none), do: :none
