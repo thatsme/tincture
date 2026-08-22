@@ -1,7 +1,11 @@
 # GoToR — links between separate PDF files
 
-Status: designed, unimplemented. Target 0.3.2. Issue
+Status: **implemented in 0.3.2**. Issue
 [#1](https://github.com/thatsme/tincture/issues/1).
+
+References below name symbols rather than line numbers. Line numbers in prose
+rot the first time the file is edited — which happened to this document during
+the implementation it describes.
 
 ## The case
 
@@ -134,11 +138,11 @@ unchanged:
 
 - **`/OBJR` association.** An annotation created inside `tag(:link, ...)` is
   attached to the enclosing structure element by
-  `PDF.associate_annotation/2` (`lib/tincture/pdf.ex:735`). A remote link gets
+  `PDF.associate_annotation/2` in `lib/tincture/pdf.ex`. A remote link gets
   this for free, and needs it: PDF/UA does not care where a link points.
 - **`/Contents`.** `export/2` refuses a tagged link with no alternate
-  description — `:link_without_description` in
-  `lib/tincture/pdf/accessibility.ex:124`. A remote link is *more* in need of
+  description — the `:link_without_description` rule in
+  `Tincture.PDF.Accessibility`. A remote link is *more* in need of
   one, not less: "Secondary-pdf-1.pdf" tells a reader nothing, and the target
   is a document they cannot see.
 
@@ -181,7 +185,7 @@ directly: a rule with nothing to match counts as passed.
 - **Reading page counts from existing PDFs.** Tincture is write-only. The
   caller knows the counts.
 - **A fit-mode option.** `/Fit` for remote destinations; internal links keep
-  `/XYZ null null null` (`lib/tincture/pdf/serialize.ex:1430`). The asymmetry
+  `/XYZ null null null`, in `link_target_entry/3`. The asymmetry
   is deliberate — the referring document's zoom is not obviously the right
   thing to carry into a file the reader has not opened — and one caller does
   not justify an option.
