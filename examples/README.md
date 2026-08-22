@@ -1,8 +1,9 @@
 # Examples
 
-Runnable scripts, each producing a document in [`output/`](output/). The PDFs
-are committed, so you can see what the library produces without running
-anything.
+Runnable scripts, each producing a document in [`output/`](output/) — except
+[`remote_links.exs`](remote_links.exs), which produces two, in a directory of
+their own, because it is about a link from one file to another. The PDFs are
+committed, so you can see what the library produces without running anything.
 
     mix examples          # run them all
     mix run examples/invoice.exs
@@ -176,6 +177,37 @@ Extract and check it yourself:
 A self-signed certificate proves the document has not changed; it says nothing
 about *who* signed it that you did not already take on faith. And with no
 timestamp authority, nothing proves *when*.
+
+## [`remote_links.exs`](remote_links.exs) → [`output/linked/`](output/linked/)
+
+The only example that writes more than one file:
+
+```
+output/linked/
+    Main-report.pdf
+    Attached documents/
+        Appendix-A.pdf
+```
+
+A report with links into an appendix that travels beside it — three into named
+pages, one to the appendix as a whole. `{:file, path, page}` emits a `/GoToR`
+action whose path the reader resolves against the document carrying the link,
+so the pair can be moved, zipped or handed over as a set and still resolve.
+
+Both halves are tagged and both pass PDF/UA-1. A report that is accessible
+pointing at an appendix that is not makes a set half-readable, with no way for
+a reader to tell before opening it.
+
+Two things to know before relying on this, both shown in the script:
+
+- **The page number is a promise about a file Tincture never reads.** Nothing
+  checks it. Regenerate the appendix with an extra page near the front and
+  every link into it is silently off by one. Named destinations would survive
+  that; they are reserved and unimplemented.
+- **Desktop readers follow these links; browser-embedded viewers generally do
+  not**, refusing local-file navigation as policy. Measured while building it:
+  SumatraPDF follows them, Edge renders the link and does nothing on click,
+  Firefox's viewer does not act on them.
 
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 

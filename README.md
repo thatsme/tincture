@@ -41,12 +41,22 @@ it. Reproduce them yourself — the documents are committed:
 ```bash
 verapdf --flavour ua1 examples/output/compliant.pdf
 verapdf --flavour 2a  examples/output/archival.pdf
+
+# A cross-document set: a report and the appendix it links into, both tagged.
+verapdf --flavour ua1 "examples/output/linked/Main-report.pdf"
+verapdf --flavour ua1 "examples/output/linked/Attached documents/Appendix-A.pdf"
 ```
 
-Validation earned its place: it found five real defects that 1,200 tests had
-not, including every content stream declaring a `/Length` one byte too large,
-and `/Scope` on table headers being written somewhere readers ignore. Those are
-recorded in [CHANGELOG.md](CHANGELOG.md).
+CI validates eight of these on every push, not the two above.
+
+Validation earned its place, and keeps earning it. The first run found five
+defects the 1,200 tests of the time had not — among them every content stream
+declaring a `/Length` one byte too large, and `/Scope` on table headers written
+somewhere readers ignore. Since then it has found link annotations unreachable
+from the structure tree, links with no alternate description, `Note` elements
+with no `/ID`, and — by asking what the validated documents *do not* contain —
+four heading levels that had never been checked at all. All are in
+[CHANGELOG.md](CHANGELOG.md).
 
 A clean run says only as much as the documents you ran it on. veraPDF *does*
 check that a link annotation is nested in a `/Link` element and carries an
@@ -119,8 +129,9 @@ XML-driven documents.
 clip; axial and radial gradients with any number of stops; constant alpha on
 fill and stroke; JPEG and PNG embedding with alpha.
 
-**Documents** — metadata, bookmarks, hyperlinks, interactive forms (text,
-choice, checkbox, radio group, push button, signature), AES-256 encryption.
+**Documents** — metadata, bookmarks, hyperlinks, links into another PDF file
+at a given page, interactive forms (text, choice, checkbox, radio group, push
+button, signature), AES-256 encryption.
 
 **Standards** — tagged PDF for accessibility, PDF/A archival output with a
 built-in sRGB output intent, and detached PKCS#7 digital signatures.
