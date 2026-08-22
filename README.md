@@ -34,7 +34,9 @@ checked with [veraPDF](https://verapdf.org) and OpenSSL rather than asserted:
 | **PDF/A-2a** (accessible archival) | `isCompliant=true` — 153/153 rules |
 | **PKCS#7 detached signatures** | verified by `openssl cms -verify` |
 
-Reproduce them yourself — the documents are committed:
+These run in CI on every push, and the machine-readable reports are uploaded
+as a build artifact, so the claim is checkable without taking anyone's word for
+it. Reproduce them yourself — the documents are committed:
 
 ```bash
 verapdf --flavour ua1 examples/output/compliant.pdf
@@ -90,7 +92,7 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.2"}
+{:tincture, "~> 0.3"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine

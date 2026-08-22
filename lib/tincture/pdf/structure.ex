@@ -16,7 +16,10 @@ defmodule Tincture.PDF.Structure do
       are bracketed by `BDC`/`EMC` and stamped with a marked-content id (MCID).
 
   An element points at its MCIDs, and a per-page number tree points back from
-  each MCID to its element. That two-way link is what lets a reader walk the
+  each MCID to its element. An annotation is not drawn content and has no MCID,
+  so it joins the tree the other way: the element names it with an `/OBJR`
+  reference, and the annotation carries a `/StructParent` key into the same
+  number tree. That two-way link is what lets a reader walk the
   document logically rather than by position.
 
   This module models the tree. See `Tincture.tag/4` for the API that builds it.

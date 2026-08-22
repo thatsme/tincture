@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Untagged pages do not carry it — there is no structure to follow, and
   emitting it always would have rewritten every existing document for nothing.
 
+- **veraPDF runs in CI, and its reports are uploaded.** Every conformance
+  claim in the README rested on a validator that had never run in the pipeline
+  — through 0.2.0 it was a manual step on whichever machine last had it
+  installed. The examples job now installs veraPDF, validates the five claims
+  the README makes, fails the build on any of them, and uploads the
+  machine-readable reports as an artifact. A conformance claim a stranger
+  cannot check is one they have to take on trust.
+
 - **What the validated corpus actually exercises, written down.** veraPDF
   scores rules, not features, and a rule with nothing to match counts as
   passed — which is how tagged links scored 106 of 106 for two releases while

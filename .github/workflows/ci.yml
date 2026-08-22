@@ -156,6 +156,80 @@ jobs:
       - name: Run examples with an embedded font
         run: mix examples
 
+      # Every conformance claim in the README rests on veraPDF, so it runs
+      # here rather than on whichever machine last had it installed. Through
+      # 0.2.0 it did not, which is how a tagged link that was unreachable from
+      # the structure tree shipped twice.
+      - name: Set up Java for veraPDF
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install veraPDF
+        run: |
+          curl -sSL -o verapdf-installer.zip https://software.verapdf.org/rel/verapdf-installer.zip
+          unzip -q verapdf-installer.zip -d verapdf-installer
+          cat > auto-install.xml <<XML
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+            <com.izforge.izpack.panels.target.TargetPanel id="install_dir">
+              <installpath>$HOME/verapdf</installpath>
+            </com.izforge.izpack.panels.target.TargetPanel>
+            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+              <pack index="0" name="veraPDF GUI" selected="true"/>
+              <pack index="1" name="veraPDF Batch files" selected="true"/>
+              <pack index="2" name="veraPDF Validation model" selected="false"/>
+              <pack index="3" name="veraPDF Documentation" selected="false"/>
+              <pack index="4" name="veraPDF Sample Plugins" selected="false"/>
+            </com.izforge.izpack.panels.packs.PacksPanel>
+            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+            <com.izforge.izpack.panels.finish.SimpleFinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          java -jar verapdf-installer/verapdf-greenfield-*/verapdf-izpack-installer-*.jar auto-install.xml
+
+      # A machine-readable report per claim, uploaded whether or not the run
+      # passes. A conformance claim a stranger cannot check for themselves is a
+      # claim they have to take on trust.
+      - name: Validate the examples
+        run: |
+          set -u
+          verapdf="$HOME/verapdf/verapdf"
+          mkdir -p verapdf-reports
+          "$verapdf" --version | tee verapdf-reports/verapdf-version.txt
+
+          status=0
+          while read -r flavour document; do
+            pdf="examples/output/$document.pdf"
+            "$verapdf" --flavour "$flavour" --format mrr "$pdf" > "verapdf-reports/$document-$flavour.xml"
+
+            if "$verapdf" --flavour "$flavour" --format text "$pdf" | grep -q '^PASS'; then
+              echo "PASS  $document  $flavour"
+            else
+              echo "FAIL  $document  $flavour"
+              status=1
+            fi
+          done <<CLAIMS
+          ua1 compliant
+          ua1 accessible
+          2b archival
+          2u archival
+          2a archival
+          ua1 archival
+          CLAIMS
+
+          exit $status
+
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verapdf-reports
+          path: verapdf-reports/
+          if-no-files-found: error
+
       # PDF/A forbids unembedded fonts, so archival.exs cannot conform on this
       # path and exports with `enforce: false` instead. That it still runs is
       # the point: a missing font must not crash an example.

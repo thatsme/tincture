@@ -12,6 +12,16 @@ defmodule Tincture.PDF.Accessibility do
   claim the document does not meet. See `Tincture.PDF.Archival` for the archival
   half.
 
+  ## What is checked
+
+    * a `:figure` with no `:alt` (clause 7.3);
+    * a link annotation outside the structure tree, or nested in an element
+      other than `:link` (clause 7.18.5);
+    * a link annotation with no `:contents` (clause 7.18.5).
+
+  Clause numbers are read from veraPDF's validation profiles rather than
+  recalled.
+
   ## What this can and cannot tell you
 
   This is **not a conformance check**. PDF/UA has requirements no library can

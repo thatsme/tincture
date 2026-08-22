@@ -49,10 +49,13 @@ gates, but a failure discovered after tagging costs a version number.
        verapdf --flavour 2b  examples/output/archival.pdf
        verapdf --flavour 2u  examples/output/archival.pdf
        verapdf --flavour 2a  examples/output/archival.pdf
+       verapdf --flavour ua1 examples/output/archival.pdf
 
-   All must report `PASS`. veraPDF belongs on the machine where the work
-   happens, not only in CI: a conformance question that has to wait for a tool
-   somewhere else is a question that gets answered by reasoning instead.
+   All must report `PASS`. CI runs the same five and uploads the reports, so
+   this is a pre-flight rather than the only run — but veraPDF belongs on the
+   machine where the work happens too: a conformance question that has to wait
+   for a tool somewhere else is a question that gets answered by reasoning
+   instead.
 
    Read the pass with the corpus in mind. veraPDF scores rules, not features,
    and a rule with nothing to match counts as passed — which is how 0.1.0 and
