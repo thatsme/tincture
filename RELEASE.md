@@ -113,8 +113,37 @@ gates, but a failure discovered after tagging costs a version number.
    should not be in it.
 
 4. Confirm <https://hex.pm/packages/tincture> lists the new release, and
-   <https://hexdocs.pm/tincture> serves its docs.
-5. Draft the GitHub release for the tag, with the changelog section as its body.
+   <https://hexdocs.pm/tincture> serves its docs. Pull the published tarball
+   and check it contains what the tag does — the upload is what users get, and
+   it is the artifact worth verifying rather than the plan:
+
+       curl -sL -o t.tar https://repo.hex.pm/tarballs/tincture-X.Y.Z.tar
+
+5. **Create the GitHub release, from the tag, after Hex.**
+
+   The ordering is deliberate. A GitHub release announcing a version that then
+   fails to publish is a public promise you have to retract; `mix hex.publish`
+   can still fail at that point on auth or on something in the file list. A
+   published package whose release entry lags by ten minutes misleads nobody.
+   The HexDocs URL also does not exist until you publish, so writing the body
+   first means links that 404.
+
+       gh release create vX.Y.Z --title "vX.Y.Z — what changed"          --notes-file body.md --verify-tag reports/*.xml
+
+   The body pastes the changelog's `### Changed` and `### Fixed` sections
+   **verbatim**. Do not summarise them. Behaviour breaks are the most valuable
+   content in a release and should not live only in a file inside the package —
+   0.3.0 renumbered objects in tagged documents and made `export/2` refuse
+   documents it had previously written, and someone upgrading needs to meet
+   that before their build does.
+
+   **Attach the veraPDF XML reports as release assets.** CI uploads them as a
+   build artifact, and build artifacts expire — ninety days by default. Release
+   assets do not. A conformance claim whose evidence has expired is a claim
+   people have to take on trust again, which is the thing this project is
+   trying not to ask of them. Download the artifact from the run that validated
+   the tagged commit, confirm the run's `head_sha` matches the tag, and upload
+   the reports with the release.
 
 ## After publishing
 
