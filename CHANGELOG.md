@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-22
+
 ### Added
 
 - **`Layout.Box` and `Layout.Template` tag themselves.** `Layout.Table` already
@@ -32,20 +34,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Untagged pages do not carry it — there is no structure to follow, and
   emitting it always would have rewritten every existing document for nothing.
 
-- **`Tincture.pdf_ua_violations/1`, and export refuses a tagged document that
-  breaks PDF/UA.** Tagging is a claim: the catalog carries `/MarkInfo` and the
-  XMP carries `pdfuaid:part`, and a reader that finds structure trusts it. A
-  `:figure` with no alternative text is then worse than an untagged one — the
-  reader announces an element it cannot describe, and the person using it
-  learns only that something is there.
+- **`:contents` on `link/7` and `text_link/6`,** the link's alternate
+  description. A link's rectangle describes nothing on its own, so a reader
+  that reaches the annotation has only `/Contents` to announce. Say where the
+  link goes — `"ISO 14289-1 at iso.org"`, not `"link"`.
 
-  So the same treatment as a false PDF/A claim: `export/2` raises, naming each
-  violation and its clause, and `enforce: false` exports anyway with a warning.
-  See `Tincture.PDF.Accessibility`. Only the figure rule is checked so far;
-  whether an alternative text is *accurate* is not something a library can
-  settle.
+  It is required in a tagged document and there is no default, deliberately.
+  The obvious convenience would be to reuse `text_link`'s visible text, and
+  most call sites would become conformant for free — but a description that
+  mechanically repeats the link text satisfies the validator while telling a
+  screen reader user nothing, and `"click here"` is exactly where that does
+  harm. Generating it would be manufacturing conformance.
+
+  `text_link/6` accepts `contents: :text` where the text genuinely is the
+  description. Still a deliberate act, just a short one.
+
+- **`Tincture.pdf_ua_violations/1`.** Tagging is a claim: the catalog carries
+  `/MarkInfo` and the XMP carries `pdfuaid:part`, and a reader that finds
+  structure trusts it. This lists every PDF/UA violation Tincture can detect,
+  without exporting — a `:figure` with no alternative text, a link annotation
+  outside the structure tree, a link nested in an element other than `:link`.
+  See `Tincture.PDF.Accessibility`.
+
+  Only what is structural and therefore visible to a library. Whether an
+  alternative text is *accurate*, or whether a reading order matches intent, is
+  not something this can settle for you.
 
 ### Changed
+
+- **`export/2` refuses a tagged document that breaks a PDF/UA rule Tincture can
+  see.** The same treatment a false PDF/A claim already got: it raises, naming
+  each violation and its clause, and `enforce: false` exports anyway with a
+  warning.
+
+  Three rules are checked, and all three previously wrote without complaint, so
+  a document that exported under 0.2.0 may now raise:
+
+  - a `:figure` with no alternative text. The reader announces an element it
+    cannot describe, and the person using it learns only that something is
+    there — worse than leaving the document untagged;
+  - a link annotation outside the structure tree, or nested in an element
+    other than `:link`;
+  - a link annotation with no alternate description in `/Contents`.
+
+  Wrap links in `tag(:link, ...)` and give them `contents:`, pass `alt:` to a
+  `:figure`, or pass `enforce: false` to export regardless.
+
+- **A tagged link annotation is written as an indirect object.** It used to be
+  a dictionary inline in the page's `/Annots` array, which has no object number
+  for `/OBJR` to name. Object numbering therefore shifts in any tagged document
+  that contains a link — relevant only if you diff, checksum or byte-pin your
+  output.
+
+  An untagged link is still written inline, deliberately: a fix for tagged
+  documents should not renumber objects for people it does not apply to.
+  Untagged output is unchanged byte for byte, confirmed across all eight
+  examples.
 
 - **The examples embed a vendored font, so their output is reproducible.**
   An embedded font goes into the file byte for byte, so the committed PDFs
@@ -63,6 +107,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   These are **not** in the Hex package: `files:` in `mix.exs` excludes
   `examples/` entirely, and Tincture still ships no font programs. Nothing here
   constrains what you embed in your own documents.
+
+### Fixed
+
+- **A `/Link` structure element now references its annotation.** Three things
+  PDF/UA-1 requires, and that no tagged document Tincture has written — 0.1.0
+  and 0.2.0 included — had:
+
+  - the `/Link` element's `/K` now holds `<< /Type /OBJR /Obj n 0 R >>`, naming
+    the annotation as a child of the element;
+  - the link annotation now carries `/StructParent`;
+  - `/ParentTree` now resolves both directions — an annotation key to its
+    structure element, a page key to its array of marked-content parents.
+
+  `/StructParent` and a page's `/StructParents` index the same number tree, so
+  the keys come from one counter: pages take `0..n-1`, annotations continue
+  from `n`. A link created inside `tag(:link, ...)` is associated
+  automatically, so no call site changes.
+
+  Measured against veraPDF 1.30.2, a tagged link failed three machine rules
+  before this release — ISO 14289-1 clause 7.18.1 test 2, clause 7.18.5 test 1
+  and clause 7.18.5 test 2. Structure references clear 7.18.5 test 1;
+  `:contents` clears the other two. A tagged link now passes `--flavour ua1`.
+
+  Worth knowing how this survived two releases. veraPDF checks all three, and
+  always did. They never fired because `compliant.pdf` — the example behind the
+  106/106 figure — contained no link annotations at all, and a rule with
+  nothing to match counts as passed. The gap was in the validated corpus, not
+  in the validator. `compliant.pdf` now carries a tagged link, so those three
+  rules are exercised on every release.
 
 ## [0.2.0] — 2026-07-31
 
@@ -371,6 +444,7 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/thatsme/tincture/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thatsme/tincture/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thatsme/tincture/releases/tag/v0.1.0

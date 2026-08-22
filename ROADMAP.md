@@ -64,7 +64,7 @@ by default, the typography engine (TeX hyphenation, Knuth-Plass line breaking,
 GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
-signatures, telemetry. No required runtime dependencies. 1,250 tests, 89%
+signatures, telemetry. No required runtime dependencies. 1,285 tests, 89.5%
 coverage, clean Credo and Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
@@ -193,8 +193,24 @@ rules are asking for.
   gets, for the same reason. A reader that finds a figure it cannot describe is
   worse off than one that finds no tag at all. `enforce: false` still escapes.
 
+- ~~**Link annotations reachable from the structure tree.**~~ **Done.** A
+  `/Link` element now references its annotation through `/OBJR`, the annotation
+  carries `/StructParent`, and `/ParentTree` resolves both. Every tagged
+  document before 0.3.0 was missing this.
+- ~~**Link alternative text.**~~ **Done.** `:contents` on `link/7` and
+  `text_link/6`, required in a tagged document, with no default — a description
+  generated from the link text passes a checker and helps nobody.
+
 What remains:
 
+- **The corpus audit.** The `/OBJR` defect survived two releases of a green
+  veraPDF run because `compliant.pdf` contained no link annotations, and a rule
+  with nothing to match counts as passed. That is not a link problem, it is a
+  coverage problem: every construct the library can emit but the validated
+  documents never do is a set of rules that has never run. Tables, lists,
+  nested structure, figures with and without alt, annotations of other kinds.
+  Enumerate what the corpus emits against what the API offers, and close the
+  difference.
 - **PAC — a one-off audit, not a gate.** Only veraPDF has been used, and it
   cannot be the whole story: it checks that the structure is *well-formed*, not
   that it is *right*. Announcing a decorative rule as a paragraph passes veraPDF
@@ -206,9 +222,11 @@ What remains:
   worth doing deliberately at intervals rather than planned as a regression
   test. What comes back from it should become assertions here, where they can
   run in CI.
-- **More of what a library can see.** Only the figure rule is checked so far.
-  Heading-level order, link alternative text and table header association are
-  candidates; whether an alternative text is *accurate* is not.
+- **More of what a library can see.** Three rules are checked: a `:figure`
+  without `:alt`, a link outside a `:link` element, and a link with no
+  `/Contents`. Heading-level order and table header association are the
+  candidates left; whether an alternative text is *accurate* is not one a
+  library can settle.
 
 ## 2. Archival — PDF/A
 

@@ -219,14 +219,35 @@ pdf =
         )
 
       # A caption is real text and belongs in the structure, not in the figure.
-      Tincture.tag(pdf, :caption, fn pdf ->
+      pdf =
+        Tincture.tag(pdf, :caption, fn pdf ->
+          pdf
+          |> Tincture.set_fill_color(muted)
+          |> Tincture.set_font(sans, 8)
+          |> Tincture.text_at(
+            margin,
+            table_bottom - 168,
+            "Figure 1 — each requirement builds on the last."
+          )
+        end)
+
+      # (8) A link needs two things a validator checks separately: the
+      #     annotation has to be nested in a :link element, so a reader
+      #     navigating by structure can reach it (clause 7.18.5, test 1), and
+      #     it has to carry an alternate description in /Contents, so there is
+      #     something to announce when it does (clauses 7.18.1 and 7.18.5,
+      #     test 2). The description says where the link goes; repeating the
+      #     visible text would satisfy the checker and help nobody.
+      Tincture.tag(pdf, :link, fn pdf ->
         pdf
-        |> Tincture.set_fill_color(muted)
-        |> Tincture.set_font(sans, 8)
-        |> Tincture.text_at(
+        |> Tincture.set_fill_color(accent)
+        |> Tincture.set_font(sans, 9)
+        |> Tincture.text_link(
           margin,
-          table_bottom - 168,
-          "Figure 1 — each requirement builds on the last."
+          table_bottom - 190,
+          "the PDF/UA specification",
+          {:url, "https://www.iso.org/standard/64599.html"},
+          contents: "ISO 14289-1, the PDF/UA specification, at iso.org"
         )
       end)
     end)
@@ -251,6 +272,8 @@ Checklist, and where each is satisfied:
   figure alternative text  :alt                             #{if binary =~ "/Alt (", do: "ok", else: "MISSING"}
   table header scope     :scope                             #{if binary =~ "/O /Table /Scope", do: "ok", else: "MISSING"}
   list structure         :list / :list_item / :label        #{if binary =~ "/S /LBody", do: "ok", else: "MISSING"}
+  link in a :link element  /OBJR                            #{if binary =~ "/OBJR", do: "ok", else: "MISSING"}
+  link alternate text    :contents                          #{if binary =~ "/Contents (", do: "ok", else: "MISSING"}
 
 Verify independently:
 

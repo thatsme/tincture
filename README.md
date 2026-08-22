@@ -46,6 +46,19 @@ not, including every content stream declaring a `/Length` one byte too large,
 and `/Scope` on table headers being written somewhere readers ignore. Those are
 recorded in [CHANGELOG.md](CHANGELOG.md).
 
+A clean run says only as much as the documents you ran it on. veraPDF *does*
+check that a link annotation is nested in a `/Link` element and carries an
+alternate description — both are machine rules, ISO 14289-1 clause 7.18.5.
+Tincture passed 106/106 for two releases while getting the first of those
+wrong, because `compliant.pdf` contained no link annotations: a rule with
+nothing to match counts as passed, so the score was full marks on a paper that
+never asked the question. The gap was in the corpus, not the validator. It now
+carries a tagged link.
+
+Read the table as "these rules held on these documents". Whether the corpus
+exercises the feature you care about is a separate question, and the one worth
+asking.
+
 ## Install
 
 ```elixir
@@ -57,7 +70,7 @@ recorded in [CHANGELOG.md](CHANGELOG.md).
 is mature and the standards output is independently verified, but the API under
 this name is new and may still move before 1.0.
 
-1,250 tests · 89% coverage · Credo `--strict` clean · Dialyzer clean · CI on
+1,285 tests · 89.5% coverage · Credo `--strict` clean · Dialyzer clean · CI on
 Elixir 1.16–1.19.
 
 ## What it does

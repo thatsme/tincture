@@ -85,10 +85,12 @@ defmodule Tincture.PDF do
   @type annotation_border :: :none | {number(), number(), number()}
   @type annotation ::
           %{
+            required(:id) => pos_integer(),
             required(:type) => :link,
             required(:rect) => {number(), number(), number(), number()},
             required(:target) => link_target(),
-            required(:border) => annotation_border()
+            required(:border) => annotation_border(),
+            required(:contents) => String.t() | nil
           }
   @type form_field_type :: :text | :checkbox | :choice | :radio | :push_button | :signature
   @typedoc """
@@ -171,6 +173,7 @@ defmodule Tincture.PDF do
           signature: map() | nil,
           bookmarks: [bookmark()],
           annotations: %{required(pos_integer()) => [annotation()]},
+          next_annotation_id: pos_integer(),
           form_fields: [form_field()],
           encryption: map() | nil,
           metadata: %{optional(atom()) => String.t()},
@@ -192,6 +195,7 @@ defmodule Tincture.PDF do
             signature: nil,
             bookmarks: [],
             annotations: %{},
+            next_annotation_id: 1,
             form_fields: [],
             encryption: nil,
             metadata: %{},
@@ -696,13 +700,17 @@ defmodule Tincture.PDF do
   @spec add_link(t(), {number(), number(), number(), number()}, link_target(), keyword()) :: t()
   def add_link(%__MODULE__{} = pdf, {x1, y1, x2, y2}, target, opts \\ [])
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_list(opts) do
+    id = pdf.next_annotation_id
+
     annotation = %{
+      id: id,
       type: :link,
       # PDF requires the rectangle in lower-left / upper-right order, so
       # normalise rather than emitting a rect a viewer would treat as empty.
       rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
       target: normalize_link_target(pdf, target),
-      border: normalize_annotation_border(Keyword.get(opts, :border, :none))
+      border: normalize_annotation_border(Keyword.get(opts, :border, :none)),
+      contents: normalize_link_contents(Keyword.get(opts, :contents))
     }
 
     page_number = Keyword.get(opts, :page, pdf.current_page)
@@ -713,7 +721,21 @@ defmodule Tincture.PDF do
 
     existing = page_annotations(pdf, page_number)
     annotations = Map.put(pdf.annotations, page_number, existing ++ [annotation])
-    %__MODULE__{pdf | annotations: annotations}
+
+    %__MODULE__{pdf | annotations: annotations, next_annotation_id: id + 1}
+    |> associate_annotation(id)
+  end
+
+  # A link annotation created inside a tag scope belongs to the element that
+  # encloses it. PDF/UA requires every link annotation to be reachable from the
+  # structure tree, and a separate call to attach one would leave every
+  # existing call site non-conformant - opt-in is the wrong default for a rule
+  # the format requires.
+  defp associate_annotation(%__MODULE__{structure_stack: []} = pdf, _id), do: pdf
+
+  defp associate_annotation(%__MODULE__{structure_stack: [element | rest]} = pdf, id) do
+    element = Map.update(element, :annotation_ids, [id], &(&1 ++ [id]))
+    %__MODULE__{pdf | structure_stack: [element | rest]}
   end
 
   defp normalize_link_target(%__MODULE__{}, {:url, url})
@@ -738,6 +760,30 @@ defmodule Tincture.PDF do
     raise ArgumentError,
           "link target must be a URL string, {:url, url}, or {:page, page_number}, got: " <>
             inspect(other)
+  end
+
+  defp normalize_link_contents(nil), do: nil
+
+  defp normalize_link_contents(contents) when is_binary(contents) do
+    if String.trim(contents) == "" do
+      raise ArgumentError,
+            "link :contents is an alternate description, so a blank string is not one. " <>
+              "Say where the link goes, or omit the option"
+    end
+
+    contents
+  end
+
+  # Resolved in text_link/6, which is the only caller that knows the text.
+  # Reaching here means it was passed to link/7, which does not.
+  defp normalize_link_contents(:text) do
+    raise ArgumentError,
+          "contents: :text is only available on text_link/6, which has text to reuse. " <>
+            "link/7 draws nothing, so pass a string describing where the link goes"
+  end
+
+  defp normalize_link_contents(other) do
+    raise ArgumentError, "link :contents must be a string, got: #{inspect(other)}"
   end
 
   defp normalize_annotation_border(:none), do: :none
