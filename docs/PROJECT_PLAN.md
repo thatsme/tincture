@@ -86,7 +86,7 @@ erlguten is a mature Erlang codebase with 47 Erlang modules in `src/`. The non-g
 | `eg_pdf_page` | `Tincture.PDF.Page` | ~200 | Medium |
 | `eg_pdf_lib` | `Tincture.PDF.Ops` | ~400 | Medium — drawing primitives |
 | `eg_pdf_obj` | `Tincture.PDF.Object` | ~200 | Medium — PDF object construction |
-| `eg_pdf_op` | `Tincture.PDF.Op` | ~500 | Medium — operation encoding |
+| `eg_pdf_op` | `Tincture.PDF.Serialize`, `Tincture.PDF.FontEmbed` | ~500 | Medium — operation encoding |
 | `eg_pdf` (export path) | `Tincture.PDF.Serialize` | ~700 | High — binary PDF format |
 
 **Key tasks:**
