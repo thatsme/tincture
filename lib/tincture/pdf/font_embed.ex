@@ -2328,18 +2328,21 @@ defmodule Tincture.PDF.FontEmbed do
 
     runs = split_mapping_runs(parsed)
 
-    Enum.reduce(runs, {[], []}, fn
-      [entry], {ranges_acc, chars_acc} ->
-        {ranges_acc, chars_acc ++ [{entry.source_hex, entry.destination_hex}]}
+    {ranges, chars} =
+      Enum.reduce(runs, {[], []}, fn
+        [entry], {ranges_acc, chars_acc} ->
+          {ranges_acc, [{entry.source_hex, entry.destination_hex} | chars_acc]}
 
-      [first | _] = run, {ranges_acc, chars_acc} ->
-        last = List.last(run)
+        [first | _] = run, {ranges_acc, chars_acc} ->
+          last = List.last(run)
 
-        {
-          ranges_acc ++ [{first.source_hex, last.source_hex, first.destination_hex}],
-          chars_acc
-        }
-    end)
+          {
+            [{first.source_hex, last.source_hex, first.destination_hex} | ranges_acc],
+            chars_acc
+          }
+      end)
+
+    {Enum.reverse(ranges), Enum.reverse(chars)}
   end
 
   defp split_mapping_runs([]), do: []

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`bidi: :basic` resolves neutral tokens in linear time.** Each space or break
+  used to scan the whole line on both sides for the nearest strong direction,
+  which is quadratic in the tokens on a line. One pass in each direction now
+  gives the same result. Only very long lines see a difference; output is
+  unchanged.
+
+- **ToUnicode range compaction no longer copies its accumulators per run.**
+  Output is unchanged byte for byte.
+
 ## [0.3.2] — 2026-08-22
 
 ### Added

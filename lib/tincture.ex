@@ -1887,31 +1887,28 @@ defmodule Tincture do
   defp strong_dir(%{dir: dir}) when dir in [:ltr, :rtl], do: dir
   defp strong_dir(_entry), do: nil
 
+  # A neutral takes the nearest strong direction before it, then after it, then
+  # the paragraph's. Both neighbours come from one pass each way rather than a
+  # scan per neutral, which was quadratic in the token count.
   defp resolve_neutral_token_dirs(entries, base_dir) do
-    entries
-    |> Enum.with_index()
-    |> Enum.map(fn
-      {%{dir: :neutral} = entry, idx} ->
-        prev = prev_strong_dir(entries, idx)
-        next = next_strong_dir(entries, idx)
-        %{entry | dir: prev || next || base_dir}
+    prev_dirs = nearest_strong_dirs(entries)
+    next_dirs = entries |> Enum.reverse() |> nearest_strong_dirs() |> Enum.reverse()
 
-      {entry, _idx} ->
-        entry
+    [entries, prev_dirs, next_dirs]
+    |> Enum.zip_with(fn
+      [%{dir: :neutral} = entry, prev, next] -> %{entry | dir: prev || next || base_dir}
+      [entry, _prev, _next] -> entry
     end)
   end
 
-  defp prev_strong_dir(entries, idx) do
-    entries
-    |> Enum.take(idx)
-    |> Enum.reverse()
-    |> first_strong_dir()
-  end
+  # For each entry, the last strong direction seen strictly before it.
+  defp nearest_strong_dirs(entries) do
+    {dirs, _last} =
+      Enum.map_reduce(entries, nil, fn entry, last ->
+        {last, strong_dir(entry) || last}
+      end)
 
-  defp next_strong_dir(entries, idx) do
-    entries
-    |> Enum.drop(idx + 1)
-    |> first_strong_dir()
+    dirs
   end
 
   defp chunk_by_dir([]), do: []

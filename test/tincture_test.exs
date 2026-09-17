@@ -4141,6 +4141,21 @@ defmodule TinctureTest do
            ] = pdf.operations
   end
 
+  test "text_paragraph/6 with bidi: :basic resolves neutrals between runs of different direction" do
+    rtl_first = RichText.from_plain("אב ABC גד", font: "Helvetica", size: 12)
+    ltr_first = RichText.from_plain("ABC אב DEF", font: "Helvetica", size: 12)
+
+    visual_order = fn rich ->
+      Tincture.new()
+      |> Tincture.text_paragraph(50, 700, rich, 300, bidi: :basic)
+      |> Map.fetch!(:operations)
+      |> Enum.map(fn {:text_at, _x, _y, text, _font} -> text end)
+    end
+
+    assert visual_order.(ltr_first) == ["ABC", "בא", "DEF"]
+    assert visual_order.(rtl_first) == ["דג", "ABC", "בא"]
+  end
+
   test "text_paragraph/6 rejects invalid bidi option" do
     rich = RichText.from_plain("ABC אב", font: "Helvetica", size: 12)
 
