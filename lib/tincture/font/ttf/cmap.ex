@@ -109,12 +109,9 @@ defmodule Tincture.Font.TTF.Cmap do
     else
       <<records_bin::binary-size(required_record_bytes), _::binary>> = record_data
 
-      records = parse_format14_selector_records(records_bin, [])
-
-      if records == :error do
-        :error
-      else
-        parse_format14_selector_tables(data, records)
+      case parse_format14_selector_records(records_bin, []) do
+        :error -> :error
+        records -> parse_format14_selector_tables(data, records)
       end
     end
   end
@@ -171,13 +168,9 @@ defmodule Tincture.Font.TTF.Cmap do
       else
         <<mappings_bin::binary-size(required_bytes), _::binary>> = mapping_data
 
-        mappings =
-          parse_format14_non_default_records(mappings_bin, selector, %{})
-
-        if mappings == :error do
-          :error
-        else
-          {:ok, mappings}
+        case parse_format14_non_default_records(mappings_bin, selector, %{}) do
+          :error -> :error
+          mappings -> {:ok, mappings}
         end
       end
     else

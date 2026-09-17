@@ -828,43 +828,47 @@ defmodule Tincture.Typography do
          width,
          max_width,
          align,
+         _justify_space_tuning,
+         _last_line?,
+         space_count,
+         _space_total_width
+       )
+       when align != :justified or space_count == 0 do
+    %{fits?: width <= max_width, adjusted_width: width}
+  end
+
+  defp line_adjustment_from_space_stats(
+         width,
+         max_width,
+         :justified,
          justify_space_tuning,
          last_line?,
-         space_count,
+         _space_count,
          space_total_width
        ) do
-    if align != :justified do
-      %{fits?: width <= max_width, adjusted_width: width}
-    else
-      if space_count == 0 do
-        %{fits?: width <= max_width, adjusted_width: width}
+    max_stretch = max_space_stretch(justify_space_tuning, last_line?, space_total_width)
+    max_shrink = space_total_width * (1.0 - justify_space_tuning.min_multiplier)
+    min_width = width - max_shrink
+    fits? = width <= max_width or min_width <= max_width
+
+    adjusted_width =
+      if fits? do
+        requested_delta = max_width - width
+        width + applied_space_delta(requested_delta, max_stretch, max_shrink)
       else
-        max_stretch =
-          if last_line? do
-            0.0
-          else
-            case justify_space_tuning.max_multiplier do
-              :infinity -> :infinity
-              multiplier -> space_total_width * (multiplier - 1.0)
-            end
-          end
-
-        max_shrink = space_total_width * (1.0 - justify_space_tuning.min_multiplier)
-        min_width = width - max_shrink
-        fits? = width <= max_width or min_width <= max_width
-
-        adjusted_width =
-          if fits? do
-            requested_delta = max_width - width
-            width + applied_space_delta(requested_delta, max_stretch, max_shrink)
-          else
-            width
-          end
-
-        %{fits?: fits?, adjusted_width: adjusted_width}
+        width
       end
-    end
+
+    %{fits?: fits?, adjusted_width: adjusted_width}
   end
+
+  defp max_space_stretch(_justify_space_tuning, true, _space_total_width), do: 0.0
+
+  defp max_space_stretch(%{max_multiplier: :infinity}, _last_line?, _space_total_width),
+    do: :infinity
+
+  defp max_space_stretch(%{max_multiplier: multiplier}, _last_line?, space_total_width),
+    do: space_total_width * (multiplier - 1.0)
 
   defp applied_space_delta(requested_delta, max_stretch, _max_shrink) when requested_delta >= 0 do
     case max_stretch do

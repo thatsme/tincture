@@ -1846,17 +1846,14 @@ defmodule Tincture do
         _ -> runs
       end
 
-    runs
-    |> Enum.flat_map(fn {dir, run_entries} ->
-      run_tokens = Enum.map(run_entries, & &1.token)
-
-      if dir == :rtl do
-        run_tokens
+    Enum.flat_map(runs, fn
+      {:rtl, run_entries} ->
+        run_entries
         |> Enum.reverse()
-        |> Enum.map(&reverse_rtl_token_text/1)
-      else
-        run_tokens
-      end
+        |> Enum.map(&reverse_rtl_token_text(&1.token))
+
+      {_dir, run_entries} ->
+        Enum.map(run_entries, & &1.token)
     end)
   end
 
@@ -1885,23 +1882,22 @@ defmodule Tincture do
       (cp >= 0x00C0 and cp <= 0x02AF)
   end
 
-  defp first_strong_dir(entries) do
-    entries
-    |> Enum.find_value(fn entry ->
-      if entry.dir in [:ltr, :rtl], do: entry.dir, else: nil
-    end)
-  end
+  defp first_strong_dir(entries), do: Enum.find_value(entries, &strong_dir/1)
+
+  defp strong_dir(%{dir: dir}) when dir in [:ltr, :rtl], do: dir
+  defp strong_dir(_entry), do: nil
 
   defp resolve_neutral_token_dirs(entries, base_dir) do
-    Enum.with_index(entries)
-    |> Enum.map(fn {entry, idx} ->
-      if entry.dir == :neutral do
+    entries
+    |> Enum.with_index()
+    |> Enum.map(fn
+      {%{dir: :neutral} = entry, idx} ->
         prev = prev_strong_dir(entries, idx)
         next = next_strong_dir(entries, idx)
         %{entry | dir: prev || next || base_dir}
-      else
+
+      {entry, _idx} ->
         entry
-      end
     end)
   end
 
@@ -1909,13 +1905,13 @@ defmodule Tincture do
     entries
     |> Enum.take(idx)
     |> Enum.reverse()
-    |> Enum.find_value(fn entry -> if entry.dir in [:ltr, :rtl], do: entry.dir, else: nil end)
+    |> first_strong_dir()
   end
 
   defp next_strong_dir(entries, idx) do
     entries
     |> Enum.drop(idx + 1)
-    |> Enum.find_value(fn entry -> if entry.dir in [:ltr, :rtl], do: entry.dir, else: nil end)
+    |> first_strong_dir()
   end
 
   defp chunk_by_dir([]), do: []

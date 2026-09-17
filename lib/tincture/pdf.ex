@@ -998,7 +998,7 @@ defmodule Tincture.PDF do
               "filled document, so they must be unique."
     end
 
-    widgets = Enum.map(buttons, &normalize_radio_widget(pdf, &1, opts))
+    [first_widget | _] = widgets = Enum.map(buttons, &normalize_radio_widget(pdf, &1, opts))
     export_values = Enum.map(widgets, & &1.export_value)
 
     duplicates = export_values -- Enum.uniq(export_values)
@@ -1022,8 +1022,8 @@ defmodule Tincture.PDF do
         name: name,
         # A radio group's own rectangle is meaningless - the kids carry the
         # geometry - but the field shape requires one, so use the first kid's.
-        page_number: hd(widgets).page_number,
-        rect: hd(widgets).rect,
+        page_number: first_widget.page_number,
+        rect: first_widget.rect,
         value: selected,
         flags: flags,
         font: normalize_field_font(Keyword.get(opts, :font, "Helvetica")),
