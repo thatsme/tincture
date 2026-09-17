@@ -28,6 +28,7 @@ defmodule Tincture.PDF.FontEmbed do
 
   @sfnt_checksum_magic 0xB1B0AFBA
 
+  @doc false
   def build_embedded_font_objects(pdf, page_numbers, start_object_id) do
     used_char_codes_by_font = used_char_codes_by_font(pdf, page_numbers)
     used_cids_by_font = used_cids_by_font(pdf, page_numbers)
@@ -102,6 +103,7 @@ defmodule Tincture.PDF.FontEmbed do
     {refs, objects, text_modes, next_object_id}
   end
 
+  @doc false
   def font_names_from_operations(operations) do
     operations
     |> Enum.flat_map(fn

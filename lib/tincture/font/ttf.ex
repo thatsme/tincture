@@ -130,6 +130,18 @@ defmodule Tincture.Font.TTF do
           font_bbox: {integer(), integer(), integer(), integer()} | nil
         }
 
+  @doc """
+  Parse the bytes of a TrueType or OpenType font into the metrics Tincture uses.
+
+  Requires the `head`, `maxp`, `hhea` and `hmtx` tables. The optional tables
+  add character mapping, names, outline data, ligatures and kerning where the
+  font has them. Returns `{:ok, metrics}` — the fields are listed in
+  `t:basic_metrics/0` — or `:error` for data that is not a font, lacks a
+  required table, or has a table that is present but malformed.
+
+      {:ok, metrics} = Tincture.Font.TTF.parse_basic_tables(File.read!(path))
+      metrics.units_per_em
+  """
   @spec parse_basic_tables(binary()) :: {:ok, basic_metrics()} | :error
   def parse_basic_tables(data) when is_binary(data) do
     # The GPOS guardrail counter lives in the process dictionary because it is

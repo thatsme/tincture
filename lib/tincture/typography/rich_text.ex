@@ -204,6 +204,17 @@ defmodule Tincture.Typography.RichText do
 
   defp remeasure_token(%Break{} = token, _context), do: token
 
+  @doc """
+  Rebuild rich text from tokens, such as the tokens of laid-out lines.
+
+  Accepts `Word`, `Space` and `Break` structs, or maps of the same shape. The
+  tokens are merged back into styled runs and passed through `from_runs/1`, so
+  the result is re-tokenised and re-measured; widths carried on the input
+  tokens are not reused. Embedded fonts therefore need `remeasure/2` again
+  before layout.
+
+  Raises `ArgumentError` for a map that matches no token shape.
+  """
   @spec from_tokens([token()]) :: t()
   def from_tokens(tokens) when is_list(tokens) do
     normalized =

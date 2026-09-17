@@ -15,6 +15,7 @@ defmodule Tincture.Font.OpenType.Common do
 
   alias Tincture.Font.Binary
 
+  @doc false
   def parse_layout_table_metadata(data, table_records, tag)
       when is_binary(data) and is_map(table_records) and is_binary(tag) do
     case Map.fetch(table_records, tag) do
@@ -32,6 +33,7 @@ defmodule Tincture.Font.OpenType.Common do
     end
   end
 
+  @doc false
   def parse_open_type_layout_table(
         <<_major::16-big, _minor::16-big, _script_list_offset::16-big,
           _feature_list_offset::16-big, _lookup_list_offset::16-big, _::binary>> = layout_table
@@ -56,6 +58,7 @@ defmodule Tincture.Font.OpenType.Common do
   end
 
   defp parse_open_type_layout_offsets(_layout_table), do: :error
+  @doc false
   def parse_open_type_lookup_entries(layout_table, 0) when is_binary(layout_table), do: []
 
   def parse_open_type_lookup_entries(layout_table, lookup_list_offset)
@@ -119,6 +122,7 @@ defmodule Tincture.Font.OpenType.Common do
   defp parse_open_type_lookup_entry(_layout_table, _lookup_list_offset, _lookup_offset),
     do: :error
 
+  @doc false
   def filter_open_type_lookup_entries_by_features(
         layout_table,
         lookup_entries,
@@ -440,6 +444,7 @@ defmodule Tincture.Font.OpenType.Common do
 
   defp parse_open_type_feature_lookup_indices(_layout_table, _feature_table_offset), do: []
 
+  @doc false
   def parse_open_type_coverage_table(layout_table, coverage_offset)
       when is_binary(layout_table) and is_integer(coverage_offset) and coverage_offset >= 0 do
     case Binary.u16(layout_table, coverage_offset) do
@@ -483,6 +488,7 @@ defmodule Tincture.Font.OpenType.Common do
 
   defp parse_open_type_coverage_ranges(_range_records_bin, acc), do: Enum.reverse(acc)
 
+  @doc false
   def invert_cmap_by_code(cmap_by_code) when is_map(cmap_by_code) do
     Enum.reduce(cmap_by_code, %{}, fn {codepoint, glyph_id}, acc ->
       case Map.get(acc, glyph_id) do
@@ -498,6 +504,7 @@ defmodule Tincture.Font.OpenType.Common do
     end)
   end
 
+  @doc false
   def valid_unicode_codepoint?(codepoint)
       when is_integer(codepoint) and codepoint >= 0 and codepoint <= 0x10FFFF,
       do: true

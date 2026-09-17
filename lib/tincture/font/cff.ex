@@ -292,6 +292,7 @@ defmodule Tincture.Font.CFF do
     end
   end
 
+  @doc false
   def cff_sid_to_string(string_index, sid) when is_integer(sid) and sid >= 0 do
     if sid < 391 do
       cff_standard_sid_to_string(sid)
@@ -326,6 +327,7 @@ defmodule Tincture.Font.CFF do
 
   defp cff_string_index_sid_to_string(_string_index, _sid), do: nil
 
+  @doc false
   def fetch_cff_top_dict(data, table_records) do
     with {:ok, %{top_dict: top_dict}} <- fetch_cff_metadata(data, table_records) do
       {:ok, top_dict}
@@ -334,6 +336,7 @@ defmodule Tincture.Font.CFF do
     end
   end
 
+  @doc false
   def fetch_cff_metadata(data, table_records) do
     case Map.fetch(table_records, "CFF ") do
       {:ok, {offset, length}} ->
@@ -387,6 +390,7 @@ defmodule Tincture.Font.CFF do
   # is shared with the subsetting path in Tincture.PDF.Serialize. Reading only
   # needs the objects and the trailing binary; the byte offsets CFF also
   # returns matter when rewriting a table, not when parsing one.
+  @doc false
   def extract_cff_operator_operand(top_dict, operator)
       when is_binary(top_dict) and is_integer(operator) and operator >= 0 and operator <= 21 do
     scan_cff_dict_for_operator_operand(top_dict, operator, [])
@@ -394,6 +398,7 @@ defmodule Tincture.Font.CFF do
 
   def extract_cff_operator_operand(_top_dict, _operator), do: :error
 
+  @doc false
   def extract_cff_operator_operands(top_dict, operator)
       when is_binary(top_dict) and is_integer(operator) and operator >= 0 and operator <= 21 do
     scan_cff_dict_for_operator_operands(top_dict, operator, [])
@@ -401,6 +406,7 @@ defmodule Tincture.Font.CFF do
 
   def extract_cff_operator_operands(_top_dict, _operator), do: :error
 
+  @doc false
   def extract_cff_escaped_operator_operand(top_dict, escaped_operator)
       when is_binary(top_dict) and is_integer(escaped_operator) and escaped_operator >= 0 and
              escaped_operator <= 255 do

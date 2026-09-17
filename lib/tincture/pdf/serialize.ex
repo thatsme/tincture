@@ -33,6 +33,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.Structure
   alias Tincture.Telemetry
 
+  @doc false
   @spec export(PDF.t()) :: binary()
   def export(%PDF{} = pdf) do
     metadata = %{

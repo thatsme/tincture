@@ -16,16 +16,19 @@ defmodule Tincture.Font.OpenType.GSUB do
   alias Tincture.Font.Binary
   alias Tincture.Font.OpenType.Common
 
+  @doc false
   def parse_gsub_ligatures(data, table_records, cmap_by_code)
       when is_binary(data) and is_map(table_records) and is_map(cmap_by_code) do
     parse_gsub_substitutions(data, table_records, cmap_by_code, :preferred, ["liga"])
   end
 
+  @doc false
   def parse_gsub_ligatures_all_scripts(data, table_records, cmap_by_code)
       when is_binary(data) and is_map(table_records) and is_map(cmap_by_code) do
     parse_gsub_substitutions(data, table_records, cmap_by_code, :all, ["liga"])
   end
 
+  @doc false
   def parse_gsub_substitutions_all_scripts(data, table_records, cmap_by_code)
       when is_binary(data) and is_map(table_records) and is_map(cmap_by_code) do
     parse_gsub_substitutions(data, table_records, cmap_by_code, :all, ["liga", "rlig", "ccmp"])

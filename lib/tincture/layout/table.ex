@@ -19,8 +19,9 @@ defmodule Tincture.Layout.Table do
         )
 
   Cell text is escaped, so values containing parentheses or backslashes cannot
-  break the content stream. Cells wrap within their column, and `:valign`
-  controls vertical alignment when a row's cells differ in height.
+  break the content stream. Each cell is drawn as a single line of text; cells
+  do not wrap. Every row has the same height, and `:valign` places the text
+  within it.
   """
 
   alias Tincture.Font.Context
@@ -60,6 +61,40 @@ defmodule Tincture.Layout.Table do
               columns: 0
   end
 
+  @doc """
+  Draw a table with its top-left corner at X/Y.
+
+  `rows` is a non-empty list of rows, each a list of cells with the same length.
+  Cells are converted with `to_string/1`. `column_spec` is either a list of
+  positive widths in points, one per column, or `:auto`, which sizes each column
+  to its widest cell in `:font` plus padding on both sides.
+
+  Returns the document and a `RenderResult` giving the column widths, the row
+  height and the table's total height, so the next element can be placed below
+  it.
+
+  ## Options
+
+    * `:font` — font for body cells. Defaults to `"Helvetica"`.
+    * `:header_font` — font for header cells. Defaults to `"Helvetica-Bold"`.
+    * `:font_size` — defaults to `12`.
+    * `:header_rows` — how many leading rows are headers. Defaults to `0`.
+    * `:padding` — space inside each cell, in points. Defaults to `4`.
+    * `:row_height` — height of every row. Defaults to
+      `font_size * 1.4 + padding * 2`.
+    * `:valign` — `:top` (default), `:middle` or `:bottom`.
+    * `:border` — draw cell borders. Defaults to `true`.
+    * `:table_width` — with `:auto`, scale the measured widths to this total.
+    * `:min_col_width` — with `:auto`, the narrowest a column may be. Defaults
+      to `20`.
+    * `:tag` — `:auto` (default) tags the table only when the document is
+      already being tagged, `true` always, `false` never. A tagged table is
+      written as `/Table`, with header rows under `/THead`, the remaining rows
+      under `/TBody`, and header cells as `/TH` with column scope.
+
+  Raises `ArgumentError` for ragged rows, a width list of the wrong length, or
+  an invalid option value.
+  """
   @spec render(PDF.t(), number(), number(), [number()] | :auto, [row()], [option()]) ::
           {PDF.t(), RenderResult.t()}
   def render(%PDF{} = pdf, x, y, column_spec, rows, opts \\ [])

@@ -207,6 +207,7 @@ defmodule Tincture.PDF do
             metadata: %{},
             operations: []
 
+  @doc false
   @spec page_numbers(t()) :: [pos_integer()]
   def page_numbers(%__MODULE__{} = pdf) do
     pdf.pages
@@ -214,12 +215,14 @@ defmodule Tincture.PDF do
     |> Enum.sort()
   end
 
+  @doc false
   @spec page_operations(t(), pos_integer()) :: [op()]
   def page_operations(%__MODULE__{} = pdf, page_number)
       when is_integer(page_number) and page_number > 0 do
     Map.get(pdf.pages, page_number, [])
   end
 
+  @doc false
   @spec add_page(t()) :: t()
   def add_page(%__MODULE__{} = pdf) do
     next_page =
@@ -232,6 +235,7 @@ defmodule Tincture.PDF do
     %__MODULE__{pdf | pages: pages, current_page: next_page, operations: []}
   end
 
+  @doc false
   @spec set_page(t(), pos_integer()) :: t()
   def set_page(%__MODULE__{} = pdf, page_number)
       when is_integer(page_number) and page_number > 0 do
@@ -244,6 +248,7 @@ defmodule Tincture.PDF do
     end
   end
 
+  @doc false
   @spec append_current_op(t(), op()) :: t()
   def append_current_op(%__MODULE__{} = pdf, op) do
     current_ops = page_operations(pdf, pdf.current_page)
@@ -459,6 +464,7 @@ defmodule Tincture.PDF do
   defp normalize_scope(tag, _scope),
     do: raise(ArgumentError, ":scope only applies to a :th element, not #{inspect(tag)}")
 
+  @doc false
   @spec register_image(t(), image()) :: {t(), pos_integer()}
   def register_image(%__MODULE__{} = pdf, image) when is_map(image) do
     image_id = pdf.next_image_id
@@ -466,6 +472,7 @@ defmodule Tincture.PDF do
     {%__MODULE__{pdf | images: images, next_image_id: image_id + 1}, image_id}
   end
 
+  @doc false
   @spec register_ttf_font(t(), String.t(), Path.t()) :: t()
   def register_ttf_font(%__MODULE__{} = pdf, font_name, path)
       when is_binary(font_name) and byte_size(font_name) > 0 and is_binary(path) and
@@ -473,6 +480,7 @@ defmodule Tincture.PDF do
     register_ttf_font(pdf, font_name, path, [])
   end
 
+  @doc false
   @spec register_ttf_font(t(), String.t(), Path.t(), [embedded_font_option()]) :: t()
   def register_ttf_font(%__MODULE__{} = pdf, font_name, path, opts)
       when is_binary(font_name) and byte_size(font_name) > 0 and is_binary(path) and
@@ -480,6 +488,7 @@ defmodule Tincture.PDF do
     register_embedded_font(pdf, font_name, path, :ttf, "TTF", opts)
   end
 
+  @doc false
   @spec register_otf_font(t(), String.t(), Path.t()) :: t()
   def register_otf_font(%__MODULE__{} = pdf, font_name, path)
       when is_binary(font_name) and byte_size(font_name) > 0 and is_binary(path) and
@@ -487,6 +496,7 @@ defmodule Tincture.PDF do
     register_otf_font(pdf, font_name, path, [])
   end
 
+  @doc false
   @spec register_otf_font(t(), String.t(), Path.t(), [embedded_font_option()]) :: t()
   def register_otf_font(%__MODULE__{} = pdf, font_name, path, opts)
       when is_binary(font_name) and byte_size(font_name) > 0 and is_binary(path) and
@@ -686,6 +696,7 @@ defmodule Tincture.PDF do
   defp fs_type_restriction_label(:bitmap_only), do: "bitmap embedding only"
   defp fs_type_restriction_label(:no_subsetting), do: "disallows subsetting"
 
+  @doc false
   @spec add_bookmark(t(), String.t(), pos_integer()) :: t()
   def add_bookmark(%__MODULE__{} = pdf, title, page_number)
       when is_binary(title) and byte_size(title) > 0 and is_integer(page_number) and
@@ -698,12 +709,14 @@ defmodule Tincture.PDF do
     end
   end
 
+  @doc false
   @spec page_annotations(t(), pos_integer()) :: [annotation()]
   def page_annotations(%__MODULE__{} = pdf, page_number)
       when is_integer(page_number) and page_number > 0 do
     Map.get(pdf.annotations, page_number, [])
   end
 
+  @doc false
   @spec add_link(t(), {number(), number(), number(), number()}, link_target(), keyword()) :: t()
   def add_link(%__MODULE__{} = pdf, {x1, y1, x2, y2}, target, opts \\ [])
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_list(opts) do
@@ -919,6 +932,7 @@ defmodule Tincture.PDF do
   @field_flag_radio 32_768
   @field_flag_push_button 65_536
 
+  @doc false
   @spec add_form_field(
           t(),
           form_field_type(),
@@ -1257,6 +1271,7 @@ defmodule Tincture.PDF do
   defp flag_if(_flags, other, _bit),
     do: raise(ArgumentError, "form field flags must be booleans, got: #{inspect(other)}")
 
+  @doc false
   @spec set_metadata(t(), map() | keyword()) :: t()
   def set_metadata(%__MODULE__{} = pdf, metadata) when is_map(metadata) or is_list(metadata) do
     normalized =

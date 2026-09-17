@@ -117,6 +117,45 @@ defmodule Tincture.Typography do
     end
   end
 
+  @doc """
+  Break rich text into lines no wider than `max_width`.
+
+  Returns `Line` structs in reading order. Each line's `x` is its offset for the
+  alignment and its `y` is its offset from the first baseline, zero or
+  negative, so a caller adds both to its own origin. Nothing is drawn.
+
+  Raises `ArgumentError` if a run's font has no metrics — an embedded font not
+  yet measured against a document. `RichText.remeasure/2` resolves that, and
+  `Tincture.text_paragraph/6` and `Tincture.Layout.Box.flow_text/7` do it
+  automatically.
+
+  ## Options
+
+    * `:align` — `:left` (default), `:center`, `:right` or `:justified`.
+    * `:line_height` — fixed distance between baselines. Defaults to 1.2 times
+      the largest size on each line.
+    * `:line_break` — `:greedy` (default) or `:optimal`. See the module
+      documentation.
+    * `:justify_max_space_multiplier` — with `:justified`, the most a space may
+      stretch, as a multiple of its natural width (at least `1.0`). Defaults to
+      `:infinity`.
+    * `:justify_min_space_multiplier` — with `:justified`, the least a space
+      may shrink to, as a multiple of its natural width (above `0`, at most
+      `1.0`). Defaults to `1.0`, which disables shrinking.
+
+  The remaining options apply only to `line_break: :optimal`. Penalties are
+  non-negative numbers and default to `0`:
+
+    * `:optimal_cost_model` — `:box_glue` (default) or `:quadratic`.
+    * `:widow_penalty` — cost of a paragraph's last line holding a single word.
+    * `:orphan_penalty` — cost of a paragraph's first line holding a single
+      word when more lines follow.
+    * `:hyphen_penalty` — cost of ending a line at a hyphenation point.
+    * `:consecutive_hyphen_penalty` — cost of two adjacent lines both ending
+      hyphenated.
+    * `:fitness_class_penalty` — cost of adjacent lines whose spacing falls in
+      fitness classes more than one apart (tight next to loose).
+  """
   @spec layout_paragraph(RichText.t(), number(), [option()]) :: [Line.t()]
   def layout_paragraph(%RichText{} = rich, max_width, opts \\ [])
       when is_number(max_width) and max_width > 0 and is_list(opts) do
@@ -633,6 +672,16 @@ defmodule Tincture.Typography do
     end
   end
 
+  @doc """
+  Lay out a paragraph as `layout_paragraph/3` does, keeping at most `max_lines`.
+
+  The paragraph is broken as a whole and then split, so the kept lines are the
+  same lines the full layout would produce. Returns a `LayoutResult` with the
+  kept `lines`, the remaining `spill_lines`, their text joined by newlines in
+  `spill_text`, and `overflow?` set when anything was left over.
+
+  Takes the same options as `layout_paragraph/3`.
+  """
   @spec layout_paragraph_with_spill(RichText.t(), number(), pos_integer(), [option()]) ::
           LayoutResult.t()
   def layout_paragraph_with_spill(%RichText{} = rich, max_width, max_lines, opts \\ [])

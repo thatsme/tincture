@@ -18,6 +18,7 @@ defmodule Tincture.Font.TTF.Glyf do
   alias Tincture.Font.Binary
   alias Tincture.Font.CFF
 
+  @doc false
   def parse_glyph_metrics(data, table_records, num_glyphs, index_to_loc_format) do
     loca_record = Map.get(table_records, "loca")
     glyf_record = Map.get(table_records, "glyf")

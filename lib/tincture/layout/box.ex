@@ -76,6 +76,26 @@ defmodule Tincture.Layout.Box do
               spill_text: ""
   end
 
+  @doc """
+  Lay out rich text inside one box and draw the lines that fit.
+
+  `y` is the box's top edge. The text is re-measured against the document
+  first, so embedded fonts lay out correctly. As many lines are drawn as fit in
+  `height` at the line height; the rest is returned, not drawn.
+
+  Returns the document and a `Tincture.Typography.LayoutResult`: `lines` were
+  drawn, `spill_lines` and `spill_text` did not fit, and `overflow?` says
+  whether anything was left over.
+
+  ## Options
+
+  Takes the options of `Tincture.Typography.layout_paragraph/3`, plus:
+
+    * `:rotate` — rotate each drawn line by this many degrees.
+    * `:tag` and `:tag_as` — see "Tagging" in the module documentation.
+
+  Without `:line_height`, the line height is 1.2 times the largest run size.
+  """
   @spec flow_text(PDF.t(), number(), number(), number(), number(), RichText.t(), [option()]) ::
           {PDF.t(), LayoutResult.t()}
   def flow_text(%PDF{} = pdf, x, y, width, height, %RichText{} = rich_text, opts \\ [])
@@ -141,6 +161,20 @@ defmodule Tincture.Layout.Box do
   defp maybe_tag(pdf, true, :artifact, fun), do: Tincture.artifact(pdf, fun)
   defp maybe_tag(pdf, true, tag, fun), do: Tincture.tag(pdf, tag, [], fun)
 
+  @doc """
+  Flow one body of rich text through a list of boxes in order.
+
+  Each box is `{x, y, width, height}` with `y` at its top edge. Text that does
+  not fit in one box continues in the next, keeping its styling; flow stops as
+  soon as the text is used up, so later boxes may be left empty.
+
+  Returns the document and a `FlowResult`: one `LayoutResult` per box used,
+  the number of boxes used, and in `spill_text` whatever did not fit in any of
+  them.
+
+  Takes the same options as `flow_text/7`, applied to every box. Raises
+  `ArgumentError` for a malformed box tuple.
+  """
   @spec flow_across_boxes(PDF.t(), RichText.t(), [box()], [option()]) :: {PDF.t(), FlowResult.t()}
   def flow_across_boxes(%PDF{} = pdf, %RichText{} = rich_text, boxes, opts \\ [])
       when is_list(boxes) and is_list(opts) do

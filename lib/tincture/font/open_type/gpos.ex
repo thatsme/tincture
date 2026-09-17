@@ -76,6 +76,7 @@ defmodule Tincture.Font.OpenType.GPOS do
        ),
        do: lookup_entries
 
+  @doc false
   def parse_gpos_pair_kerns(data, table_records, cmap_by_code)
       when is_binary(data) and is_map(table_records) and is_map(cmap_by_code) do
     candidate_glyph_ids = cmap_candidate_glyph_ids(cmap_by_code)

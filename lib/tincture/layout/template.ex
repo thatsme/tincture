@@ -144,6 +144,26 @@ defmodule Tincture.Layout.Template do
           | {:invalid_slot_height, String.t()}
           | {:invalid_body_size, String.t()}
 
+  @doc """
+  Build a page template.
+
+  The body area is the page inside the margins, less the header and footer
+  heights, divided into `:columns` equal columns separated by `:gutter`.
+
+  ## Options
+
+    * `:page_size` — `:letter` (default), `:a4`, `:legal` or `{width, height}`
+      in points.
+    * `:margins` — `{left, right, top, bottom}` in points. Defaults to `50` on
+      every side.
+    * `:columns` — a positive integer. Defaults to `1`.
+    * `:gutter` — space between columns. Defaults to `20`.
+    * `:header_height` — space reserved below the top margin. Defaults to `30`.
+    * `:footer_height` — space reserved above the bottom margin. Defaults to
+      `20`.
+
+  Raises `ArgumentError` for an invalid value.
+  """
   @spec new([option()]) :: t()
   def new(opts \\ []) when is_list(opts) do
     page_size = Keyword.get(opts, :page_size, :letter)
@@ -167,6 +187,19 @@ defmodule Tincture.Layout.Template do
     }
   end
 
+  @doc """
+  Set the running header, drawn at the top margin of every page.
+
+  `{page}` and `{total}` in `text` are replaced per page; see the module
+  documentation.
+
+  ## Options
+
+    * `:font` — defaults to `"Helvetica-Bold"`.
+    * `:size` — defaults to `12`.
+    * `:height` — replaces the template's header height, which moves the top of
+      the body area.
+  """
   @spec with_header(t(), String.t(), [slot_option()]) :: t()
   def with_header(%__MODULE__{} = template, text, opts \\ [])
       when is_binary(text) and is_list(opts) do
@@ -185,6 +218,19 @@ defmodule Tincture.Layout.Template do
     update_layout(%{template | header: slot, header_height: header_height})
   end
 
+  @doc """
+  Set the running footer, drawn just above the bottom margin of every page.
+
+  `{page}` and `{total}` in `text` are replaced per page; see the module
+  documentation.
+
+  ## Options
+
+    * `:font` — defaults to `"Helvetica"`.
+    * `:size` — defaults to `10`.
+    * `:height` — replaces the template's footer height, which moves the bottom
+      of the body area.
+  """
   @spec with_footer(t(), String.t(), [slot_option()]) :: t()
   def with_footer(%__MODULE__{} = template, text, opts \\ [])
       when is_binary(text) and is_list(opts) do
@@ -203,6 +249,24 @@ defmodule Tincture.Layout.Template do
     update_layout(%{template | footer: slot, footer_height: footer_height})
   end
 
+  @doc """
+  Render one page of the template onto the current page.
+
+  Draws the header and footer, then flows `rich_text` through the body columns
+  with `Tincture.Layout.Box.flow_across_boxes/4`. No page is added. Returns a
+  `RenderResult` whose `spill_text` holds what did not fit.
+
+  In a tagged document the header and footer are marked as artifacts, so a
+  reader does not announce them on every page.
+
+  ## Options
+
+  Takes the options of `Tincture.Layout.Box.flow_text/7`, plus:
+
+    * `:page_number` — the number substituted for `{page}`. Defaults to `1`.
+    * `:page_total` — the number substituted for `{total}`. Defaults to
+      `:page_number`.
+  """
   @spec render(PDF.t(), t(), RichText.t(), [Box.option()]) :: {PDF.t(), RenderResult.t()}
   def render(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
@@ -283,6 +347,27 @@ defmodule Tincture.Layout.Template do
   defp maybe_artifact(pdf, false, fun), do: fun.(pdf)
   defp maybe_artifact(pdf, true, fun), do: Tincture.artifact(pdf, fun)
 
+  @doc """
+  Render `rich_text` across as many pages of the template as it needs.
+
+  The first page is rendered onto the current page; each further page is added
+  with `Tincture.add_page/1`. Rendering stops when the text is used up or after
+  `:max_pages` pages. Text carried onto a new page takes the font, size and
+  style of the first run of `rich_text`.
+
+  Returns a `DocumentResult` with one `RenderResult` per page, the number of
+  pages used, and in `spill_text` whatever did not fit within `:max_pages`.
+
+  ## Options
+
+  Takes the options of `Tincture.Layout.Box.flow_text/7`, plus:
+
+    * `:page_number_start` — the `{page}` number of the first page. Defaults to
+      the document's current page number.
+    * `:page_total` — the number substituted for `{total}`. Without it, each
+      page's `{total}` is that page's own number.
+    * `:max_pages` — defaults to `50`.
+  """
   @spec render_document(PDF.t(), t(), RichText.t(), [document_option()]) ::
           {PDF.t(), DocumentResult.t()}
   def render_document(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
@@ -332,6 +417,17 @@ defmodule Tincture.Layout.Template do
     {final_pdf, result}
   end
 
+  @doc """
+  Build a template and its body text from an XML document.
+
+  The format is shown in the module documentation. `<document>` carries
+  `page_size`, `margins`, `columns` and `gutter`; `<header>` and `<footer>` are
+  optional and carry `font`, `size` and `height`; `<body>` is required and
+  carries `font` and `size`. The body is read as plain text in a single style.
+
+  Returns `{:ok, template, rich_text}`, or `{:error, reason}` for malformed XML,
+  a missing `<body>`, or an attribute that does not parse — see `t:xml_error/0`.
+  """
   @spec parse_xml(String.t()) :: {:ok, t(), RichText.t()} | {:error, xml_error()}
   def parse_xml(xml) when is_binary(xml) do
     with {:ok, doc} <- parse_xml_doc(xml),
@@ -341,6 +437,13 @@ defmodule Tincture.Layout.Template do
     end
   end
 
+  @doc """
+  Parse an XML template with `parse_xml/1` and render it with
+  `render_document/4`.
+
+  Returns `{:ok, pdf, result}`, or the error from `parse_xml/1`. Takes the same
+  options as `render_document/4`.
+  """
   @spec render_xml_document(PDF.t(), String.t(), [document_option()]) ::
           {:ok, PDF.t(), DocumentResult.t()} | {:error, xml_error()}
   def render_xml_document(%PDF{} = pdf, xml, opts \\ []) when is_binary(xml) and is_list(opts) do

@@ -17,6 +17,7 @@ defmodule Tincture.Font.TTF.Name do
   alias Tincture.Font.Binary
   alias Tincture.Font.CFF
 
+  @doc false
   def parse_name_metadata(data, table_records) do
     case Map.fetch(table_records, "name") do
       {:ok, {offset, length}} ->

@@ -20,6 +20,24 @@ defmodule Tincture.Typography.Hyphen do
   @type locale :: :en_gb | :da_dk | :fi_fi | :nb_no | :sv_se
   @type option :: {:left_min, pos_integer()} | {:right_min, pos_integer()}
 
+  @doc """
+  Split a word at the points where it may be hyphenated.
+
+  Returns the word's parts in order. A word with no permitted break comes back
+  as a one-element list, as does a word of four bytes or fewer and a word
+  containing any non-ASCII character — accented letters included, in every
+  locale.
+
+  ## Options
+
+    * `:left_min` — the fewest characters allowed before the first break.
+      Defaults to `2`.
+    * `:right_min` — the fewest characters allowed after the last break.
+      Defaults to `2`.
+
+  Pattern files are loaded on first use per locale and cached for the life of
+  the VM.
+  """
   @spec hyphenate(String.t(), locale(), [option()]) :: [String.t()]
   def hyphenate(word, locale \\ :en_gb, opts \\ [])
 

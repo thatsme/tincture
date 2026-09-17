@@ -18,6 +18,7 @@ defmodule Tincture.Font.TTF.Cmap do
 
   alias Tincture.Font.Binary
 
+  @doc false
   def parse_cmap_by_code(data, table_records) do
     case Map.fetch(table_records, "cmap") do
       {:ok, {offset, length}} ->
@@ -35,6 +36,7 @@ defmodule Tincture.Font.TTF.Cmap do
     end
   end
 
+  @doc false
   def parse_cmap_variation_metadata(data, table_records) do
     default = %{cmap_var_selectors: [], cmap_non_default_uvs: %{}}
 

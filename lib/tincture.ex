@@ -263,6 +263,12 @@ defmodule Tincture do
     link(pdf, x, y, width, height, target, [])
   end
 
+  @doc """
+  Add a clickable link over a rectangle on the page, with options.
+
+  Behaves as `link/6`. The options — `:page`, `:border`, `:new_window` and
+  `:contents` — are described there.
+  """
   @spec link(
           PDF.t(),
           number(),
@@ -323,6 +329,12 @@ defmodule Tincture do
     text_link(pdf, x, y, text, target, [])
   end
 
+  @doc """
+  Draw text at X/Y and make it clickable, with options.
+
+  Behaves as `text_link/5`, which describes `:color` and `contents: :text`. The
+  remaining options are those of `link/7`.
+  """
   @spec text_link(
           PDF.t(),
           number(),
@@ -698,6 +710,23 @@ defmodule Tincture do
     text_at_with_fallback(pdf, x, y, text, fallback_fonts, [])
   end
 
+  @doc """
+  Place text at X/Y coordinates, splitting glyph runs across fallback fonts when
+  needed, with shaping and kerning options.
+
+  ## Options
+
+    * `:shaping` — `:off` (default) draws the text as given. `:latin_ligatures`
+      replaces sequences such as `fi`, `fl` and `ffi` with ligature characters,
+      using the font's GSUB `liga` substitutions for Latin and a built-in set of
+      f-ligatures. `:gsub_ligatures` uses the font's `liga`, `rlig` and `ccmp`
+      substitutions across all scripts. A sequence is replaced only where a font
+      in the fallback chain has a glyph for the ligature.
+    * `:kerning` — `:off` (default) or `:gpos`, which applies the embedded
+      font's GPOS pair adjustments between consecutive characters. Kerned text
+      is drawn one character per text operation. Standard fonts carry no GPOS
+      data, so the option has no effect on them.
+  """
   @spec text_at_with_fallback(
           PDF.t(),
           number(),
@@ -753,6 +782,12 @@ defmodule Tincture do
     text_at_rotated_with_fallback(pdf, x, y, angle_degrees, text, fallback_fonts, [])
   end
 
+  @doc """
+  Place rotated text at X/Y, splitting glyph runs across fallback fonts when
+  needed, with shaping and kerning options.
+
+  Takes the same options as `text_at_with_fallback/6`.
+  """
   @spec text_at_rotated_with_fallback(
           PDF.t(),
           number(),
