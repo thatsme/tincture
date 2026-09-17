@@ -18,6 +18,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ToUnicode range compaction no longer copies its accumulators per run.**
   Output is unchanged byte for byte.
 
+### Documentation
+
+- **Every public function in a documented module now has a doc.** Nineteen
+  had a spec and nothing else, among them `Layout.Template`, `Layout.Table.render/6`,
+  `Layout.Box`, `Typography.layout_paragraph/3`, `Typography.Hyphen.hyphenate/3`,
+  and the option-taking arities of `link` and `text_link`. The `:shaping` and
+  `:kerning` options of the fallback text functions are documented for the
+  first time.
+
+- **Internal functions are hidden from the generated docs.** Thirty-nine
+  functions called only from inside the library — the per-table font parsers,
+  the CFF and OpenType helpers, `PDF.FontEmbed`, the `Tincture.PDF` state
+  functions the `Tincture` module wraps, and `PDF.Serialize.export/1` — are now
+  `@doc false`. They are still public and callable; code that uses them is
+  unaffected.
+
+- **`Layout.Table` no longer claims cells wrap.** A cell is drawn as one line
+  of text and every row has the same height.
+
 ## [0.3.2] — 2026-08-22
 
 ### Added
