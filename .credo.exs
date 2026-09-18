@@ -4,10 +4,9 @@
 # malformed-input path. Flattening those into helpers would spread a single
 # format's rules across a dozen call sites and make the spec harder to follow.
 #
-# These namespaces are therefore exempt from nesting, complexity and ABC size.
-# FunctionArity is NOT exempt here — it is scoped to test_builders only — so
-# the parse functions still report on arity. Every other check applies to them
-# in full, as every check does to the rest of the codebase.
+# These namespaces are therefore exempt from the structural checks: nesting,
+# complexity, ABC size and arity. Every other check applies to them in full,
+# as every check does to the rest of the codebase.
 #
 # Matched by namespace rather than by file: the exemption is a property of the
 # binary-format code, so a new table parser added under font/ inherits it
@@ -46,7 +45,12 @@ test_builders = [
            max_complexity: 7, files: %{excluded: parser_modules}},
           {Credo.Check.Refactor.Nesting,
            max_nesting: 2, files: %{excluded: parser_modules ++ test_builders}},
-          {Credo.Check.Refactor.FunctionArity, max_arity: 6, files: %{excluded: test_builders}},
+          # lib/tincture.ex is exempt from FunctionArity only:
+          # public API — arity changes are breaking; revisit with keyword opts
+          # in a major version. ABCSize, complexity and nesting stay active there.
+          {Credo.Check.Refactor.FunctionArity,
+           max_arity: 6,
+           files: %{excluded: test_builders ++ parser_modules ++ ["lib/tincture.ex"]}},
           {Credo.Check.Refactor.ABCSize, max_size: 40, files: %{excluded: parser_modules}},
 
           # Long parameter lists inside the typography engine thread layout
