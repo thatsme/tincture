@@ -35,12 +35,13 @@ test_builders = [
         enabled: [
           # Scoped rather than globally relaxed: the two binary-format parsers
           # are exempt from the structural checks, everything else is held to
-          # the raised-but-real thresholds below.
+          # the canonical thresholds below.
           {Credo.Check.Refactor.CyclomaticComplexity,
-           max_complexity: 40, files: %{excluded: parser_modules}},
+           max_complexity: 7, files: %{excluded: parser_modules}},
           {Credo.Check.Refactor.Nesting,
-           max_nesting: 5, files: %{excluded: parser_modules ++ test_builders}},
-          {Credo.Check.Refactor.FunctionArity, max_arity: 9, files: %{excluded: test_builders}},
+           max_nesting: 2, files: %{excluded: parser_modules ++ test_builders}},
+          {Credo.Check.Refactor.FunctionArity, max_arity: 6, files: %{excluded: test_builders}},
+          {Credo.Check.Refactor.ABCSize, max_size: 40},
 
           # Long parameter lists inside the typography engine thread layout
           # state (rotation, fallbacks, bidi, shaping, kerning) through private
@@ -50,7 +51,13 @@ test_builders = [
           {Credo.Check.Design.TagFIXME, []},
 
           # Everything below is Credo's strict default set.
+          #
+          # Warning.WrongTestFilename is in the canonical set but does not exist
+          # in the credo 1.7.16 pinned here; WrongTestFileExtension below is the
+          # name it had at this version.
           {Credo.Check.Consistency.ExceptionNames, []},
+          {Credo.Check.Design.AliasUsage,
+           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
           {Credo.Check.Consistency.LineEndings, []},
           {Credo.Check.Consistency.ParameterPatternMatching, []},
           {Credo.Check.Consistency.SpaceAroundOperators, []},
@@ -59,7 +66,7 @@ test_builders = [
           {Credo.Check.Readability.AliasOrder, []},
           {Credo.Check.Readability.FunctionNames, []},
           {Credo.Check.Readability.LargeNumbers, []},
-          {Credo.Check.Readability.MaxLineLength, max_length: 120},
+          {Credo.Check.Readability.MaxLineLength, priority: :low, max_length: 120},
           {Credo.Check.Readability.ModuleAttributeNames, []},
           {Credo.Check.Readability.ModuleDoc, []},
           {Credo.Check.Readability.ModuleNames, []},
@@ -76,10 +83,12 @@ test_builders = [
           {Credo.Check.Readability.TrailingWhiteSpace, []},
           {Credo.Check.Readability.UnnecessaryAliasExpansion, []},
           {Credo.Check.Readability.VariableNames, []},
+          {Credo.Check.Readability.WithSingleClause, []},
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
           {Credo.Check.Refactor.FilterCount, []},
           {Credo.Check.Refactor.FilterFilter, []},
+          {Credo.Check.Refactor.LongQuoteBlocks, []},
           {Credo.Check.Refactor.MapJoin, []},
           {Credo.Check.Refactor.MapMap, []},
           {Credo.Check.Refactor.MatchInCondition, []},
@@ -100,11 +109,13 @@ test_builders = [
           {Credo.Check.Warning.OperationWithConstantResult, []},
           {Credo.Check.Warning.RaiseInsideRescue, []},
           {Credo.Check.Warning.SpecWithStruct, []},
+          {Credo.Check.Warning.StructFieldAmount, []},
           {Credo.Check.Warning.UnsafeExec, []},
           {Credo.Check.Warning.UnusedEnumOperation, []},
           {Credo.Check.Warning.UnusedFileOperation, []},
           {Credo.Check.Warning.UnusedKeywordOperation, []},
           {Credo.Check.Warning.UnusedListOperation, []},
+          {Credo.Check.Warning.UnusedMapOperation, []},
           {Credo.Check.Warning.UnusedPathOperation, []},
           {Credo.Check.Warning.UnusedRegexOperation, []},
           {Credo.Check.Warning.UnusedStringOperation, []},
