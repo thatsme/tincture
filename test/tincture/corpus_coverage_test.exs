@@ -16,9 +16,16 @@ defmodule Tincture.CorpusCoverageTest do
 
   alias Tincture.PDF.Structure
 
-  # The documents the release checklist runs veraPDF against. `archival.pdf` is
-  # validated at 2a, which carries the same tagging rules as PDF/UA.
-  @validated ~w(compliant accessible archival)
+  # Every document CI and the release checklist run veraPDF against, as paths
+  # under examples/output without the extension. All five are validated at
+  # PDF/UA-1; `archival.pdf` is also validated at PDF/A-2a, 2b and 2u.
+  @validated [
+    "compliant",
+    "accessible",
+    "archival",
+    "linked/Main-report",
+    "linked/Attached documents/Appendix-A"
+  ]
 
   # Structure types the corpus does not emit. Every one is a set of rules that
   # has never run against Tincture's output.
@@ -81,7 +88,7 @@ defmodule Tincture.CorpusCoverageTest do
     emitted = emitted_structure_types()
 
     assert MapSet.member?(emitted, "Link"),
-           "compliant.pdf must carry a tagged link. Without one, ISO 14289-1 " <>
+           "The validated corpus must carry a tagged link. Without one, ISO 14289-1 " <>
              "clause 7.18.5 has nothing to match and passes by default."
   end
 
