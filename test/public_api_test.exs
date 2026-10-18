@@ -1,7 +1,7 @@
 defmodule Tincture.PublicApiTest do
   use ExUnit.Case, async: true
 
-  # Snapshot of the API published in v0.3.2, the last released tag, checked against
+  # Snapshot of the API published in v0.3.2, a released tag, checked against
   # the tree at fe0eebd. Anchored to the release rather than to main:
   # what Hex shipped is what users can be calling.
   #
