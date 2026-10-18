@@ -402,7 +402,11 @@ currently holds everything at once.
   document carrying the link, so a set of files that ship together can refer
   to each other. Named destinations are reserved and unimplemented; the page
   index is a promise about a file Tincture never reads, which is the
-  limitation to know. Browser-embedded viewers do not follow these links.
+  limitation to know. Browser-embedded viewers do not follow these links, and
+  neither does macOS Preview, the default PDF viewer on macOS: on macOS 26.6.2
+  it shows a permission alert and does not open the target. A set of documents
+  that relies on these links needs a desktop reader that follows them;
+  SumatraPDF is the one observed.
 - **Memory profile.** No measured figure for a large document. Worth having
   before the streaming export in [8](#8-file-size-and-streaming), which cannot
   be sized without knowing what a thousand-page run currently holds.

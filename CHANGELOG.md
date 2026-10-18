@@ -54,6 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PDF/A-1 states its reason rather than pointing at a note that did not exist.
   Test, coverage and Credo figures are re-measured.
 
+- **macOS Preview does not follow links into another file.** Clicking one shows
+  a permission alert and the target does not open (observed on macOS 26.6.2).
+  Preview is the default PDF viewer on macOS, so the `link/7` docs, ROADMAP and
+  `examples/README.md` now say so, alongside the browser-embedded viewers
+  already listed, and that a desktop reader which follows cross-file links is
+  needed.
+
 ### Infrastructure
 
 - **Credo `--strict` passes again under the stricter structural thresholds.**

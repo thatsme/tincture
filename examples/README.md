@@ -204,10 +204,13 @@ Two things to know before relying on this, both shown in the script:
   checks it. Regenerate the appendix with an extra page near the front and
   every link into it is silently off by one. Named destinations would survive
   that; they are reserved and unimplemented.
-- **Desktop readers follow these links; browser-embedded viewers generally do
-  not**, refusing local-file navigation as policy. Measured while building it:
-  SumatraPDF follows them, Edge renders the link and does nothing on click,
-  Firefox's viewer does not act on them.
+- **Some desktop readers follow these links; browser-embedded viewers
+  generally do not**, refusing local-file navigation as policy. Measured while
+  building it: SumatraPDF follows them, Edge renders the link and does nothing
+  on click, Firefox's viewer does not act on them. macOS Preview, the default
+  PDF viewer on macOS, shows a permission alert on click and does not open the
+  target (observed on macOS 26.6.2). Open the pair in a desktop reader that
+  follows cross-file links; SumatraPDF is the one observed.
 
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 

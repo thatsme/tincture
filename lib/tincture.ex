@@ -203,11 +203,14 @@ defmodule Tincture do
   file specification that resolves to nothing is not specified here — it has
   not been observed.
 
-  **Viewer support is not universal.** Desktop readers follow these links;
+  **Viewer support is not universal.** Some desktop readers follow these links;
   browser-embedded viewers generally do not, because they refuse local-file
   navigation as a matter of policy. Verified during development: SumatraPDF
   follows them, Microsoft Edge renders the link but does nothing on click, and
-  Firefox's viewer does not act on them.
+  Firefox's viewer does not act on them. macOS Preview, the default PDF viewer
+  on macOS, shows a permission alert on click and does not open the target
+  (observed on macOS 26.6.2). A set of documents that relies on these links
+  needs a desktop reader that follows them; SumatraPDF is the one observed.
 
   Coordinates are in PDF user space, with the origin at the bottom-left of the
   page — the same space `text_at/4` and `rectangle/5` use. The rectangle is
