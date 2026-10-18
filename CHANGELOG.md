@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-10-18
+
 ### Changed
 
 - **`bidi: :basic` resolves neutral tokens in linear time.** Each space or break
@@ -21,10 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A link to another file with no page now carries the required `/D`.**
-  `{:file, path}` wrote a `/GoToR` action with no destination, which ISO
-  32000-1 Table 200 requires. It now writes `/D [0 /XYZ null null null]`: the
-  first page, with position and zoom left to the reader. Output bytes change
-  only for links of that form; `{:file, path, page}` is unchanged.
+  `{:file, path}` wrote a `/GoToR` action with no `/D`, the destination ISO
+  32000-1 Table 200 marks as required. It now writes
+  `/D [0 /XYZ null null null]`: the first page, with position and zoom left to
+  the reader. Output bytes change only for links of that form;
+  `{:file, path, page}` is unchanged. The bytes were verified against ISO
+  32000-1 Tables 200 and 151; the check that a desktop viewer opens the target
+  at its first page is pending.
 
 ### Documentation
 
@@ -639,7 +644,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/thatsme/tincture/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/thatsme/tincture/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/thatsme/tincture/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thatsme/tincture/compare/v0.2.0...v0.3.0
