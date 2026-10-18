@@ -42,6 +42,9 @@ tincture-*.tar
 /.giulia/
 /GIULIA.md
 
+# Generated analysis reports.
+/reports/
+
 # Never commit secrets, including a Hex API key.
 .env
 .env.*
