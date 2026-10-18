@@ -23,13 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A link to another file with no page now carries the required `/D`.**
-  `{:file, path}` wrote a `/GoToR` action with no `/D`, the destination ISO
-  32000-1 Table 200 marks as required. It now writes
-  `/D [0 /XYZ null null null]`: the first page, with position and zoom left to
-  the reader. Output bytes change only for links of that form;
-  `{:file, path, page}` is unchanged. The bytes were verified against ISO
-  32000-1 Tables 200 and 151. SumatraPDF 3.x opens `Appendix-A.pdf` at its
-  first page from the page-less link.
+  `{:file, path}` wrote a `/GoToR` action without the destination ISO 32000-1
+  Table 200 marks as required. It now writes `/D [0 /XYZ null null null]`,
+  opening the target at its first page with position and zoom left to the
+  reader. Links of the form `{:file, path, page}` are unchanged.
 
 ### Documentation
 
