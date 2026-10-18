@@ -123,8 +123,8 @@ table, and a figure with alternative text.
 
 The script prints a checklist of each requirement and where it came from.
 
-**Validated:** passes veraPDF 1.30.2 against PDF/UA-1 — 106 of 106 rules, 2605
-of 2605 checks:
+**Validated:** passes veraPDF 1.30.2 against PDF/UA-1 — 106 of 106 rules, 2860
+of 2860 checks:
 
     verapdf --flavour ua1 examples/output/compliant.pdf
 

@@ -359,7 +359,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not allocating one means a document that uses no gradient is byte-for-byte
   what it was before — every existing fixture lock still passes untouched.
 
-  See [`examples/gradient.exs`](examples/gradient.exs).
+  See [`examples/gradient.exs`](https://github.com/thatsme/tincture/blob/main/examples/gradient.exs).
 
 ### Fixed
 

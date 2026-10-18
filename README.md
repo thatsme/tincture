@@ -144,7 +144,7 @@ holds.
 ## Examples
 
 Nine runnable scripts, each with its PDF committed so you can see the output
-without running anything. See [examples/README.md](examples/README.md).
+without running anything. See [examples/README.md](https://github.com/thatsme/tincture/blob/main/examples/README.md).
 
 ```bash
 mix examples
@@ -152,15 +152,15 @@ mix examples
 
 | | |
 |---|---|
-| [`gradient.exs`](examples/gradient.exs) | A report cover — axial and radial gradients, alpha, a watermark |
-| [`invoice.exs`](examples/invoice.exs) | A commercial invoice — embedded fonts, a table, justified terms, a payment link |
-| [`form.exs`](examples/form.exs) | Every interactive field type, with generated appearances |
-| [`accessible.exs`](examples/accessible.exs) | A tagged report — headings, table scope, alt text |
-| [`compliant.exs`](examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
-| [`archival.exs`](examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
-| [`signed.exs`](examples/signed.exs) | A digitally signed agreement |
-| [`remote_links.exs`](examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
-| [`telemetry.exs`](examples/telemetry.exs) | The telemetry spans, printed as a document is built |
+| [`gradient.exs`](https://github.com/thatsme/tincture/blob/main/examples/gradient.exs) | A report cover — axial and radial gradients, alpha, a watermark |
+| [`invoice.exs`](https://github.com/thatsme/tincture/blob/main/examples/invoice.exs) | A commercial invoice — embedded fonts, a table, justified terms, a payment link |
+| [`form.exs`](https://github.com/thatsme/tincture/blob/main/examples/form.exs) | Every interactive field type, with generated appearances |
+| [`accessible.exs`](https://github.com/thatsme/tincture/blob/main/examples/accessible.exs) | A tagged report — headings, table scope, alt text |
+| [`compliant.exs`](https://github.com/thatsme/tincture/blob/main/examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
+| [`archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
+| [`signed.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed.exs) | A digitally signed agreement |
+| [`remote_links.exs`](https://github.com/thatsme/tincture/blob/main/examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
+| [`telemetry.exs`](https://github.com/thatsme/tincture/blob/main/examples/telemetry.exs) | The telemetry spans, printed as a document is built |
 
 ## What it does not do
 

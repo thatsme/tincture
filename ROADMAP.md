@@ -85,8 +85,8 @@ pure stays here.
 The core — object model, fonts, typography, layout — has zero dependencies, and
 that is the promise rather than an accident of the current feature set. It is
 also what makes a feature request answerable: "not in core, that would be a
-separate package" is an architectural answer, not a refusal. Il nucleo resta
-piccolo per costruzione, non per disciplina.
+separate package" is an architectural answer, not a refusal. The core stays
+small by construction, not by discipline.
 
 | | Needs | Where |
 |---|---|---|

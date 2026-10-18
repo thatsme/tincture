@@ -130,7 +130,8 @@ gates, but a failure discovered after tagging costs a version number.
    The HexDocs URL also does not exist until you publish, so writing the body
    first means links that 404.
 
-       gh release create vX.Y.Z --title "vX.Y.Z — what changed"          --notes-file body.md --verify-tag reports/*.xml
+       gh release create vX.Y.Z --title "vX.Y.Z — what changed" \
+         --notes-file body.md --verify-tag reports/*.xml
 
    The body pastes the changelog's `### Changed` and `### Fixed` sections
    **verbatim**. Do not summarise them. Behaviour breaks are the most valuable
