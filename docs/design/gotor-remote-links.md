@@ -219,3 +219,11 @@ Bytes are not the deliverable; a link a viewer follows is.
    report read rather than the tick trusted.
 8. A two-document example. All eight existing examples write a single file;
    this feature is about a pair, so it is the first that will not.
+
+## Addendum: the page-less form
+
+The page-less form `{:file, path}` was not specified here. It shipped in 0.3.2
+writing a `/GoToR` action with no `/D`, which ISO 32000-1 Table 200 marks as
+required. 0.3.3 fixes it by writing `/D [0 /XYZ null null null]`: page 0 is
+the first page of the remote document, and null left, top and zoom retain the
+reader's current values (Table 151). `{:file, path, page}` is unchanged.

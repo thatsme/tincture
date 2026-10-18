@@ -52,6 +52,10 @@ outside_lib = ["test/", "scripts/"]
            max_complexity: 7, files: %{excluded: parser_modules ++ outside_lib}},
           {Credo.Check.Refactor.Nesting,
            max_nesting: 2, files: %{excluded: parser_modules ++ test_builders ++ outside_lib}},
+          # Long parameter lists inside the typography engine thread layout
+          # state (rotation, fallbacks, bidi, shaping, kerning) through private
+          # helpers. Tracked for the Tincture.Document refactor rather than
+          # papered over here.
           # lib/tincture.ex is exempt from FunctionArity only:
           # public API — arity changes are breaking; revisit with keyword opts
           # in a major version. ABCSize, complexity and nesting stay active there.
@@ -62,11 +66,6 @@ outside_lib = ["test/", "scripts/"]
            }},
           {Credo.Check.Refactor.ABCSize,
            max_size: 40, files: %{excluded: parser_modules ++ outside_lib}},
-
-          # Long parameter lists inside the typography engine thread layout
-          # state (rotation, fallbacks, bidi, shaping, kerning) through private
-          # helpers. Tracked for the Tincture.Document refactor rather than
-          # papered over here.
           {Credo.Check.Design.TagTODO, exit_status: 0},
           {Credo.Check.Design.TagFIXME, []},
 
