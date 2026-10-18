@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ToUnicode range compaction no longer copies its accumulators per run.**
   Output is unchanged byte for byte.
 
+### Fixed
+
+- **A link to another file with no page now carries the required `/D`.**
+  `{:file, path}` wrote a `/GoToR` action with no destination, which ISO
+  32000-1 Table 200 requires. It now writes `/D [0 /XYZ null null null]`: the
+  first page, with position and zoom left to the reader. Output bytes change
+  only for links of that form; `{:file, path, page}` is unchanged.
+
 ### Documentation
 
 - **Every public function in a documented module now has a doc.** Nineteen

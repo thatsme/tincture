@@ -40,8 +40,11 @@ defmodule Tincture.RemoteLinkTest do
       assert linked({:file, "a.pdf", 100}) =~ "/D [99 /Fit]"
     end
 
-    test "omits /D entirely when no page is named" do
-      assert linked({:file, "a.pdf"}) == "/A << /S /GoToR /F (a.pdf) >>"
+    # /D is required on a remote go-to action. SumatraPDF opening a target
+    # with no /D at its first page was the reader's leniency, not conformance.
+    test "names the first page, with the view left to the reader, when no page is named" do
+      assert linked({:file, "a.pdf"}) ==
+               "/A << /S /GoToR /F (a.pdf) /D [0 /XYZ null null null] >>"
     end
 
     test "uses /Fit, where an internal link uses /XYZ" do

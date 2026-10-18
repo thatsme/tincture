@@ -1444,11 +1444,14 @@ defmodule Tincture.PDF.Serialize do
       new_window_entry(annotation) <> " >>"
   end
 
-  # No destination: the reader opens the target at its beginning. Confirmed
-  # against SumatraPDF, including when the document was already open at
-  # another page.
+  # /D is required on a remote go-to action (ISO 32000-1 Table 200), so a link
+  # to the document as a whole names its first page. /XYZ with null
+  # coordinates leaves position and zoom to the reader; /Fit would impose a
+  # zoom. SumatraPDF also opens the first page when /D is absent, but that is
+  # the reader's leniency, not the specification.
   defp link_target_entry({:file, path}, _page_object_refs, annotation) do
-    "/A << /S /GoToR /F #{Object.format_text(path)}" <> new_window_entry(annotation) <> " >>"
+    "/A << /S /GoToR /F #{Object.format_text(path)} /D [0 /XYZ null null null]" <>
+      new_window_entry(annotation) <> " >>"
   end
 
   defp link_target_entry({:page, page_number}, page_object_refs, _annotation) do
