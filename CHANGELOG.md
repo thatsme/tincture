@@ -45,6 +45,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Layout.Table` no longer claims cells wrap.** A cell is drawn as one line
   of text and every row has the same height.
 
+- **README and ROADMAP corrected against the code.** Transparency and
+  gradients, implemented in 0.2.0, are no longer listed as missing or as open
+  work. The examples list has nine scripts, including `remote_links.exs`. The
+  ROADMAP's structure-type count was inverted and now reads 19 of 37
+  exercised, and its PDF/UA-1 summary states that coverage. Its accessibility
+  item lists only the PAC audit as remaining, and the `/CIDSet` note under
+  PDF/A-1 states its reason rather than pointing at a note that did not exist.
+  Test, coverage and Credo figures are re-measured.
+
+### Infrastructure
+
+- **Credo `--strict` passes again under the stricter structural thresholds.**
+  The 70 findings already in `lib/` are exempted one by one with an inline
+  comment naming the check, so the debt is a list rather than a relaxed
+  threshold; new code is held to the full bar. `test/` and `scripts/` are
+  exempt from the structural checks only.
+- **veraPDF is pinned to 1.30.2 in CI.** The unversioned installer URL follows
+  the latest release, so a veraPDF release could change what CI validates
+  against with no change in this repository.
+- **The corpus audit covers every document CI validates.** The two linked
+  documents were validated in CI but not counted by
+  `corpus_coverage_test.exs`. Neither emits a structure type the corpus
+  lacked, so the coverage figures are unchanged.
+
 ## [0.3.2] — 2026-08-22
 
 ### Added

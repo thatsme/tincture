@@ -108,8 +108,9 @@ shrink.
 is mature and the standards output is independently verified, but the API under
 this name is new and may still move before 1.0.
 
-1,320 tests · 89.6% coverage · Credo `--strict` clean · Dialyzer clean · CI on
-Elixir 1.16–1.19.
+1,322 tests · 89.7% coverage · Credo `--strict` clean, with 70 pre-existing
+findings in `lib/` exempted inline and `test/` and `scripts/` exempt from the
+structural checks · Dialyzer clean · CI on Elixir 1.16–1.19.
 
 ## What it does
 
@@ -142,7 +143,7 @@ holds.
 
 ## Examples
 
-Eight runnable scripts, each with its PDF committed so you can see the output
+Nine runnable scripts, each with its PDF committed so you can see the output
 without running anything. See [examples/README.md](examples/README.md).
 
 ```bash
@@ -158,6 +159,7 @@ mix examples
 | [`compliant.exs`](examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
 | [`archival.exs`](examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
 | [`signed.exs`](examples/signed.exs) | A digitally signed agreement |
+| [`remote_links.exs`](examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
 | [`telemetry.exs`](examples/telemetry.exs) | The telemetry spans, printed as a document is built |
 
 ## What it does not do
@@ -174,7 +176,6 @@ Stated plainly, because a library's gaps matter as much as its features:
   cross-reference streams, so files are larger than they need to be.
 - **Colour is device RGB, grey and CMYK** — no spot colours, no ICC-based
   spaces beyond the PDF/A output intent.
-- **No transparency or gradients** — no `/ExtGState`, no shading.
 
 [ROADMAP.md](ROADMAP.md) sets out each of these and roughly in what order.
 

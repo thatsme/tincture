@@ -14,7 +14,7 @@ forms you need" are different claims.
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | veraPDF, 106/106 rules ([1](#1-accessibility--tagged-pdf-pdfua)) |
+| Accessibility — PDF/UA-1 | veraPDF, 106/106 rules, on a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | veraPDF, up to 153/153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | `openssl cms -verify` ([3](#3-digital-signatures)) |
 | Telemetry | ([9](#9-operability)) |
@@ -24,9 +24,10 @@ forms you need" are different claims.
 1. ~~**Transparency and shading**~~ — **done.** Constant alpha and axial and
    radial gradients. See [5](#5-transparency-and-shading); blend modes and
    patterns remain.
-2. **Accessibility completed** — tagging for `Layout.Template` and
-   `Layout.Box`, `/Tabs /S`, and an audit against PAC as well as veraPDF.
-   Additive, and the last of the PDF/UA story.
+2. **Accessibility completed** — an audit against PAC as well as veraPDF.
+   Tagging for `Layout.Template` and `Layout.Box` and `/Tabs /S` are done
+   (see [1](#1-accessibility--tagged-pdf-pdfua)); the PAC audit is what
+   remains.
 3. **Forms completed** — appearance streams for text and choice fields, which
    would also let signed and archival documents carry form fields. The same
    machinery gives signature widgets an appearance, without which a signed
@@ -65,8 +66,9 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. 1,320 tests, 89.6%
-coverage, clean Credo and Dialyzer, CI on four Elixir versions.
+dependencies. 1,322 tests, 89.7% coverage, Credo `--strict` clean with 70
+pre-existing findings in `lib/` exempted inline and `test/` and `scripts/`
+exempt from the structural checks, clean Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
 person reads, keeps, and has to be able to rely on. What follows is what it does
@@ -204,8 +206,8 @@ rules are asking for.
 
 What remains:
 
-- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 18 of 37
-  structure types are exercised by the validated documents; the other 19 have
+- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 19 of 37
+  structure types are exercised by the validated documents; the other 18 have
   never been through a validator. The README lists them, and a test fails when
   the set drifts. Closing the gap is ongoing work — the audit was the part that
   had never been done.
@@ -261,8 +263,11 @@ What remains:
   Tincture sees the document it built, not the file a validator sees — so
   passing it means "nothing Tincture knows of is wrong", not "this is PDF/A".
 - **PDF/A-1.** Part 1 is stricter than part 2 and additionally requires a
-  `/CIDSet` for every subset font, which Tincture deliberately does not emit —
-  see the note under item 1. It also forbids transparency.
+  `/CIDSet` for every subset font, which Tincture deliberately does not emit:
+  subsetting can fall back to the whole font while the name keeps its subset
+  tag, so an accurate one cannot be produced, and an inaccurate one fails
+  validation where an absent one does not. See the 0.1.0 entry in
+  [CHANGELOG.md](CHANGELOG.md). It also forbids transparency.
 - **CMYK output intents.** The built-in intent is sRGB. Print production
   targeting a CMYK condition needs its own profile, which means accepting one
   from the caller.
@@ -440,6 +445,6 @@ is a bug in the rule.
 ## Contributing
 
 Any of these is a reasonable place to start, and the ones with a clear
-specification (shading, `/ExtGState`, object streams) are the most tractable
-without deep PDF background. Open an issue before starting something large so
+specification, such as object streams, are the most tractable without deep PDF
+background. Open an issue before starting something large so
 we can agree the shape.
