@@ -166,9 +166,14 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Pinned to the version the README, ROADMAP and examples/README name.
+      # The unversioned verapdf-installer.zip follows the latest release, so a
+      # veraPDF release could change what CI validates against with no change
+      # here. Moving to a new version is a deliberate edit to this URL and to
+      # those three documents together.
       - name: Install veraPDF
         run: |
-          curl -sSL -o verapdf-installer.zip https://software.verapdf.org/rel/verapdf-installer.zip
+          curl -sSfL -o verapdf-installer.zip https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip
           unzip -q verapdf-installer.zip -d verapdf-installer
           cat > auto-install.xml <<XML
           <?xml version="1.0" encoding="UTF-8" standalone="no"?>
