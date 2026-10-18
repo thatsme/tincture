@@ -97,6 +97,7 @@ defmodule Tincture.Layout.Table do
   """
   @spec render(PDF.t(), number(), number(), [number()] | :auto, [row()], [option()]) ::
           {PDF.t(), RenderResult.t()}
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render(%PDF{} = pdf, x, y, column_spec, rows, opts \\ [])
       when is_number(x) and is_number(y) and is_list(rows) and is_list(opts) do
     {normalized_rows, column_count} = normalize_rows(rows)
@@ -280,6 +281,7 @@ defmodule Tincture.Layout.Table do
     {rows, column_count}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp resolve_widths(widths, _rows, column_count, _opts, _padding, _font_size, _context)
        when is_list(widths) do
     unless length(widths) == column_count do
@@ -293,6 +295,7 @@ defmodule Tincture.Layout.Table do
     Enum.map(widths, &(&1 * 1.0))
   end
 
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|FunctionArity)$/
   defp resolve_widths(:auto, rows, column_count, opts, padding, font_size, context) do
     font = Keyword.get(opts, :font, "Helvetica")
     min_col_width = Keyword.get(opts, :min_col_width, 20)
@@ -327,6 +330,7 @@ defmodule Tincture.Layout.Table do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp resolve_widths(other, _rows, _column_count, _opts, _padding, _font_size, _context) do
     raise ArgumentError, "unsupported column spec: #{inspect(other)}"
   end

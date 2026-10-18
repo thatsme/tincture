@@ -385,6 +385,7 @@ defmodule Tincture.PDF do
   so it is applied during `Tincture.export/2`.
   """
   @spec set_signature(t(), String.t(), keyword()) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def set_signature(%__MODULE__{} = pdf, field_name, opts) when is_binary(field_name) do
     field = Enum.find(pdf.form_fields, &(&1.name == field_name and &1.type == :signature))
 
@@ -594,6 +595,7 @@ defmodule Tincture.PDF do
        ),
        do: :ok
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp warn_embedding_permissions_if_needed(metadata, subset, false, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
       %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
@@ -636,6 +638,7 @@ defmodule Tincture.PDF do
        ),
        do: :ok
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp enforce_embedding_permissions!(metadata, subset, true, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
       %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
@@ -718,6 +721,7 @@ defmodule Tincture.PDF do
 
   @doc false
   @spec add_link(t(), {number(), number(), number(), number()}, link_target(), keyword()) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def add_link(%__MODULE__{} = pdf, {x1, y1, x2, y2}, target, opts \\ [])
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_list(opts) do
     id = pdf.next_annotation_id
@@ -940,6 +944,7 @@ defmodule Tincture.PDF do
           {number(), number(), number(), number()},
           keyword()
         ) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def add_form_field(%__MODULE__{} = pdf, type, name, {x1, y1, x2, y2}, opts)
       when type in [:text, :checkbox, :choice, :push_button, :signature] and is_binary(name) and
              is_list(opts) do
@@ -996,6 +1001,7 @@ defmodule Tincture.PDF do
   `:size`, and optionally `:page`.
   """
   @spec add_radio_group(t(), String.t(), [keyword()], keyword()) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def add_radio_group(%__MODULE__{} = pdf, name, buttons, opts)
       when is_binary(name) and is_list(buttons) and is_list(opts) do
     if name == "" do
@@ -1273,6 +1279,7 @@ defmodule Tincture.PDF do
 
   @doc false
   @spec set_metadata(t(), map() | keyword()) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def set_metadata(%__MODULE__{} = pdf, metadata) when is_map(metadata) or is_list(metadata) do
     normalized =
       metadata
@@ -1298,6 +1305,7 @@ defmodule Tincture.PDF do
             acc
 
           key_atom ->
+            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             if is_binary(value) do
               Map.put(acc, key_atom, value)
             else

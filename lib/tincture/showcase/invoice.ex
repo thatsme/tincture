@@ -14,6 +14,7 @@ defmodule Tincture.Showcase.Invoice do
         }
 
   @spec build_document() :: build_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def build_document do
     logo_path = write_test_logo_png!()
 

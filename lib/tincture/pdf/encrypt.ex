@@ -247,6 +247,7 @@ defmodule Tincture.PDF.Encrypt do
 
   # -- helpers ---------------------------------------------------------------
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp encrypt_dictionary(u, ue, o, oe, perms, permissions, encrypt_metadata) do
     metadata = if encrypt_metadata, do: "", else: " /EncryptMetadata false"
 

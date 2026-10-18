@@ -25,6 +25,13 @@ test_builders = [
   "test/tincture/font/ttf_test.exs"
 ]
 
+# Tests and scripts are exempt from the structural checks: ABC size,
+# complexity, nesting and arity. Their findings predate the thresholds below.
+# lib/ is held to them in full, with each pre-existing finding exempted inline
+# by a `credo:disable-for-next-line` naming the check, so the debt is a list
+# that can be counted rather than a blanket exclusion.
+outside_lib = ["test/", "scripts/"]
+
 %{
   configs: [
     %{
@@ -42,16 +49,19 @@ test_builders = [
           # are exempt from the structural checks, everything else is held to
           # the canonical thresholds below.
           {Credo.Check.Refactor.CyclomaticComplexity,
-           max_complexity: 7, files: %{excluded: parser_modules}},
+           max_complexity: 7, files: %{excluded: parser_modules ++ outside_lib}},
           {Credo.Check.Refactor.Nesting,
-           max_nesting: 2, files: %{excluded: parser_modules ++ test_builders}},
+           max_nesting: 2, files: %{excluded: parser_modules ++ test_builders ++ outside_lib}},
           # lib/tincture.ex is exempt from FunctionArity only:
           # public API — arity changes are breaking; revisit with keyword opts
           # in a major version. ABCSize, complexity and nesting stay active there.
           {Credo.Check.Refactor.FunctionArity,
            max_arity: 6,
-           files: %{excluded: test_builders ++ parser_modules ++ ["lib/tincture.ex"]}},
-          {Credo.Check.Refactor.ABCSize, max_size: 40, files: %{excluded: parser_modules}},
+           files: %{
+             excluded: test_builders ++ parser_modules ++ outside_lib ++ ["lib/tincture.ex"]
+           }},
+          {Credo.Check.Refactor.ABCSize,
+           max_size: 40, files: %{excluded: parser_modules ++ outside_lib}},
 
           # Long parameter lists inside the typography engine thread layout
           # state (rotation, fallbacks, bidi, shaping, kerning) through private

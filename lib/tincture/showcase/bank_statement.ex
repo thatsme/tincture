@@ -195,6 +195,7 @@ defmodule Tincture.Showcase.BankStatement do
     rows
   end
 
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   defp transaction_rows(:joint_fee_interest) do
     {rows, _final_balance} =
       Enum.map_reduce(1..54, 10_420.11, fn idx, balance ->

@@ -84,6 +84,7 @@ defmodule Tincture.Benchmark.Typography do
         %{max_us_per_iter: max_us_per_iter} when is_number(max_us_per_iter) ->
           threshold = max_us_per_iter * speed_factor
 
+          # credo:disable-for-next-line Credo.Check.Refactor.Nesting
           if metrics.us_per_iter > threshold do
             [
               "#{name}: us/iter #{format_float(metrics.us_per_iter)} exceeds " <>

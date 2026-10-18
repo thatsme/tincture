@@ -57,6 +57,7 @@ defmodule Tincture.Font do
         if skip_unmapped_zero_advance_codepoint?(codepoint) do
           {acc, prev_glyph}
         else
+          # credo:disable-for-next-line Credo.Check.Refactor.Nesting
           code = if codepoint >= 0 and codepoint <= 255, do: codepoint, else: -1
           width = AFM.width_for_code(afm_metrics, code)
           glyph = AFM.glyph_name_for_code(afm_metrics, code)
@@ -68,6 +69,7 @@ defmodule Tincture.Font do
     total_units
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp text_width_standard(font_name, text) do
     metrics =
       case Standard.fetch_metrics(font_name) do
@@ -85,6 +87,7 @@ defmodule Tincture.Font do
           code = if codepoint >= 0 and codepoint <= 255, do: codepoint, else: -1
           width = Map.get(metrics.widths_by_code, code, 0)
 
+          # credo:disable-for-lines:2 Credo.Check.Refactor.Nesting
           kern =
             case prev_code do
               nil -> 0

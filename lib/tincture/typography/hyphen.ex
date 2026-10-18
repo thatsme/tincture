@@ -91,6 +91,7 @@ defmodule Tincture.Typography.Hyphen do
 
   defp apply_hyphen_minima(parts, _left_min, _right_min) when length(parts) <= 1, do: parts
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp apply_hyphen_minima(parts, left_min, right_min) do
     lengths = Enum.map(parts, &byte_size/1)
     total_len = Enum.sum(lengths)
@@ -241,6 +242,7 @@ defmodule Tincture.Typography.Hyphen do
     raise ArgumentError, "unsupported hyphen locale: #{inspect(locale)}"
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp parse_rule_file(path) do
     {exceptions, hyphens_by_first_rev} =
       path
@@ -255,6 +257,7 @@ defmodule Tincture.Typography.Hyphen do
             {Map.put(exceptions_acc, word, hyphenated), hyphens_acc}
 
           _ ->
+            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             case Regex.run(~r/^hyphens\("([^"]+)"\s*\+\+\s*_\)->\[(.*)\];$/, line,
                    capture: :all_but_first
                  ) do
@@ -289,6 +292,7 @@ defmodule Tincture.Typography.Hyphen do
     end)
   end
 
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   defp parse_dic_file(path) do
     {:ok, content} = File.read(path)
 
@@ -309,6 +313,7 @@ defmodule Tincture.Typography.Hyphen do
             {exceptions_acc, hyphens_acc}
 
           has_digit?(line) ->
+            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             case parse_dic_pattern(line) do
               {:ok, prefix, pairs} ->
                 first_char = binary_part(prefix, 0, 1)

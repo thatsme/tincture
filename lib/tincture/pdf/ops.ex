@@ -62,6 +62,7 @@ defmodule Tincture.PDF.Ops do
   end
 
   @spec set_stroke_color(PDF.t(), {number(), number(), number()}) :: PDF.t()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def set_stroke_color(%PDF{} = pdf, {r, g, b})
       when is_number(r) and is_number(g) and is_number(b) and r >= 0 and r <= 1 and g >= 0 and
              g <= 1 and b >= 0 and b <= 1 do
@@ -69,6 +70,7 @@ defmodule Tincture.PDF.Ops do
   end
 
   @spec set_fill_color(PDF.t(), {number(), number(), number()}) :: PDF.t()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def set_fill_color(%PDF{} = pdf, {r, g, b})
       when is_number(r) and is_number(g) and is_number(b) and r >= 0 and r <= 1 and g >= 0 and
              g <= 1 and b >= 0 and b <= 1 do
@@ -106,6 +108,7 @@ defmodule Tincture.PDF.Ops do
   end
 
   @spec bezier(PDF.t(), number(), number(), number(), number(), number(), number()) :: PDF.t()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def bezier(%PDF{} = pdf, x1, y1, x2, y2, x3, y3)
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_number(x3) and
              is_number(y3) do

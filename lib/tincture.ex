@@ -343,6 +343,7 @@ defmodule Tincture do
           PDF.link_target(),
           keyword()
         ) :: PDF.t()
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
     # `contents: :text` reuses the drawn text as the alternate description.
@@ -828,6 +829,7 @@ defmodule Tincture do
     next_pdf
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp draw_text_with_fallback(
          %PDF{} = pdf,
          x,
@@ -868,6 +870,7 @@ defmodule Tincture do
         {next_pdf, next_x, total_width + segment_width}
       end)
       |> then(fn {next_pdf, _cursor_x, total_width} ->
+        # credo:disable-for-lines:2 Credo.Check.Refactor.Nesting
         restored_pdf =
           if next_pdf.current_font == entry_font do
             next_pdf
@@ -881,6 +884,7 @@ defmodule Tincture do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp draw_text_segment(
          %PDF{} = pdf,
          cursor_x,
@@ -912,6 +916,7 @@ defmodule Tincture do
           next_pdf = draw_fun.(acc_pdf, draw_x, y, grapheme)
           grapheme_width = text_width_for_font(next_pdf, font_name, size, grapheme)
 
+          # credo:disable-for-lines:2 Credo.Check.Refactor.Nesting
           next_prev_codepoint =
             if is_integer(current_codepoint) and current_codepoint >= 0 do
               current_codepoint
@@ -1229,6 +1234,7 @@ defmodule Tincture do
   # mistake the format will not report: the viewer draws something, just not
   # what was asked for. Both are worth refusing here, where the caller can see
   # which call was wrong.
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   defp validate_stops!(stops) when is_list(stops) and length(stops) >= 2 do
     Enum.each(stops, fn
       {offset, {r, g, b}}
@@ -1704,6 +1710,7 @@ defmodule Tincture do
   """
   @spec text_paragraph(PDF.t(), number(), number(), rich_text(), number(), [paragraph_option()]) ::
           PDF.t()
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   def text_paragraph(%PDF{} = pdf, x, y, %RichText{} = rich_text, max_width, opts \\ [])
       when is_number(x) and is_number(y) and is_number(max_width) and max_width > 0 and
              is_list(opts) do
@@ -1805,6 +1812,7 @@ defmodule Tincture do
               fallback_fonts,
               shaping,
               kerning,
+              # credo:disable-for-next-line Credo.Check.Refactor.Nesting
               fn draw_doc, draw_x, draw_y, segment ->
                 text_at(draw_doc, draw_x, draw_y, segment)
               end
@@ -1912,6 +1920,7 @@ defmodule Tincture do
     (cp >= 0x0590 and cp <= 0x08FF) or (cp >= 0xFB1D and cp <= 0xFEFC)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp ltr_codepoint?(cp) do
     (cp >= ?A and cp <= ?Z) or (cp >= ?a and cp <= ?z) or (cp >= ?0 and cp <= ?9) or
       (cp >= 0x00C0 and cp <= 0x02AF)
@@ -1989,6 +1998,7 @@ defmodule Tincture do
 
         source_length = source |> String.graphemes() |> length()
 
+        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
         if Enum.any?(font_order, fn font_name ->
              font_supports_ligature_replacement?(
                pdf,
@@ -2050,6 +2060,7 @@ defmodule Tincture do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp font_gsub_ligature_map(ttf_metrics, :gsub_ligatures) when is_map(ttf_metrics) do
     case Map.get(ttf_metrics, :gsub_substitutions_all) do
       gsub_substitutions_all
@@ -2062,6 +2073,7 @@ defmodule Tincture do
             gsub_ligatures_all
 
           _other ->
+            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             case Map.get(ttf_metrics, :gsub_ligatures) do
               gsub_ligatures when is_map(gsub_ligatures) -> gsub_ligatures
               _other -> %{}
@@ -2070,6 +2082,7 @@ defmodule Tincture do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp font_supports_ligature_replacement?(
          %PDF{} = pdf,
          font_name,
@@ -2106,6 +2119,7 @@ defmodule Tincture do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp ligature_feature_supported?(%PDF{} = pdf, font_name, shaping_mode)
        when shaping_mode in [:latin_ligatures, :gsub_ligatures] do
     case Map.get(pdf.embedded_fonts, font_name) do
@@ -2209,6 +2223,7 @@ defmodule Tincture do
               )
             end)
         else
+          # credo:disable-for-next-line Credo.Check.Refactor.Nesting
           Enum.find(font_order, primary_font, fn font_name ->
             font_supports_grapheme_codepoints?(pdf, font_name, [
               base_codepoint,
@@ -2304,6 +2319,7 @@ defmodule Tincture do
   defp embedded_font_supports_codepoint?(%{}, codepoint), do: codepoint <= 255
   defp embedded_font_supports_codepoint?(_other, _codepoint), do: false
 
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   defp code_page_ranges_support_codepoint?({range1, range2}, codepoint)
        when is_integer(range1) and is_integer(range2) and is_integer(codepoint) do
     cond do

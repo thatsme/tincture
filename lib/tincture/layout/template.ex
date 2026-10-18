@@ -268,6 +268,7 @@ defmodule Tincture.Layout.Template do
       `:page_number`.
   """
   @spec render(PDF.t(), t(), RichText.t(), [Box.option()]) :: {PDF.t(), RenderResult.t()}
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
     page_number = normalize_positive_integer(Keyword.get(opts, :page_number, 1), :page_number)
@@ -370,6 +371,7 @@ defmodule Tincture.Layout.Template do
   """
   @spec render_document(PDF.t(), t(), RichText.t(), [document_option()]) ::
           {PDF.t(), DocumentResult.t()}
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render_document(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
     page_number_start =
@@ -482,6 +484,7 @@ defmodule Tincture.Layout.Template do
     end)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp normalize_margins({left, right, top, bottom})
        when is_number(left) and is_number(right) and is_number(top) and is_number(bottom) and
               left >= 0 and right >= 0 and top >= 0 and bottom >= 0 do
@@ -643,6 +646,7 @@ defmodule Tincture.Layout.Template do
 
   defp parse_page_size_attr(""), do: {:ok, :letter}
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp parse_page_size_attr(value) do
     downcased = String.downcase(String.trim(value))
 

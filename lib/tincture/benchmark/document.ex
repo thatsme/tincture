@@ -87,6 +87,7 @@ defmodule Tincture.Benchmark.Document do
   end
 
   @spec guardrail_warnings(report(), keyword()) :: [String.t()]
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def guardrail_warnings(%{scenarios: scenarios}, opts \\ []) do
     guardrails = Keyword.get(opts, :guardrails, @default_guardrails)
     speed_factor = normalize_factor(Keyword.get(opts, :speed_factor, 1.0), :speed_factor)

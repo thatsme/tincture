@@ -300,6 +300,7 @@ defmodule Tincture.Typography.RichText do
   defp maybe_emit_run(runs, nil), do: runs
   defp maybe_emit_run(runs, %Run{} = run), do: runs ++ [run]
 
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   defp tokenize_run(%Run{} = run, tokens, current_word, context) do
     run.text
     |> String.to_charlist()
@@ -322,6 +323,7 @@ defmodule Tincture.Typography.RichText do
               {acc_tokens, word_token(part, run, context)}
 
             %Word{} = word ->
+              # credo:disable-for-next-line Credo.Check.Refactor.Nesting
               if same_style?(word, run) do
                 grown = word.text <> part
                 {grown_width, measured?} = width(grown, run, context)

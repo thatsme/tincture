@@ -98,6 +98,7 @@ defmodule Tincture.Layout.Box do
   """
   @spec flow_text(PDF.t(), number(), number(), number(), number(), RichText.t(), [option()]) ::
           {PDF.t(), LayoutResult.t()}
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(CyclomaticComplexity|FunctionArity)$/
   def flow_text(%PDF{} = pdf, x, y, width, height, %RichText{} = rich_text, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and width > 0 and is_number(height) and
              height > 0 and is_list(opts) do
@@ -176,6 +177,7 @@ defmodule Tincture.Layout.Box do
   `ArgumentError` for a malformed box tuple.
   """
   @spec flow_across_boxes(PDF.t(), RichText.t(), [box()], [option()]) :: {PDF.t(), FlowResult.t()}
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def flow_across_boxes(%PDF{} = pdf, %RichText{} = rich_text, boxes, opts \\ [])
       when is_list(boxes) and is_list(opts) do
     {final_pdf, final_rich, box_results, boxes_used} =
@@ -190,6 +192,7 @@ defmodule Tincture.Layout.Box do
           next_results = results ++ [result]
           next_used = used + 1
 
+          # credo:disable-for-next-line Credo.Check.Refactor.Nesting
           if result.overflow? do
             next_rich = rich_from_spill_lines(result.spill_lines)
             {:cont, {next_pdf, next_rich, next_results, next_used}}

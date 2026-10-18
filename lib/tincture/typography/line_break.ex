@@ -13,6 +13,7 @@ defmodule Tincture.Typography.LineBreak do
           | {:context, Context.t()}
 
   @spec break_text(String.t(), String.t(), number(), number(), [option()]) :: [String.t()]
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def break_text(text, font_name, font_size, max_width, opts \\ [])
       when is_binary(text) and is_binary(font_name) and is_number(font_size) and font_size > 0 and
              is_number(max_width) and max_width > 0 and is_list(opts) do
@@ -30,6 +31,7 @@ defmodule Tincture.Typography.LineBreak do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp add_word(word, lines, "", font_name, font_size, max_width, opts, context) do
     case split_word(word, font_name, font_size, max_width, opts, context) do
       [] ->
@@ -43,6 +45,7 @@ defmodule Tincture.Typography.LineBreak do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp add_word(word, lines, current, font_name, font_size, max_width, opts, context) do
     candidate = current <> " " <> word
 
@@ -67,6 +70,7 @@ defmodule Tincture.Typography.LineBreak do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp split_by_hyphenation(word, font_name, font_size, max_width, locale, hyphen_opts, context) do
     parts = Hyphen.hyphenate(word, locale, hyphen_opts)
 
@@ -75,6 +79,7 @@ defmodule Tincture.Typography.LineBreak do
         parts
         |> Enum.with_index()
         |> Enum.map(fn {part, idx} ->
+          # credo:disable-for-next-line Credo.Check.Refactor.Nesting
           if idx < length(parts) - 1, do: part <> "-", else: part
         end)
 

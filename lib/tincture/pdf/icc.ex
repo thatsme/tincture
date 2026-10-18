@@ -82,6 +82,7 @@ defmodule Tincture.PDF.ICC do
   end
 
   # Tag data is 4-byte aligned, and shared blocks are written once.
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp build_tag_table(tags) do
     header_size = 128 + 4 + length(tags) * 12
 

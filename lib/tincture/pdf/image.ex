@@ -150,6 +150,7 @@ defmodule Tincture.PDF.Image do
 
   defp unfilter_png_row(0, row, _prev, _bpp), do: {:ok, row}
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp unfilter_png_row(filter, row, prev, bpp) when filter in [1, 2, 3, 4] do
     raw = :binary.bin_to_list(row)
     prev_bytes = :binary.bin_to_list(prev)

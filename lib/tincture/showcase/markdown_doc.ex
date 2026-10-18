@@ -243,6 +243,7 @@ defmodule Tincture.Showcase.MarkdownDoc do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   defp parse_markdown_line(line, %{in_code?: false} = state) do
     cond do
       String.starts_with?(line, "```") ->
