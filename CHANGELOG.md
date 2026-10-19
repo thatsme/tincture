@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The examples no longer stroke lines twice.** `line/6` already strokes by
+  default, so the `stroke/1` that several examples called after it wrote a
+  painting operator with no path to paint: invalid PDF syntax that viewers
+  ignore. Code that copied the pattern from the examples should drop the extra
+  `stroke/1`.
+
 ## [0.3.3] — 2026-10-18
 
 ### Changed
