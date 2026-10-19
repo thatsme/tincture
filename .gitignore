@@ -45,6 +45,9 @@ tincture-*.tar
 # Generated analysis reports.
 /reports/
 
+# veraPDF reports downloaded from CI to attach to a GitHub release.
+/verapdf-reports/
+
 # Never commit secrets, including a Hex API key.
 .env
 .env.*

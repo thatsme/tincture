@@ -53,7 +53,7 @@ gates, but a failure discovered after tagging costs a version number.
        verapdf --flavour ua1 "examples/output/linked/Main-report.pdf"
        verapdf --flavour ua1 "examples/output/linked/Attached documents/Appendix-A.pdf"
 
-   All must report `PASS`. CI runs the same five and uploads the reports, so
+   All must report `PASS`. CI runs the same eight and uploads the reports, so
    this is a pre-flight rather than the only run — but veraPDF belongs on the
    machine where the work happens too: a conformance question that has to wait
    for a tool somewhere else is a question that gets answered by reasoning
@@ -130,8 +130,9 @@ gates, but a failure discovered after tagging costs a version number.
    The HexDocs URL also does not exist until you publish, so writing the body
    first means links that 404.
 
-       gh release create vX.Y.Z --title "vX.Y.Z — what changed" \
-         --notes-file body.md --verify-tag reports/*.xml
+       gh release create vX.Y.Z -R thatsme/tincture \
+         --title "vX.Y.Z — what changed" \
+         --notes-file body.md --verify-tag verapdf-reports/*.xml
 
    The body pastes the changelog's `### Changed` and `### Fixed` sections
    **verbatim**. Do not summarise them. Behaviour breaks are the most valuable
@@ -146,7 +147,15 @@ gates, but a failure discovered after tagging costs a version number.
    people have to take on trust again, which is the thing this project is
    trying not to ask of them. Download the artifact from the run that validated
    the tagged commit, confirm the run's `head_sha` matches the tag, and upload
-   the reports with the release.
+   the reports with the release. The artifact goes into `verapdf-reports/`,
+   which `.gitignore` excludes:
+
+       gh run download <run-id> -R thatsme/tincture \
+         -n verapdf-reports -D verapdf-reports
+
+   `-R` keeps both commands on this repository. In a clone that also carries
+   an `upstream` remote, `gh` without it can resolve to that repository
+   instead.
 
 ## After publishing
 
