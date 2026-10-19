@@ -7,29 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**No document that exports with 0.3.3 fails to export with this release, and
+none renders differently.** Every new check warns and carries on; the
+behaviours that warn are listed under Deprecated, and become errors in 0.5.0.
+
 ### Added
 
 - **`:bbox` on `tag(:figure, …)`.** `{left, bottom, right, top}` in points,
-  the rectangle enclosing the figure's visible content. It is validated (four
-  numbers, `left < right`, `bottom < top`, within the page) and written as
-  given.
+  the rectangle enclosing the figure's visible content, written as given in
+  place of the computed one.
 
 ### Changed
 
 - **`stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` and `clip_even_odd/1`
-  warn when no path is open, and no longer write an operator.** The operator
-  was invalid there and ignored by viewers, so output looks the same and is now
-  valid. 0.4.0 will make this an error.
+  with no open path no longer write an operator.** The operator was invalid
+  there and ignored by viewers, so the page looks the same and the file is now
+  valid. The call warns; see Deprecated.
+
+### Deprecated
+
+Each of these warns now and raises in 0.5.0:
+
+- **`stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` or `clip_even_odd/1`
+  with no open path.** Pass the shape's own `paint` argument instead, or start
+  a path with `move_to/3`.
+- **`add_page/1` or `set_page/2` while a content tag or an `artifact/2` block
+  is open.** Its marked content would begin on one page and end on another.
+  Close the tag before changing page.
+- **A `:figure` that draws nothing and has no `:bbox`.** It has no bounding box
+  to write.
+- **A `:bbox` that is not four numbers, has `left >= right` or
+  `bottom >= top`, lies outside the page, or is given on a tag other than
+  `:figure`.** It is ignored, as `tag/4` has always ignored options it does
+  not use, and the box is computed instead.
 
 ### Fixed
 
 - **Tagged figures carry a bounding box, and inline elements placed at block
-  level declare it.** A `:figure` now gets the `/BBox` of what it draws, and a
-  `:link`, `:note`, `:figure` or other inline element placed directly in a
-  `:document`, `:section` or similar grouping element gets `/Placement /Block`,
-  so screen readers and reflow lay them out correctly. A figure containing
-  text needs an explicit `:bbox`: its extent cannot be computed, and
-  `export/2` refuses it without one.
+  level declare it.** A `:figure` now gets the `/BBox` of what it draws, text
+  included, and a `:link`, `:note`, `:figure` or other inline element placed
+  directly in a `:document`, `:section` or similar grouping element gets
+  `/Placement /Block`, so screen readers and reflow lay them out correctly.
 
 - **A shape piped into `stroke/1` or `fill/1` was painted wrongly.** `line/6`,
   `rectangle/6` and `circle/5` already paint with `:stroke` by default, so a
