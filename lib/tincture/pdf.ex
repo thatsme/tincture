@@ -5,6 +5,8 @@ defmodule Tincture.PDF do
 
   alias Tincture.Font
   alias Tincture.Font.TTF
+  alias Tincture.PDF.FigureBounds
+  alias Tincture.PDF.Page
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
   require Logger
@@ -276,15 +278,24 @@ defmodule Tincture.PDF do
       end
 
     element =
-      %{tag: tag, page_number: pdf.current_page, mcid: mcid, kids: []}
-      |> put_structure_option(:alt, Keyword.get(opts, :alt))
-      |> put_structure_option(:actual_text, Keyword.get(opts, :actual_text))
-      |> put_structure_option(:lang, Keyword.get(opts, :lang))
-      |> put_structure_option(:title, Keyword.get(opts, :title))
-      |> put_structure_option(:scope, normalize_scope(tag, Keyword.get(opts, :scope)))
-      |> put_structure_option(:id, normalize_structure_id(Keyword.get(opts, :id)))
+      structure_options(
+        %{tag: tag, page_number: pdf.current_page, mcid: mcid, kids: []},
+        opts,
+        pdf.page_size
+      )
 
     %__MODULE__{pdf | structure_stack: [element | pdf.structure_stack]}
+  end
+
+  defp structure_options(%{tag: tag} = element, opts, page_size) do
+    element
+    |> put_structure_option(:alt, Keyword.get(opts, :alt))
+    |> put_structure_option(:actual_text, Keyword.get(opts, :actual_text))
+    |> put_structure_option(:lang, Keyword.get(opts, :lang))
+    |> put_structure_option(:title, Keyword.get(opts, :title))
+    |> put_structure_option(:scope, normalize_scope(tag, Keyword.get(opts, :scope)))
+    |> put_structure_option(:id, normalize_structure_id(Keyword.get(opts, :id)))
+    |> put_structure_option(:bbox, normalize_bbox(tag, Keyword.get(opts, :bbox), page_size))
   end
 
   @doc """
@@ -320,6 +331,8 @@ defmodule Tincture.PDF do
   end
 
   def end_structure(%__MODULE__{structure_stack: [element | rest]} = pdf) do
+    element = resolve_figure_bbox(element, pdf)
+
     pdf =
       if Structure.content?(element.tag) do
         append_current_op(pdf, {:end_marked_content})
@@ -450,6 +463,69 @@ defmodule Tincture.PDF do
 
   defp put_structure_option(element, _key, nil), do: element
   defp put_structure_option(element, key, value), do: Map.put(element, key, value)
+
+  # A figure's bounding box is computed when it closes, from what was drawn
+  # inside it, unless the caller gave one. Run before the closing EMC is
+  # appended, so the figure's marked content is still open in the page's ops.
+  defp resolve_figure_bbox(%{tag: :figure, bbox: _explicit} = element, _pdf), do: element
+
+  # ISO 32000-1 Table 344 requires BBox only "for any figure or table appearing
+  # in its entirety on a single page". A figure closed on another page than the
+  # one it opened on is not that, so it gets none and is not a violation.
+  defp resolve_figure_bbox(%{tag: :figure, page_number: page} = element, %__MODULE__{
+         current_page: current
+       })
+       when page != current,
+       do: Map.put(element, :bbox_unknown, :spans_pages)
+
+  defp resolve_figure_bbox(%{tag: :figure, mcid: mcid} = element, %__MODULE__{} = pdf) do
+    case FigureBounds.compute(page_operations(pdf, element.page_number), mcid) do
+      {:ok, bbox} -> Map.put(element, :bbox, bbox)
+      reason -> Map.put(element, :bbox_unknown, reason)
+    end
+  end
+
+  defp resolve_figure_bbox(element, _pdf), do: element
+
+  defp normalize_bbox(_tag, nil, _page_size), do: nil
+
+  defp normalize_bbox(:figure, bbox, page_size) do
+    bbox
+    |> bbox_of_four_numbers!()
+    |> bbox_ordered!()
+    |> bbox_within!(Page.media_box(page_size))
+  end
+
+  defp normalize_bbox(tag, _bbox, _page_size),
+    do: raise(ArgumentError, ":bbox is only valid on :figure, got it on #{inspect(tag)}")
+
+  defp bbox_of_four_numbers!(bbox) do
+    if is_tuple(bbox) and tuple_size(bbox) == 4 and
+         bbox |> Tuple.to_list() |> Enum.all?(&is_number/1) do
+      bbox
+    else
+      raise ArgumentError,
+            ":bbox must be {left, bottom, right, top}, four numbers, got: #{inspect(bbox)}"
+    end
+  end
+
+  defp bbox_ordered!({left, bottom, right, top} = bbox) when left < right and bottom < top,
+    do: bbox
+
+  defp bbox_ordered!(bbox) do
+    raise ArgumentError,
+          ":bbox must be {left, bottom, right, top} with left < right and bottom < top, " <>
+            "got: #{inspect(bbox)}"
+  end
+
+  defp bbox_within!({left, bottom, right, top} = bbox, {width, height})
+       when left >= 0 and bottom >= 0 and right <= width and top <= height,
+       do: bbox
+
+  defp bbox_within!(bbox, {width, height}) do
+    raise ArgumentError,
+          ":bbox #{inspect(bbox)} lies outside the page's MediaBox [0 0 #{width} #{height}]"
+  end
 
   defp normalize_scope(_tag, nil), do: nil
 

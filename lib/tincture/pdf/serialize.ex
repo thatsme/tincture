@@ -639,11 +639,8 @@ defmodule Tincture.PDF.Serialize do
          tagged,
          element_ids
        ) do
-    parent_id =
-      case Map.get(parents, element) do
-        nil -> root_id
-        parent -> Map.fetch!(ids, parent)
-      end
+    parent = Map.get(parents, element)
+    parent_id = if parent, do: Map.fetch!(ids, parent), else: root_id
 
     page_ref = Map.fetch!(page_object_refs, element.page_number)
 
@@ -674,21 +671,57 @@ defmodule Tincture.PDF.Serialize do
       structure_text_entry(" /ActualText ", element[:actual_text]) <>
       structure_text_entry(" /T ", element[:title]) <>
       structure_text_entry(" /Lang ", element[:lang]) <>
-      scope_entry(element[:scope]) <> " >>"
+      attributes_entry(element, parent) <> " >>"
   end
 
   defp structure_text_entry(_key, nil), do: ""
   defp structure_text_entry(key, value), do: key <> Object.format_text(value)
 
+  # /A holds one attribute dictionary per owner, or an array of them. An
+  # element with no attributes gets no /A at all, never an empty dictionary.
+  defp attributes_entry(element, parent) do
+    case Enum.reject(
+           [scope_attributes(element[:scope]), layout_attributes(element, parent)],
+           &is_nil/1
+         ) do
+      [] -> ""
+      [attributes] -> " /A #{attributes}"
+      several -> " /A [#{Enum.join(several, " ")}]"
+    end
+  end
+
   # Table attributes live in an attribute dictionary owned by /Table, not as
   # direct keys on the element. A bare /Scope is ignored, which leaves the
   # table's structure undeterminable and fails ISO 14289-1 clause 7.5.
-  defp scope_entry(nil), do: ""
-  defp scope_entry(:row), do: table_attribute("/Scope /Row")
-  defp scope_entry(:column), do: table_attribute("/Scope /Column")
-  defp scope_entry(:both), do: table_attribute("/Scope /Both")
+  defp scope_attributes(nil), do: nil
+  defp scope_attributes(:row), do: "<< /O /Table /Scope /Row >>"
+  defp scope_attributes(:column), do: "<< /O /Table /Scope /Column >>"
+  defp scope_attributes(:both), do: "<< /O /Table /Scope /Both >>"
 
-  defp table_attribute(entry), do: " /A << /O /Table #{entry} >>"
+  # Layout attributes (ISO 32000-1 §14.8.5.4). An inline-level element sitting
+  # directly in a grouping element is laid out as a block, and /Placement /Block
+  # says so - "when applied to an ILSE, any value except Inline shall cause the
+  # element to be treated as a BLSE" (Table 343). A figure carries the /BBox
+  # Table 344 requires of one that appears in its entirety on a single page.
+  defp layout_attributes(element, parent) do
+    entries =
+      [placement_entry(element, parent), bbox_entry(element[:bbox])]
+      |> Enum.reject(&is_nil/1)
+
+    if entries == [], do: nil, else: "<< /O /Layout #{Enum.join(entries, " ")} >>"
+  end
+
+  defp placement_entry(%{tag: tag}, %{tag: parent_tag}) do
+    if Structure.inline_level?(tag) and Structure.grouping?(parent_tag),
+      do: "/Placement /Block"
+  end
+
+  defp placement_entry(_element, nil), do: nil
+
+  defp bbox_entry(nil), do: nil
+
+  defp bbox_entry({left, bottom, right, top}),
+    do: "/BBox [#{Enum.map_join([left, bottom, right, top], " ", &Object.num/1)}]"
 
   defp acro_form_entry([], _form_fields), do: ""
 

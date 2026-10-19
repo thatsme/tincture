@@ -93,8 +93,20 @@ defmodule Tincture.PDF.Structure do
           optional(:actual_text) => String.t(),
           optional(:lang) => String.t(),
           optional(:title) => String.t(),
-          optional(:scope) => :row | :column | :both
+          optional(:scope) => :row | :column | :both,
+          optional(:bbox) => {number(), number(), number(), number()},
+          optional(:bbox_unknown) => :contains_text | :no_content | :spans_pages
         }
+
+  # ISO 32000-1 §14.8.4.4 lists the inline-level structure types, and
+  # §14.8.4.5 the illustrations; these are the ones Tincture's vocabulary has.
+  # BibEntry, Annot, Ruby, Warichu and Form have no tag here.
+  @inline_level [:span, :quote, :note, :reference, :code, :link, :figure, :formula]
+
+  # The grouping elements (§14.8.4.2) that hold blocks rather than a line of
+  # text. An inline element directly inside one of these is laid out as a
+  # block, and has to say so.
+  @grouping [:document, :part, :article, :section, :div]
 
   @doc """
   Every tag this module understands, as `{atom, pdf_name}` pairs.
@@ -131,6 +143,19 @@ defmodule Tincture.PDF.Structure do
   """
   @spec content?(tag()) :: boolean()
   def content?(tag), do: Map.has_key?(@content_tags, tag)
+
+  @doc """
+  Whether a tag is inline-level (or an illustration) and so stays inline
+  unless its placement says otherwise.
+  """
+  @spec inline_level?(tag()) :: boolean()
+  def inline_level?(tag), do: tag in @inline_level
+
+  @doc """
+  Whether a tag is a grouping element, whose children are laid out as blocks.
+  """
+  @spec grouping?(tag()) :: boolean()
+  def grouping?(tag), do: tag in @grouping
 
   @doc """
   Walk a tree of elements depth-first, parents before children.

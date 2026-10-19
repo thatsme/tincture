@@ -1423,6 +1423,13 @@ defmodule Tincture do
 
     * `:alt` — alternative text. **Required in practice for `:figure`**: an
       image with no alt text is invisible to a screen reader.
+    * `:bbox` — `{left, bottom, right, top}` in points, the rectangle that
+      encloses a `:figure`'s visible content. Only valid on `:figure`; it must
+      have `left < right` and `bottom < top` and lie within the page.
+      Normally unnecessary, since the box is computed from what the figure
+      draws. **Required for a figure that contains text** (a glyph's extent is
+      not its advance width) or draws nothing; without it `export/2` refuses
+      the document.
     * `:actual_text` — the text this content really represents, for when the
       glyphs are not the words (a ligature, a decorative capital).
     * `:lang` — a BCP 47 tag, when this element differs from the document.
@@ -1439,6 +1446,13 @@ defmodule Tincture do
   It produces the structure: `/StructTreeRoot`, marked content, the parent
   tree, `/MarkInfo`, `/Lang`, alt text and table scope. That is what assistive
   technology reads.
+
+  Layout attributes are written where the standard calls for them. A figure
+  gets the bounding box of what it draws (`/BBox`). An inline element —
+  `:link`, `:note`, `:span`, `:quote`, `:reference`, `:code`, `:figure`,
+  `:formula` — placed directly in `:document`, `:part`, `:article`,
+  `:section` or `:div` is declared a block (`/Placement /Block`), since that is
+  how it is laid out; inside a `:p`, a heading or a cell it stays inline.
 
   It does not *certify* PDF/UA conformance. That is a validation exercise
   against a checker such as veraPDF or PAC, and it imposes further rules — on
