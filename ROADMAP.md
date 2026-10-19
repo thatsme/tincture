@@ -14,8 +14,8 @@ forms you need" are different claims.
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.4: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.4: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | passes `openssl cms -verify` in the test suite ([3](#3-digital-signatures)) |
 | Telemetry | ([9](#9-operability)) |
 
@@ -165,7 +165,8 @@ publicly, and it should stay that way — that parser is the seed of
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
-profile) in CI on every commit: 106 of 106 rules, 1698 of 1698 checks. PAC
+profile) in CI on every commit; at 0.3.4: 106 of 106 rules, 1698 of 1698
+checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
 warnings — for this document and the four other PDF/UA examples.
 
@@ -269,7 +270,7 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit at PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
+every commit; at 0.3.4: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
 (146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
 4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2255 of 2255 checks), since 2a is the accessible archival level and

@@ -113,6 +113,13 @@ gates, but a failure discovered after tagging costs a version number.
      percentage from the CI run on the release commit, which the Lint job's
      `mix coveralls` prints, and say it is the CI figure: a local run can
      differ from it by a tenth of a point or two between runs.
+   - Re-derive the veraPDF rule and check counts the documentation quotes "at
+     X.Y.Z", from the `verapdf-reports` artifact of the CI run on the release
+     commit (`<details passedRules … passedChecks …>` in each report), and
+     update every place that quotes them: `README.md`, `ROADMAP.md` and
+     `examples/README.md`. Change "at X.Y.Z" to the new version even where a
+     count has not moved, so every figure names the release it was measured
+     at.
 
 9. **ROADMAP reflects what just shipped.** Move completed items out of "next"
    and strike them through in their section, as the existing entries do.
@@ -120,18 +127,35 @@ gates, but a failure discovered after tagging costs a version number.
 ## Publishing
 
 1. Commit the version bump and changelog, and let CI go green on `main`.
-2. Tag and push:
+2. Tag, with an annotated tag, and push only that tag:
 
-       git tag vX.Y.Z
-       git push origin main --tags
+       git tag -a vX.Y.Z -m "vX.Y.Z"
+       git push origin vX.Y.Z
 
-3. Publish to Hex, from a maintainer's machine:
+   `--tags` would push every local tag, including any that were never meant to
+   leave the machine.
 
+3. Publish to Hex, from a maintainer's machine, from a fresh worktree of the
+   tag:
+
+       git worktree add tmp/publish vX.Y.Z
+       cd tmp/publish
+       mix deps.get
        mix hex.publish
+       cd ../..
+       git worktree remove tmp/publish
 
    This uploads the package *and* the documentation, and asks for confirmation
    before doing either. Check the file list it prints: `examples/` and `docs/`
    should not be in it.
+
+   The worktree is what makes the upload exactly the tagged tree. It holds
+   nothing but the tag's files, so no uncommitted change or untracked file in
+   the working copy can reach the package. And it has no `doc/`, which is
+   gitignored, so `mix hex.publish` builds the documentation from empty. A
+   `doc/` left over from an earlier build can keep assets that the new pages no
+   longer match, such as a previous release's sidebar and search index, and
+   whatever is in `doc/` is what HexDocs receives.
 
 4. Confirm <https://hex.pm/packages/tincture> lists the new release, and
    <https://hexdocs.pm/tincture> serves its docs. Pull the published tarball
@@ -153,8 +177,11 @@ gates, but a failure discovered after tagging costs a version number.
          --title "vX.Y.Z — what changed" \
          --notes-file body.md --verify-tag verapdf-reports/*.xml
 
-   The body pastes the changelog's `### Changed` and `### Fixed` sections
-   **verbatim**. Do not summarise them. Behaviour breaks are the most valuable
+   The body pastes, **verbatim**, the version's lead sentence (when it has
+   one) and its `### Deprecated`, `### Changed` and `### Fixed` sections. Do
+   not summarise them. Deprecations belong there for the same reason as
+   behaviour changes: they are what an upgrader has to act on before the next
+   release turns them into errors. Behaviour breaks are the most valuable
    content in a release and should not live only in a file inside the package —
    0.3.0 renumbered objects in tagged documents and made `export/2` refuse
    documents it had previously written, and someone upgrading needs to meet

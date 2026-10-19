@@ -59,11 +59,15 @@ Each of these warns now and raises in 0.4.0:
   used either pattern should pass the shape's own `paint` argument (`:fill`,
   `:stroke` or `:fill_and_stroke`) instead.
 
+- **The package no longer ships a stray partial file,**
+  `priv/hyphen/original_tex/.!62084!nohyphbx.tex`, a truncated copy of
+  `nohyphbx.tex` that nothing read.
+
 ### Documentation
 
 - **Every conformance statement names its tool, version and where it ran.**
   The README, ROADMAP and examples now say "passes veraPDF 1.30.2 in CI on
-  every commit", with the rule and check counts measured on each document,
+  every commit", with the rule and check counts each document had at 0.3.4,
   rather than a bare "compliant". PAC, a second and independent PDF/UA checker,
   is listed alongside veraPDF: an audit on 2026-10-19 of the five PDF/UA
   examples found what is fixed above, and now reports 0 errors and 0 warnings

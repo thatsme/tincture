@@ -29,9 +29,10 @@ document, not a library, so every result below names the document it was
 measured on.
 
 [veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
-these committed documents:
+these committed documents. Each passes it on every commit; the counts are as
+measured at 0.3.4:
 
-| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit |
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.4 |
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
