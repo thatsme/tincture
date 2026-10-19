@@ -149,12 +149,9 @@ defmodule Tincture.Showcase.MarkdownDoc do
     pdf =
       state.pdf
       |> Tincture.set_fill_color({0.95, 0.95, 0.95})
-      |> Tincture.rectangle(@left_x, box_y, @content_width, box_height)
-      |> Tincture.fill()
       |> Tincture.set_stroke_color({0.77, 0.77, 0.77})
       |> Tincture.set_line_width(0.75)
-      |> Tincture.rectangle(@left_x, box_y, @content_width, box_height)
-      |> Tincture.stroke()
+      |> Tincture.rectangle(@left_x, box_y, @content_width, box_height, :fill_and_stroke)
       |> Tincture.set_fill_color({0.0, 0.0, 0.0})
 
     {pdf, _y} =

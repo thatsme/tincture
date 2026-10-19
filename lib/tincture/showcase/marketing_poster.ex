@@ -72,14 +72,11 @@ defmodule Tincture.Showcase.MarketingPoster do
   defp draw_background(pdf) do
     pdf
     |> Tincture.set_fill_color({0.08, 0.12, 0.24})
-    |> Tincture.rectangle(0, 0, 792, 612)
-    |> Tincture.fill()
+    |> Tincture.rectangle(0, 0, 792, 612, :fill)
     |> Tincture.set_fill_color({0.93, 0.32, 0.27})
-    |> Tincture.rectangle(0, 360, 792, 252)
-    |> Tincture.fill()
+    |> Tincture.rectangle(0, 360, 792, 252, :fill)
     |> Tincture.set_fill_color({0.96, 0.74, 0.16})
-    |> Tincture.rectangle(0, 300, 792, 40)
-    |> Tincture.fill()
+    |> Tincture.rectangle(0, 300, 792, 40, :fill)
   end
 
   defp draw_vector_art(pdf) do
@@ -87,10 +84,8 @@ defmodule Tincture.Showcase.MarketingPoster do
     |> Tincture.save_state()
     |> Tincture.set_stroke_color({1.0, 1.0, 1.0})
     |> Tincture.set_line_width(2.5)
-    |> Tincture.circle(610, 430, 64)
-    |> Tincture.stroke()
-    |> Tincture.circle(610, 430, 44)
-    |> Tincture.stroke()
+    |> Tincture.circle(610, 430, 64, :stroke)
+    |> Tincture.circle(610, 430, 44, :stroke)
     |> Tincture.set_fill_color({0.25, 0.8, 0.82})
     |> Tincture.move_to(610, 486)
     |> Tincture.line_to(632, 430)

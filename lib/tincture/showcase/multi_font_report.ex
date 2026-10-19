@@ -112,12 +112,9 @@ defmodule Tincture.Showcase.MultiFontReport do
     pdf =
       pdf
       |> Tincture.set_fill_color({0.94, 0.95, 0.97})
-      |> Tincture.rectangle(x, box_bottom, 516, box_height)
-      |> Tincture.fill()
       |> Tincture.set_stroke_color({0.78, 0.81, 0.87})
       |> Tincture.set_line_width(0.8)
-      |> Tincture.rectangle(x, box_bottom, 516, box_height)
-      |> Tincture.stroke()
+      |> Tincture.rectangle(x, box_bottom, 516, box_height, :fill_and_stroke)
       |> Tincture.set_fill_color({0.0, 0.0, 0.0})
 
     {pdf, _next_y} =
