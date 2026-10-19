@@ -36,6 +36,22 @@ defmodule Tincture.ContentStreamStateCheckerTest do
       assert operators("BT /F1 12 Tf (open) Tj") == [{"<end of stream>", :text}]
     end
 
+    test "an EMC with no marked content open" do
+      assert operators("/P <</MCID 0>> BDC EMC EMC") == [{"EMC (no marked content open)", :page}]
+    end
+
+    test "a stream that ends with marked content open" do
+      assert operators("/P <</MCID 0>> BDC /Artifact BMC EMC") ==
+               [{"<end of stream, 1 marked-content sequence(s) open>", :page}]
+    end
+
+    test "both halves of a sequence split across two streams" do
+      assert operators("/Figure <</MCID 0>> BDC 0 0 10 10 re f") ==
+               [{"<end of stream, 1 marked-content sequence(s) open>", :page}]
+
+      assert operators("0 0 10 10 re f EMC") == [{"EMC (no marked content open)", :page}]
+    end
+
     test "an operator outside Figure 9" do
       assert operators("BX 0 0 d0 EX") == [{"BX", :page}, {"d0", :page}, {"EX", :page}]
     end
@@ -65,6 +81,14 @@ defmodule Tincture.ContentStreamStateCheckerTest do
 
     test "strings that contain operator names, escapes and nested parentheses" do
       stream = ~S"BT /F1 12 Tf (a \) S (nested S) ET) Tj <53> Tj [(S) -20 (ET)] TJ ET"
+      assert operators(stream) == []
+    end
+
+    test "nested and sequential marked content that closes in the stream" do
+      stream =
+        "/Document <</MCID 0>> BDC /Span <</MCID 1>> BDC EMC /Artifact BMC EMC EMC " <>
+          "/P <</MCID 2>> BDC BT /F1 12 Tf (x) Tj ET EMC"
+
       assert operators(stream) == []
     end
 

@@ -17,6 +17,11 @@ defmodule Tincture.Test.ContentStreamState do
   in the middle of a path. Viewers skip such operators, and veraPDF does not
   check operator order, so without this nothing reports them.
 
+  Marked content is balanced per stream: a sequence begun with `BDC` or `BMC`
+  ends with `EMC` in the same stream (§14.6). An `EMC` with nothing open, or a
+  stream that ends with a sequence open, is a violation - the shape a tag left
+  open across a page break produces.
+
   Operators outside Figure 9 - the `BX`/`EX` compatibility section, the Type 3
   glyph operators `d0`/`d1`, or a misspelling - are reported as violations
   too. Tincture emits none of them; one appearing means the emitter changed and
@@ -100,7 +105,7 @@ defmodule Tincture.Test.ContentStreamState do
       base: Keyword.get(opts, :base_offset, 0)
     }
 
-    walk(data, 0, 0, :page, [], [], context)
+    walk(data, 0, 0, {:page, 0}, [], [], context)
   end
 
   @doc """
@@ -114,36 +119,71 @@ defmodule Tincture.Test.ContentStreamState do
 
   ## The state machine
 
-  defp walk(data, pos, depth, state, recent, violations, context) do
+  # `marked` counts the marked-content sequences open in this stream. A
+  # sequence has to end in the stream it began in (ISO 32000-1 §14.6), so an
+  # EMC with none open, or a stream ending with one open, is a violation too.
+  defp walk(data, pos, depth, {state, marked}, recent, violations, context) do
     case PDFObjects.next_token(data, pos) do
       :eof ->
-        violations = Enum.reverse(violations)
-
-        if state == :page do
-          violations
-        else
-          violations ++ [violation(context, byte_size(data), "<end of stream>", state, recent)]
-        end
+        violations
+        |> Enum.reverse()
+        |> Kernel.++(end_of_stream(state, marked, byte_size(data), recent, context))
 
       {token, start, next} ->
         {depth, operator} = classify(token, depth)
 
         case operator do
           nil ->
-            walk(data, next, depth, state, recent, violations, context)
+            walk(data, next, depth, {state, marked}, recent, violations, context)
 
           "BI" ->
             {state, violations} =
               step(state, "BI", start, recent, violations, context)
 
             next = skip_inline_image!(data, next, context)
-            walk(data, next, depth, state, push(recent, "BI"), violations, context)
+            walk(data, next, depth, {state, marked}, push(recent, "BI"), violations, context)
 
           operator ->
             {state, violations} = step(state, operator, start, recent, violations, context)
-            walk(data, next, depth, state, push(recent, operator), violations, context)
+
+            {marked, violations} =
+              balance(operator, marked, {state, start, recent, context}, violations)
+
+            walk(data, next, depth, {state, marked}, push(recent, operator), violations, context)
         end
     end
+  end
+
+  defp balance(operator, marked, _at, violations) when operator in ["BDC", "BMC"],
+    do: {marked + 1, violations}
+
+  defp balance("EMC", 0, {state, start, recent, context}, violations),
+    do:
+      {0, [violation(context, start, "EMC (no marked content open)", state, recent) | violations]}
+
+  defp balance("EMC", marked, _at, violations), do: {marked - 1, violations}
+  defp balance(_operator, marked, _at, violations), do: {marked, violations}
+
+  defp end_of_stream(state, marked, offset, recent, context) do
+    unclosed_object =
+      if state == :page,
+        do: [],
+        else: [violation(context, offset, "<end of stream>", state, recent)]
+
+    unclosed_marked =
+      if marked == 0,
+        do: [],
+        else: [
+          violation(
+            context,
+            offset,
+            "<end of stream, #{marked} marked-content sequence(s) open>",
+            state,
+            recent
+          )
+        ]
+
+    unclosed_object ++ unclosed_marked
   end
 
   # Operands are skipped; only a keyword at nesting depth 0 is an operator.
