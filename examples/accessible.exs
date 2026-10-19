@@ -66,6 +66,7 @@ pdf =
         |> Tincture.set_font(body, 22)
         |> Tincture.text_at(margin, page_h - 90, "Regional performance")
       end)
+      |> Tincture.add_bookmark("Regional performance", pdf.current_page)
       |> Tincture.tag(:p, fn pdf ->
         pdf
         |> Tincture.set_fill_color(muted)
@@ -94,6 +95,7 @@ pdf =
             |> Tincture.set_font(sans, 8)
             |> Tincture.text_at(margin, page_h - 152, "SUMMARY")
           end)
+          |> Tincture.add_bookmark("SUMMARY", pdf.current_page)
 
         Tincture.tag(pdf, :p, fn pdf ->
           pdf
@@ -127,6 +129,7 @@ pdf =
             |> Tincture.set_font(sans, 8)
             |> Tincture.text_at(margin, table_top + 24, "REVENUE BY REGION")
           end)
+          |> Tincture.add_bookmark("REVENUE BY REGION", pdf.current_page)
 
         # Graphics state persists, and the heading above left the fill colour on
         # the accent. Table.render draws text in whatever colour is current.
@@ -182,6 +185,7 @@ pdf =
           |> Tincture.set_font(sans, 8)
           |> Tincture.text_at(margin, chart_base + 150, "REVENUE, RELATIVE")
         end)
+        |> Tincture.add_bookmark("REVENUE, RELATIVE", pdf.current_page)
 
       pdf =
         Tincture.tag(

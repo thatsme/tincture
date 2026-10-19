@@ -45,15 +45,18 @@ sans = Examples.Fonts.resolve("Sans", embedded?)
 #     pronunciation, and clause 7.2 fails.
 pdf = Tincture.set_language(pdf, "en-GB")
 
-# A heading, drawn and tagged together. Heading levels must not skip: H1 then
+# A heading, drawn and tagged together, with a bookmark so the outline offers
+# the same navigation the headings do. Heading levels must not skip: H1 then
 # H2, never H1 then H3.
 heading = fn pdf, level, y, text, size ->
-  Tincture.tag(pdf, level, fn pdf ->
+  pdf
+  |> Tincture.tag(level, fn pdf ->
     pdf
     |> Tincture.set_fill_color(if(level == :h1, do: ink, else: accent))
     |> Tincture.set_font(if(level == :h1, do: body, else: sans), size)
     |> Tincture.text_at(margin, y, text)
   end)
+  |> Tincture.add_bookmark(text, pdf.current_page)
 end
 
 paragraph = fn pdf, y, text, width ->

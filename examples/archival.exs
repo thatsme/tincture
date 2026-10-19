@@ -65,12 +65,14 @@ pdf =
   |> Tincture.set_pdf_a(:a2a)
 
 heading = fn pdf, level, y, text, size, colour, font ->
-  Tincture.tag(pdf, level, fn pdf ->
+  pdf
+  |> Tincture.tag(level, fn pdf ->
     pdf
     |> Tincture.set_fill_color(colour)
     |> Tincture.set_font(font, size)
     |> Tincture.text_at(margin, y, text)
   end)
+  |> Tincture.add_bookmark(text, pdf.current_page)
 end
 
 rule_at = fn pdf, y ->

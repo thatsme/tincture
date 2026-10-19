@@ -96,12 +96,14 @@ appendix =
 
       acc =
         if title do
-          Tincture.tag(acc, :h1, fn acc ->
+          acc
+          |> Tincture.tag(:h1, fn acc ->
             acc
             |> Tincture.set_fill_color(accent)
             |> Tincture.set_font(sans, 16)
             |> Tincture.text_at(margin, page_h - margin - 44, String.upcase(title))
           end)
+          |> Tincture.add_bookmark(String.upcase(title), acc.current_page)
         else
           acc
         end
@@ -151,6 +153,7 @@ main =
         |> Tincture.set_font(sans, 20)
         |> Tincture.text_at(margin, page_h - margin, "Calibration report")
       end)
+      |> Tincture.add_bookmark("Calibration report", pdf.current_page)
       |> Tincture.tag(:p, fn pdf ->
         pdf
         |> Tincture.set_fill_color(muted)
