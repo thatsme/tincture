@@ -218,8 +218,7 @@ checks = [
   {"ICC profile embedded", "built in", binary =~ "/DestOutputProfile"},
   {"conformance in XMP", "set_pdf_a/2", binary =~ "pdfaid:conformance"},
   {"file identifier", "always", binary =~ "/ID [<"},
-  # Not a failure: without a font to embed the document is written anyway,
-  # with its PDF/A claim knowingly broken (see `enforce: false` above).
+  # A note, never MISSING: CI's no-fonts pass writes standard 14 on purpose (`enforce: false`).
   {"fonts embedded", "register_ttf",
    if(embedded?, do: {:note, "ok"}, else: {:note, "NO - standard 14 in use"})},
   {"tagged (needed for 2a)", "tag/4", binary =~ "/StructTreeRoot"},
