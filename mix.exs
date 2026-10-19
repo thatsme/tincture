@@ -1,7 +1,7 @@
 defmodule Tincture.MixProject do
   use Mix.Project
 
-  @version "0.3.3"
+  @version "0.3.4"
   @source_url "https://github.com/thatsme/tincture"
 
   def project do
@@ -12,7 +12,7 @@ defmodule Tincture.MixProject do
       description:
         "Typographic-quality PDF generation with no runtime dependencies. TeX hyphenation, " <>
           "Knuth-Plass line breaking, TrueType/OpenType embedding with subsetting, tables, " <>
-          "forms, AES-256 encryption, and verified PDF/UA and PDF/A output.",
+          "forms, AES-256 encryption, and PDF/UA and PDF/A output checked with veraPDF in CI.",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

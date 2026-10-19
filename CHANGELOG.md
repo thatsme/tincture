@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-10-19
+
 **No document that exports with 0.3.3 fails to export with this release, and
 none renders differently.** Every new check warns and carries on; the
 behaviours that warn are listed under Deprecated, and become errors in 0.4.0.
@@ -56,6 +58,17 @@ Each of these warns now and raises in 0.4.0:
   only the outline. The examples did the former and no longer do; code that
   used either pattern should pass the shape's own `paint` argument (`:fill`,
   `:stroke` or `:fill_and_stroke`) instead.
+
+### Documentation
+
+- **Every conformance statement names its tool, version and where it ran.**
+  The README, ROADMAP and examples now say "passes veraPDF 1.30.2 in CI on
+  every commit", with the rule and check counts measured on each document,
+  rather than a bare "compliant". PAC, a second and independent PDF/UA checker,
+  is listed alongside veraPDF: an audit on 2026-10-19 of the five PDF/UA
+  examples found what is fixed above, and now reports 0 errors and 0 warnings
+  on each. What it still notes, and that it was run by hand once, is recorded
+  in the ROADMAP.
 
 ## [0.3.3] — 2026-10-18
 
@@ -691,7 +704,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/thatsme/tincture/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/thatsme/tincture/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/thatsme/tincture/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/thatsme/tincture/compare/v0.3.0...v0.3.1

@@ -1,9 +1,10 @@
 defmodule Tincture.PublicApiTest do
   use ExUnit.Case, async: true
 
-  # Snapshot of the API published in v0.3.2, a released tag, checked against
-  # the tree at fe0eebd. Anchored to the release rather than to main:
-  # what Hex shipped is what users can be calling.
+  # Snapshot of the API published in v0.3.2, checked against the tree at
+  # fe0eebd. It still covers the documented API: v0.3.3 added no function, and
+  # v0.3.4 added an option but no documented function. Anchored to a release
+  # rather than to main: what Hex shipped is what users can be calling.
   #
   # The assertion is one-directional — snapshot is a subset of what exists now.
   # Adding a function, or a new arity, passes. Removing one, renaming it, or changing

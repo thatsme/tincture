@@ -67,18 +67,35 @@ gates, but a failure discovered after tagging costs a version number.
    corpus still pass" but **"does the corpus emit the new construct at all?"**
    If it does not, the rules covering it have never run.
 
-4. **The docs build clean.**
+4. **The PAC claim still describes audited files.**
+
+   The README, ROADMAP and `examples/README.md` cite a PAC audit by date and by
+   the commit whose files it ran on. Compare the five PDF/UA documents at the
+   release commit with those at the cited commit:
+
+       git diff --stat <audited-commit> HEAD -- \
+         examples/output/compliant.pdf examples/output/accessible.pdf \
+         examples/output/archival.pdf examples/output/linked/
+
+   If none changed, the claim stands as written. If any did, either run PAC
+   again on the new files and update the date and commit everywhere the claim
+   appears, or leave the claim citing the older commit exactly as it is, so it
+   still names the files that were audited. A PAC result must never come to
+   describe files nobody ran it on. veraPDF does not need this step: it runs on
+   every commit.
+
+5. **The docs build clean.**
 
        mix docs
 
-5. **The package builds, and contains what it should.**
+6. **The package builds, and contains what it should.**
 
        mix hex.build
 
    `examples/` and `docs/` are deliberately not shipped — see `files:` in
    `mix.exs`. Check that `priv/plts` has not crept in.
 
-6. **CHANGELOG is honest.**
+7. **CHANGELOG is honest.**
 
    - Move everything under `## [Unreleased]` to a new `## [X.Y.Z] — YYYY-MM-DD`
      heading, leaving `[Unreleased]` empty.
@@ -88,14 +105,16 @@ gates, but a failure discovered after tagging costs a version number.
    - Anything shipped in `lib/` belongs in there. Code that reaches users
      without a changelog entry is how a release becomes hard to describe.
 
-7. **Version and counts.**
+8. **Version and counts.**
 
    - Bump `@version` in `mix.exs`.
    - Update the test count and coverage figure in `README.md` and `ROADMAP.md`
-     if they have moved. `mix test` prints the count; `mix coveralls` prints the
-     percentage.
+     if they have moved. `mix test` prints the count. Take the coverage
+     percentage from the CI run on the release commit, which the Lint job's
+     `mix coveralls` prints, and say it is the CI figure: a local run can
+     differ from it by a tenth of a point or two between runs.
 
-8. **ROADMAP reflects what just shipped.** Move completed items out of "next"
+9. **ROADMAP reflects what just shipped.** Move completed items out of "next"
    and strike them through in their section, as the existing entries do.
 
 ## Publishing

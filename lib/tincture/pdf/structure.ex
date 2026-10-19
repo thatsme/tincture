@@ -144,16 +144,15 @@ defmodule Tincture.PDF.Structure do
   @spec content?(tag()) :: boolean()
   def content?(tag), do: Map.has_key?(@content_tags, tag)
 
-  @doc """
-  Whether a tag is inline-level (or an illustration) and so stays inline
-  unless its placement says otherwise.
-  """
+  # Whether a tag is inline-level (or an illustration) and so stays inline
+  # unless its placement says otherwise. Internal to the serialiser.
+  @doc false
   @spec inline_level?(tag()) :: boolean()
   def inline_level?(tag), do: tag in @inline_level
 
-  @doc """
-  Whether a tag is a grouping element, whose children are laid out as blocks.
-  """
+  # Whether a tag is a grouping element, whose children are laid out as
+  # blocks. Internal to the serialiser.
+  @doc false
   @spec grouping?(tag()) :: boolean()
   def grouping?(tag), do: tag in @grouping
 

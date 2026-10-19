@@ -21,22 +21,41 @@ Hugh Watkins (MIT), itself an Elixir port of Joe Armstrong's Erlang
 [erlguten](https://github.com/CarlWright/NGerlguten). Most of the engine is his
 work, carried forward here — see [Heritage](#heritage) and [NOTICE](NOTICE).
 
-## Verified against real validators
+## Checked against real validators
 
 Standards conformance is easy to claim and easy to get subtly wrong, so it is
-checked with [veraPDF](https://verapdf.org) and OpenSSL rather than asserted:
+checked with independent tools rather than asserted. Conformance belongs to a
+document, not a library, so every result below names the document it was
+measured on.
 
-| Standard | Result |
-|---|---|
-| **PDF/UA-1** (accessibility, ISO 14289-1) | `isCompliant=true` — 106/106 rules |
-| **PDF/A-2b** (archival, ISO 19005-2) | `isCompliant=true` — 144/144 rules |
-| **PDF/A-2u** (archival, text extractable) | `isCompliant=true` — 146/146 rules |
-| **PDF/A-2a** (accessible archival) | `isCompliant=true` — 153/153 rules |
-| **PKCS#7 detached signatures** | verified by `openssl cms -verify` |
+[veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
+these committed documents:
 
-These run in CI on every push, and the machine-readable reports are uploaded
-as a build artifact, so the claim is checkable without taking anyone's word for
-it. Reproduce them yourself — the documents are committed:
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit |
+|---|---|---|
+| **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
+| | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
+| | `archival.pdf` | 106 of 106 rules, 2255 of 2255 checks |
+| | `linked/Main-report.pdf` | 106 of 106 rules, 830 of 830 checks |
+| | `linked/Attached documents/Appendix-A.pdf` | 106 of 106 rules, 3761 of 3761 checks |
+| **PDF/A-2b** (archival, ISO 19005-2) | `archival.pdf` | 144 of 144 rules, 3088 of 3088 checks |
+| **PDF/A-2u** (archival, text extractable) | `archival.pdf` | 146 of 146 rules, 3700 of 3700 checks |
+| **PDF/A-2a** (accessible archival) | `archival.pdf` | 153 of 153 rules, 4009 of 4009 checks |
+
+[PAC](https://pac.pdf-accessibility.org) 2026.1, a second and independent
+PDF/UA checker, was run as a manual audit on 2026-10-19 against the five PDF/UA
+documents above, as committed at `4a75f1e`: **PDF/UA 0 errors, 0 warnings on
+all five.** PAC is a Windows desktop application with no command line, so it is
+an audit at a point in time rather than a gate. What it found and what remains
+is in [ROADMAP.md](ROADMAP.md#1-accessibility--tagged-pdf-pdfua).
+
+**PKCS#7 detached signatures**: `signed.pdf`'s signature passes
+`openssl cms -verify` in the test suite.
+
+The veraPDF reports are uploaded as a build artifact on every run, and the
+release checklist attaches them to the GitHub release, so the claim is
+checkable without taking anyone's word for it. Reproduce them yourself — the
+documents are committed:
 
 ```bash
 verapdf --flavour ua1 examples/output/compliant.pdf
@@ -101,16 +120,16 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.3"}
+{:tincture, "~> 0.3.4"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
-is mature and the standards output is independently verified, but the API under
-this name is new and may still move before 1.0.
+is mature and the standards output is checked by the validators above, but the
+API under this name is new and may still move before 1.0.
 
-1,322 tests · 89.7% coverage · Credo `--strict` clean, with 70 pre-existing
-findings in `lib/` exempted inline and `test/` and `scripts/` exempt from the
-structural checks · Dialyzer clean · CI on Elixir 1.16–1.19.
+1,426 tests · 89.7% coverage, as measured in CI · Credo `--strict` clean, with
+70 pre-existing findings in `lib/` exempted inline and `test/` and `scripts/`
+exempt from the structural checks · Dialyzer clean · CI on Elixir 1.16–1.19.
 
 ## What it does
 

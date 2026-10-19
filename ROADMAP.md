@@ -10,13 +10,13 @@ forms you need" are different claims.
 
 ## At a glance
 
-**Done and independently verified**
+**Done, and checked by an independent tool**
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | veraPDF, 106/106 rules, on a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | veraPDF, up to 153/153 rules ([2](#2-archival--pdfa)) |
-| Digital signatures | `openssl cms -verify` ([3](#3-digital-signatures)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
+| Digital signatures | passes `openssl cms -verify` in the test suite ([3](#3-digital-signatures)) |
 | Telemetry | ([9](#9-operability)) |
 
 **Next, roughly in order**
@@ -24,9 +24,9 @@ forms you need" are different claims.
 1. ~~**Transparency and shading**~~ — **done.** Constant alpha and axial and
    radial gradients. See [5](#5-transparency-and-shading); blend modes and
    patterns remain.
-2. **Accessibility completed** — an audit against PAC as well as veraPDF.
-   Tagging for `Layout.Template` and `Layout.Box` and `/Tabs /S` are done
-   (see [1](#1-accessibility--tagged-pdf-pdfua)); the PAC audit is what
+2. ~~**Accessibility completed**~~ — **done.** Tagging for `Layout.Template`
+   and `Layout.Box`, `/Tabs /S`, and an audit with PAC as well as veraPDF. See
+   [1](#1-accessibility--tagged-pdf-pdfua) for what the audit found and what
    remains.
 3. **Forms completed** — appearance streams for text and choice fields, which
    would also let signed and archival documents carry form fields. The same
@@ -66,9 +66,10 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. 1,322 tests, 89.7% coverage, Credo `--strict` clean with 70
-pre-existing findings in `lib/` exempted inline and `test/` and `scripts/`
-exempt from the structural checks, clean Dialyzer, CI on four Elixir versions.
+dependencies. 1,426 tests, 89.7% coverage as measured in CI, Credo `--strict`
+clean with 70 pre-existing findings in `lib/` exempted inline and `test/` and
+`scripts/` exempt from the structural checks, clean Dialyzer, CI on four Elixir
+versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
 person reads, keeps, and has to be able to rely on. What follows is what it does
@@ -163,9 +164,10 @@ publicly, and it should stay that way — that parser is the seed of
 
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
-**Status: verified compliant.** `examples/output/accessible.pdf` passes
-veraPDF 1.30.2 against the PDF/UA-1 profile — 106 of 106 rules, 1701 of 1701
-checks, `isCompliant="true"`.
+**Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
+profile) in CI on every commit: 106 of 106 rules, 1698 of 1698 checks. PAC
+2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
+warnings — for this document and the four other PDF/UA examples.
 
 Reproduce it with:
 
@@ -219,18 +221,46 @@ What remains:
   widget annotation to be nested in a `Form` structure element, and there is no
   such tag. The `/OBJR` machinery links now use is the same machinery this
   needs, so the seam exists; the vocabulary and the association do not.
-- **PAC — a one-off audit, not a gate.** Only veraPDF has been used, and it
-  cannot be the whole story: it checks that the structure is *well-formed*, not
-  that it is *right*. Announcing a decorative rule as a paragraph passes veraPDF
-  and fails a reader.
+- ~~**PAC audit.**~~ **Done** on 2026-10-19, with PAC 2026.1, on the five PDF/UA
+  examples as committed at `4a75f1e`: PDF/UA 0 errors, 0 warnings on all five.
+  veraPDF checks that the structure is *well-formed*; PAC also looks at whether
+  it is *usable*, and it found what veraPDF had passed:
 
-  PAC is the tool that catches that class, and it is a free Windows desktop
-  application from axes4 with no CLI and no Linux build. So it cannot join the
-  automated set the way veraPDF has: it is a manual pass on a Windows machine,
-  worth doing deliberately at intervals rather than planned as a regression
-  test. What comes back from it should become assertions here, where they can
-  run in CI.
-- **More of what a library can see.** Three rules are checked: a `:figure`
+  - invalid content streams in the examples — a painting operator with no path
+    to paint, which viewers ignore;
+  - tagged figures with no bounding box (`/BBox`);
+  - inline elements — links, notes, figures — placed directly in a section or
+    the document with no `/Placement /Block`, so a reader could not tell they
+    are laid out as blocks;
+  - examples with headings and no outline to navigate them by;
+  - and, in following up, a tag left open across a page change, which splits
+    its marked content between two pages.
+
+  All are fixed in 0.3.4, and each now has an assertion that runs in CI. The
+  last warns rather than refuses, and becomes an error in 0.4.0 (see below).
+
+  What remains from the audit:
+
+  - Two Quality warnings on `compliant.pdf`: its footnote `Note` is not
+    referenced by a `Link`, and contains no `Lbl`. Both are best practice for
+    footnotes rather than PDF/UA-1 requirements, and are a known gap.
+  - PAC's AI-assisted hints, which are advisory and not repeatable, and so are
+    not treated as findings.
+
+  PAC is a free Windows desktop application from axes4 with no command line
+  and no Linux build, so it cannot join the automated set the way veraPDF has.
+  It has been run once, by hand. A PAC result describes the files it was run
+  on; the release checklist keeps it from silently coming to describe others.
+- **A tag left open across a page change.** Calling `add_page/1` or
+  `set_page/2` while a content tag or an `artifact/2` block is open writes a
+  marked-content sequence that begins on one page and ends on another, which a
+  content stream cannot hold. Since 0.3.4 it warns, naming the open tag; it
+  becomes an error in 0.4.0. A figure closed on another page than it opened on
+  gets no `/BBox`, as ISO 32000-1 requires one only for a figure that appears
+  in its entirety on a single page.
+- **More of what a library can see.** Figure bounding boxes and the placement
+  of inline elements at block level are now written automatically, so neither
+  is left to the caller. Three rules are checked as violations: a `:figure`
   without `:alt`, a link outside a `:link` element, and a link with no
   `/Contents`. Heading-level order and table header association are the
   candidates left; whether an alternative text is *accurate* is not one a
@@ -238,9 +268,13 @@ What remains:
 
 ## 2. Archival — PDF/A
 
-**Status: verified compliant.** `examples/output/archival.pdf` passes veraPDF
-1.30.2 at PDF/A-2b, PDF/A-2u and **PDF/A-2a** — and PDF/UA-1 at the same time,
-since 2a is the accessible archival level and subsumes the tagging requirement.
+**Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
+every commit at PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
+(146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
+4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
+rules, 2255 of 2255 checks), since 2a is the accessible archival level and
+subsumes the tagging requirement. PAC 2026.1 audit, 2026-10-19, on the file at
+`4a75f1e`: PDF/UA 0 errors, 0 warnings. PAC does not check PDF/A.
 
     verapdf --flavour 2a  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf
@@ -274,9 +308,10 @@ What remains:
 
 ## 3. Digital signatures
 
-**Status: done, and verified against OpenSSL.** `Tincture.sign/3` produces a
-detached PKCS#7 signature covering the whole file, in a `/ByteRange` a verifier
-can reproduce. `examples/output/signed.pdf` verifies with:
+**Status: done; the signature passes `openssl cms -verify` in the test
+suite.** `Tincture.sign/3` produces a detached PKCS#7 signature covering the
+whole file, in a `/ByteRange` a verifier can reproduce.
+`examples/output/signed.pdf` checks out with:
 
     openssl cms -verify -binary -inform DER -in <extracted> -content <byte range>
 
@@ -427,7 +462,7 @@ Listed because evaluators will ask, and "no" is a better answer than silence.
 
 ---
 
-## A note on the verified items
+## A note on the checked items
 
 Compliance belongs to a *document*, not a library. Tincture provides the tools
 to produce a conforming file; whether yours conforms depends on how you use

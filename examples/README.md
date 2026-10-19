@@ -96,19 +96,24 @@ Shows:
   at all — the alt text is the only description that exists.
 - **`Tincture.set_language/2`**, without which a screen reader guesses the
   pronunciation.
+- **Bookmarks**, one per heading with `add_bookmark/3`, so the document's
+  outline offers the same navigation the headings do.
 
 The table comes from `Layout.Table`, which tags itself — rows, cells, header
 scope and artifact borders — when the document is being tagged. The row rules
 are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
-**Validated.** This document passes veraPDF 1.30.2 against the PDF/UA-1 profile
-— 106 of 106 rules, 1701 of 1701 checks:
+**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit:
+106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
+file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
 
-The other examples are not tagged and do not claim conformance; they parse
-cleanly but fail the UA rules about structure, as they should.
+Of the other examples, `compliant.exs`, `archival.exs` and `remote_links.exs`
+are tagged and validated below. The rest are not tagged and claim no
+conformance; they parse cleanly but fail the UA rules about structure, as they
+should.
 
 ## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
 
@@ -121,10 +126,15 @@ Covers the requirements the other example does not — lists (`:list`,
 and can skip it) — alongside headings in order, an artifact rule, a tagged
 table, and a figure with alternative text.
 
+Every heading also gets a bookmark, so the outline matches the structure.
+
 The script prints a checklist of each requirement and where it came from.
 
-**Validated:** passes veraPDF 1.30.2 against PDF/UA-1 — 106 of 106 rules, 2860
-of 2860 checks:
+**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit:
+106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
+file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
+its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
+which are best practice rather than PDF/UA-1 requirements.
 
     verapdf --flavour ua1 examples/output/compliant.pdf
 
@@ -146,15 +156,28 @@ Shows:
 - **Why the standard 14 fonts are unusable here**: PDF/A requires every font to
   be embedded, and those are referenced by name for the reader to resolve,
   which is the outside dependency the format exists to remove.
+- **Bookmarks** for each heading, as in the other tagged examples.
 
 Output is deterministic — the file identifier comes from the content and the
 ICC profile carries no creation date — so an archived file can be checked
 against a rebuild.
 
-**Validated** at three flavours:
+**Validated.** Passes veraPDF 1.30.2 in CI on every commit at four
+flavours:
 
-    verapdf --flavour 2a  examples/output/archival.pdf
+| Profile | Rules | Checks |
+|---|---|---|
+| PDF/A-2b | 144 of 144 | 3088 of 3088 |
+| PDF/A-2u | 146 of 146 | 3700 of 3700 |
+| PDF/A-2a | 153 of 153 | 4009 of 4009 |
+| PDF/UA-1 | 106 of 106 | 2255 of 2255 |
+
+PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
+0 warnings. PAC does not check PDF/A.
+
     verapdf --flavour 2b  examples/output/archival.pdf
+    verapdf --flavour 2u  examples/output/archival.pdf
+    verapdf --flavour 2a  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf
 
 ## [`signed.exs`](signed.exs) → [`output/signed.pdf`](output/signed.pdf)
@@ -194,9 +217,13 @@ pages, one to the appendix as a whole. `{:file, path, page}` emits a `/GoToR`
 action whose path the reader resolves against the document carrying the link,
 so the pair can be moved, zipped or handed over as a set and still resolve.
 
-Both halves are tagged and both pass PDF/UA-1. A report that is accessible
-pointing at an appendix that is not makes a set half-readable, with no way for
-a reader to tell before opening it.
+Both halves are tagged, each with a bookmark per heading, and both pass
+veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit: `Main-report.pdf` 106
+of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
+3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
+errors, 0 warnings on both. A report that is accessible pointing at an
+appendix that is not makes a set half-readable, with no way for a reader to
+tell before opening it.
 
 Two things to know before relying on this, both shown in the script:
 
