@@ -47,6 +47,14 @@ jobs:
       - name: Check formatting
         run: mix format --check-formatted
 
+      # Every path in the repository is relative: see "Paths and machines" in
+      # CLAUDE.md. The self-test runs first, so a broken checker cannot pass a
+      # scan it would have failed.
+      - name: No absolute paths
+        run: |
+          elixir scripts/check_absolute_paths.exs --self-test
+          elixir scripts/check_absolute_paths.exs
+
       - name: Compile with warnings as errors
         run: mix compile --force --warnings-as-errors
 

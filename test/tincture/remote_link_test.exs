@@ -119,6 +119,7 @@ defmodule Tincture.RemoteLinkTest do
 
     test "a drive-letter path" do
       assert_raise ArgumentError, ~r/must be relative to the document that carries it/, fn ->
+        # abs-path-ok: rejection fixture for drive-letter paths
         linked({:file, "C:/tmp/a.pdf"})
       end
     end

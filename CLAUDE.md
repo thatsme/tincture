@@ -94,6 +94,31 @@ finding is usually worth more attention than a drive-by patch gives it.
 Defects do not wait behind features. A known-broken construct ships its fix
 alone rather than sitting through a feature release.
 
+## Paths and machines
+
+Tincture is worked on from Windows machines with different drive layouts and
+from macOS, and checked by CI on Linux. A path that exists on one of them is a
+bug on the others. In the 0.3.4 cycle, scratch work drifted to one machine's
+temp directory and to a hardcoded path on another's drive, and nothing failed
+until someone noticed by hand.
+
+- **Paths are relative.** Every path in code, scripts, tests, docs, briefs and
+  reports is relative to the repository root. Where a command needs an
+  absolute path, it derives one at run time (`git rev-parse --show-toplevel`)
+  and never writes one in. `elixir scripts/check_absolute_paths.exs` enforces
+  this in CI. A line that must carry an absolute path, such as a fixture
+  proving one is rejected, says so with an `abs-path-ok` marker comment
+  giving the reason, on that line or on the comment line directly above it.
+  The check is never satisfied by narrowing its patterns.
+- **Scratch work goes in `tmp/`** at the root, which is gitignored. An agent's
+  session scratchpad is the operating system's temp directory, and is for
+  disposable work only. Nothing that must outlive the session, or that a file
+  refers to, lives there or points there.
+- **Shell commands written into docs and briefs run unchanged** in Git Bash on
+  Windows and in bash or zsh on macOS: POSIX shell only, no PowerShell-isms,
+  and no GNU-only flags without a note saying so.
+- **Line endings** are set by `.gitattributes`.
+
 ## Claims in documentation are load-bearing
 
 The README, ROADMAP and CHANGELOG make checkable assertions: rule counts, test

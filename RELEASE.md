@@ -126,8 +126,24 @@ gates, but a failure discovered after tagging costs a version number.
 
 ## Publishing
 
+Every command here runs from the repository root, in Git Bash on Windows or a
+shell on macOS. Two steps need the maintainer's Hex credentials, and so must
+run on the machine that holds them: the pre-flight in step 2, and
+`mix hex.publish` in step 4. Tagging and the GitHub release need push access
+to the repository and an authenticated `gh`, and can run anywhere that has
+them.
+
 1. Commit the version bump and changelog, and let CI go green on `main`.
-2. Tag, with an annotated tag, and push only that tag:
+2. **Pre-flight, on the machine that will publish, before anything is
+   tagged:**
+
+       mix hex.user whoami
+
+   It must name the maintainer account. If it fails — a key can be revoked on
+   hex.pm while its local copy still decrypts — re-authenticate with
+   `mix hex.user auth` now. A pushed tag whose upload then fails is the state
+   this prevents: the tag is public, and the package is not.
+3. Tag, with an annotated tag, and push only that tag:
 
        git tag -a vX.Y.Z -m "vX.Y.Z"
        git push origin vX.Y.Z
@@ -135,8 +151,8 @@ gates, but a failure discovered after tagging costs a version number.
    `--tags` would push every local tag, including any that were never meant to
    leave the machine.
 
-3. Publish to Hex, from a maintainer's machine, from a fresh worktree of the
-   tag:
+4. Publish to Hex, from the machine that passed step 2, from a fresh worktree
+   of the tag:
 
        git worktree add tmp/publish vX.Y.Z
        cd tmp/publish
@@ -149,6 +165,14 @@ gates, but a failure discovered after tagging costs a version number.
    before doing either. Check the file list it prints: `examples/` and `docs/`
    should not be in it.
 
+   If `git worktree remove` refuses, list what is inside first:
+
+       git -C tmp/publish status --porcelain --ignored
+
+   Add `--force` only when the only extra content is gitignored build output —
+   `deps/`, `_build/`, `doc/`. Anything else is a stop: something reached the
+   worktree that is not in the tag, and the package may have carried it.
+
    The worktree is what makes the upload exactly the tagged tree. It holds
    nothing but the tag's files, so no uncommitted change or untracked file in
    the working copy can reach the package. And it has no `doc/`, which is
@@ -157,14 +181,14 @@ gates, but a failure discovered after tagging costs a version number.
    longer match, such as a previous release's sidebar and search index, and
    whatever is in `doc/` is what HexDocs receives.
 
-4. Confirm <https://hex.pm/packages/tincture> lists the new release, and
+5. Confirm <https://hex.pm/packages/tincture> lists the new release, and
    <https://hexdocs.pm/tincture> serves its docs. Pull the published tarball
    and check it contains what the tag does — the upload is what users get, and
    it is the artifact worth verifying rather than the plan:
 
-       curl -sL -o t.tar https://repo.hex.pm/tarballs/tincture-X.Y.Z.tar
+       curl -sL -o tmp/t.tar https://repo.hex.pm/tarballs/tincture-X.Y.Z.tar
 
-5. **Create the GitHub release, from the tag, after Hex.**
+6. **Create the GitHub release, from the tag, after Hex.**
 
    The ordering is deliberate. A GitHub release announcing a version that then
    fails to publish is a public promise you have to retract; `mix hex.publish`
@@ -191,16 +215,26 @@ gates, but a failure discovered after tagging costs a version number.
    build artifact, and build artifacts expire — ninety days by default. Release
    assets do not. A conformance claim whose evidence has expired is a claim
    people have to take on trust again, which is the thing this project is
-   trying not to ask of them. Download the artifact from the run that validated
-   the tagged commit, confirm the run's `head_sha` matches the tag, and upload
-   the reports with the release. The artifact goes into `verapdf-reports/`,
-   which `.gitignore` excludes:
+   trying not to ask of them. Take the reports from the run that validated the
+   tagged commit, into `verapdf-reports/`, which `.gitignore` excludes. Empty
+   it first, in the same command block: the folder outlives a release, and the
+   `*.xml` glob above would attach a previous release's reports alongside the
+   new ones.
 
-       gh run download <run-id> -R thatsme/tincture \
-         -n verapdf-reports -D verapdf-reports
+       rm -rf verapdf-reports
+       gh run download <run-id> -R thatsme/tincture -n verapdf-reports -D verapdf-reports
 
-   `-R` keeps both commands on this repository. In a clone that also carries
-   an `upstream` remote, `gh` without it can resolve to that repository
+   Then confirm the run validated the tagged commit. The two hashes must be
+   equal:
+
+       gh run view <run-id> -R thatsme/tincture --json headSha --jq .headSha
+       git rev-parse 'vX.Y.Z^{commit}'
+
+   Use `^{commit}`: an annotated tag's own hash is the tag object's, not the
+   commit's, so comparing against the bare tag name never matches.
+
+   `-R` keeps every `gh` command on this repository. In a clone that also
+   carries an `upstream` remote, `gh` without it can resolve to that repository
    instead.
 
 ## After publishing
