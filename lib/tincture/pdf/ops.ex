@@ -116,28 +116,61 @@ defmodule Tincture.PDF.Ops do
   end
 
   @spec stroke(PDF.t()) :: PDF.t()
-  def stroke(%PDF{} = pdf) do
-    PDF.append_current_op(pdf, :stroke)
-  end
+  def stroke(%PDF{} = pdf), do: paint_open_path(pdf, :stroke, "stroke/1", ":stroke")
 
   @spec fill(PDF.t()) :: PDF.t()
-  def fill(%PDF{} = pdf) do
-    PDF.append_current_op(pdf, :fill)
-  end
+  def fill(%PDF{} = pdf), do: paint_open_path(pdf, :fill, "fill/1", ":fill")
 
   @spec fill_even_odd(PDF.t()) :: PDF.t()
-  def fill_even_odd(%PDF{} = pdf) do
-    PDF.append_current_op(pdf, :fill_even_odd)
-  end
+  def fill_even_odd(%PDF{} = pdf),
+    do: paint_open_path(pdf, :fill_even_odd, "fill_even_odd/1", ":fill_even_odd")
 
   @spec clip(PDF.t()) :: PDF.t()
-  def clip(%PDF{} = pdf) do
-    PDF.append_current_op(pdf, :clip)
-  end
+  def clip(%PDF{} = pdf), do: paint_open_path(pdf, :clip, "clip/1", ":none")
 
   @spec clip_even_odd(PDF.t()) :: PDF.t()
-  def clip_even_odd(%PDF{} = pdf) do
-    PDF.append_current_op(pdf, :clip_even_odd)
+  def clip_even_odd(%PDF{} = pdf),
+    do: paint_open_path(pdf, :clip_even_odd, "clip_even_odd/1", ":none")
+
+  # A painting or clipping operator with no path open is invalid where it is
+  # written (ISO 32000-1 §8.2, Figure 9): viewers skip it, so it never did
+  # anything, and the usual cause is a shape that already painted itself
+  # with its default :stroke. It is dropped rather than written, with a
+  # warning naming the fix. 0.4.0 makes it an error.
+  defp paint_open_path(%PDF{} = pdf, op, function, paint) do
+    if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
+      PDF.append_current_op(pdf, op)
+    else
+      IO.warn(
+        "Tincture.#{function} was called with no open path, so there is nothing to " <>
+          "#{if op in [:clip, :clip_even_odd], do: "clip to", else: "paint"} and no " <>
+          "operator was written. A shape paints itself: pass its own paint argument " <>
+          "(for example rectangle(pdf, x, y, w, h, #{paint})) instead, or start a path " <>
+          "with move_to/3. This will raise in 0.4.0."
+      )
+
+      pdf
+    end
+  end
+
+  # The path is open after move_to, line_to, bezier, or a shape drawn with
+  # paint: :none, and closed by any painting or clipping operator - including
+  # the one a shape writes for itself. Everything else leaves it as it was.
+  defp path_open?(ops) do
+    {open?} =
+      ops
+      |> Enum.reverse()
+      |> Enum.find_value({false}, fn
+        {path_op, _x, _y} when path_op in [:move_to, :line_to] -> {true}
+        {:bezier, _x1, _y1, _x2, _y2, _x3, _y3} -> {true}
+        {:line, _x1, _y1, _x2, _y2, paint} -> {paint == :none}
+        {:rectangle, _x, _y, _w, _h, paint} -> {paint == :none}
+        {:circle, _cx, _cy, _r, paint} -> {paint == :none}
+        op when op in [:stroke, :fill, :fill_even_odd, :clip, :clip_even_odd] -> {false}
+        _other -> nil
+      end)
+
+    open?
   end
 
   @spec set_line_width(PDF.t(), number()) :: PDF.t()

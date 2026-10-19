@@ -216,7 +216,7 @@ defmodule Tincture.Layout.TaggedTableTest do
       binary =
         Tincture.new()
         |> Tincture.artifact(fn pdf ->
-          pdf |> Tincture.line(10, 10, 100, 10) |> Tincture.stroke()
+          Tincture.line(pdf, 10, 10, 100, 10)
         end)
         |> Tincture.export()
 

@@ -983,8 +983,9 @@ defmodule Tincture do
       `fill/1` or `stroke/1`
 
   A PDF path-painting operator also *ends* the path, so a shape can be painted
-  once. Calling `fill/1` after a shape that already stroked itself does
-  nothing, because there is no longer a path to fill.
+  once. Calling `fill/1` after a shape that already stroked itself fills
+  nothing, because there is no longer a path to fill: it writes no operator
+  and warns. Pass `:fill` or `:fill_and_stroke` here instead.
 
   ## Examples
 
@@ -1049,6 +1050,13 @@ defmodule Tincture do
 
   @doc """
   Stroke the current path.
+
+  A path must be open: started with `move_to/3`, continued with `line_to/3` or
+  `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
+  open path - typically after a shape that already painted itself with its
+  default `:stroke` - this writes nothing and warns, since the operator would
+  be invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec stroke(PDF.t()) :: PDF.t()
   def stroke(%PDF{} = pdf) do
@@ -1057,6 +1065,13 @@ defmodule Tincture do
 
   @doc """
   Fill the current path.
+
+  A path must be open: started with `move_to/3`, continued with `line_to/3` or
+  `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
+  open path - typically after a shape that already painted itself with its
+  default `:stroke` - this writes nothing and warns, since the operator would
+  be invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec fill(PDF.t()) :: PDF.t()
   def fill(%PDF{} = pdf) do
@@ -1065,6 +1080,13 @@ defmodule Tincture do
 
   @doc """
   Fill the current path using the even-odd rule.
+
+  A path must be open: started with `move_to/3`, continued with `line_to/3` or
+  `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
+  open path - typically after a shape that already painted itself with its
+  default `:stroke` - this writes nothing and warns, since the operator would
+  be invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec fill_even_odd(PDF.t()) :: PDF.t()
   def fill_even_odd(%PDF{} = pdf) do
@@ -1073,6 +1095,13 @@ defmodule Tincture do
 
   @doc """
   Set the clipping path from the current path.
+
+  A path must be open: started with `move_to/3`, continued with `line_to/3` or
+  `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
+  open path - typically after a shape that already painted itself with its
+  default `:stroke` - this writes nothing and warns, since the operator would
+  be invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec clip(PDF.t()) :: PDF.t()
   def clip(%PDF{} = pdf) do
@@ -1081,6 +1110,13 @@ defmodule Tincture do
 
   @doc """
   Set the clipping path from the current path using the even-odd rule.
+
+  A path must be open: started with `move_to/3`, continued with `line_to/3` or
+  `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
+  open path - typically after a shape that already painted itself with its
+  default `:stroke` - this writes nothing and warns, since the operator would
+  be invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec clip_even_odd(PDF.t()) :: PDF.t()
   def clip_even_odd(%PDF{} = pdf) do
@@ -1441,7 +1477,6 @@ defmodule Tincture do
         pdf
         |> Tincture.set_stroke_color({0.85, 0.86, 0.88})
         |> Tincture.line(50, 700, 545, 700)
-        |> Tincture.stroke()
       end)
 
   `Tincture.Layout.Table.render/6` does this for its own borders when it is

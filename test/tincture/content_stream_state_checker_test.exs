@@ -94,17 +94,21 @@ defmodule Tincture.ContentStreamStateCheckerTest do
   end
 
   describe "check_pdf/1" do
-    test "finds a double S in a document Tincture wrote, at its place in the file" do
+    # Tincture no longer writes a painting operator with no path open, so the
+    # double S is written by hand here.
+    test "finds a double S at its place in the file" do
       pdf =
-        Tincture.new()
-        |> Tincture.line(56, 716, 539, 716)
-        |> Tincture.stroke()
-        |> Tincture.export()
+        hand_written_pdf([
+          "<< /Type /Catalog /Pages 2 0 R >>",
+          "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R >>",
+          stream_object("", "56 716 m\n539 716 l\nS\nS\n")
+        ])
 
       assert %{streams: 1, violations: [violation]} = ContentStreamState.check_pdf(pdf)
       assert violation.operator == "S"
-      assert binary_part(pdf, violation.offset, 1) == "S"
-      assert pdf =~ "#{violation.object} 0 obj"
+      assert violation.object == 4
+      assert binary_part(pdf, violation.offset - 2, 3) == "S\nS"
     end
 
     test "a document with a single painting operator per path is clean" do
