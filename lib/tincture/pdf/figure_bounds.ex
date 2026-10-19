@@ -15,12 +15,19 @@ defmodule Tincture.PDF.FigureBounds do
   # The result is conservative rather than tight. A Bezier contributes the
   # hull of its control points, and stroked geometry is inflated by half the
   # line width on every side, which covers butt, round and projecting caps but
-  # not a long miter spike at a sharp corner.
+  # not a long miter spike at a sharp corner. Text contributes the same
+  # estimate a text link's clickable area uses (`TextExtent`): metric width,
+  # three quarters of the size above the baseline and a quarter below, with
+  # the corners rotated for rotated text.
 
   alias Tincture.PDF
+  alias Tincture.PDF.TextExtent
 
   @type bbox :: {number(), number(), number(), number()}
-  @type result :: {:ok, bbox()} | :contains_text | :no_content
+  @type result :: {:ok, bbox()} | :no_content
+
+  @typedoc "Measures text: `(font_name, size, text) -> {width, ascent, descent}`."
+  @type measure :: (String.t(), number(), String.t() -> {number(), number(), number()})
 
   # PDF's initial line width (ISO 32000-1 Table 52).
   @default_line_width 1.0
@@ -29,26 +36,22 @@ defmodule Tincture.PDF.FigureBounds do
   The bounding box of the marked content `mcid` opened in `ops`.
 
   `ops` runs from the start of the page to the point where the figure closes,
-  so the marked content is open at the end of the list. Text inside the
-  figure makes the box unknowable here, since a glyph's extent is not its
-  advance width.
+  so the marked content is open at the end of the list. `measure` gives the
+  extent of a run of text, which needs the document's fonts.
   """
-  @spec compute([PDF.op()], non_neg_integer()) :: result()
-  def compute(ops, mcid) do
+  @spec compute([PDF.op()], non_neg_integer(), measure()) :: result()
+  def compute(ops, mcid, measure) do
     initial = %{
       widths: [@default_line_width],
       path: [],
       depth: nil,
       box: nil,
-      text?: false
+      measure: measure
     }
 
-    state = Enum.reduce(ops, initial, &step(&1, &2, mcid))
-
-    cond do
-      state.text? -> :contains_text
-      state.box == nil -> :no_content
-      true -> {:ok, state.box}
+    case Enum.reduce(ops, initial, &step(&1, &2, mcid)) do
+      %{box: nil} -> :no_content
+      %{box: box} -> {:ok, box}
     end
   end
 
@@ -110,13 +113,25 @@ defmodule Tincture.PDF.FigureBounds do
   defp step({:shading, x, y, width, height, _shading}, state, _mcid),
     do: include(state, [{x, y}, {x + width, y + height}], 0)
 
-  defp step(text, %{depth: depth} = state, _mcid)
-       when is_integer(depth) and elem(text, 0) in [:text_at, :text_at_rotated],
-       do: %{state | text?: true}
+  defp step({:text_at, x, y, text, font}, state, _mcid),
+    do: include_text(state, x, y, 0, text, font)
+
+  defp step({:text_at_rotated, x, y, angle_degrees, text, font}, state, _mcid),
+    do: include_text(state, x, y, angle_degrees, text, font)
 
   defp step(_other, state, _mcid), do: state
 
   defp add_path(state, points), do: %{state | path: points ++ state.path}
+
+  # Measured only inside the figure: measuring needs the fonts, and text
+  # elsewhere on the page contributes nothing.
+  defp include_text(%{depth: depth} = state, x, y, angle_degrees, text, {font_name, size})
+       when is_integer(depth) do
+    extent = state.measure.(font_name, size, text)
+    include(state, TextExtent.corners(extent, x, y, angle_degrees), 0)
+  end
+
+  defp include_text(state, _x, _y, _angle_degrees, _text, _font), do: state
 
   defp paint(state, :none), do: state
 

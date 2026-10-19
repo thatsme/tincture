@@ -36,7 +36,7 @@ defmodule Tincture.OpenPathTest do
 
         assert warning =~ "Tincture.#{unquote(function)}/1 was called with no open path"
         assert warning =~ "pass its own paint argument"
-        assert warning =~ "0.4.0"
+        assert warning =~ "0.5.0"
         assert length(Regex.scan(~r/warning: /, warning)) == 1
         assert content(pdf) == "100 100 50 50 re\nS\n"
       end

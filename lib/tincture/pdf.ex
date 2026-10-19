@@ -9,6 +9,7 @@ defmodule Tincture.PDF do
   alias Tincture.PDF.Page
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
+  alias Tincture.PDF.TextExtent
   require Logger
 
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
@@ -227,6 +228,8 @@ defmodule Tincture.PDF do
   @doc false
   @spec add_page(t()) :: t()
   def add_page(%__MODULE__{} = pdf) do
+    warn_open_marked_content(pdf, "add_page/1")
+
     next_page =
       pdf
       |> page_numbers()
@@ -243,10 +246,48 @@ defmodule Tincture.PDF do
       when is_integer(page_number) and page_number > 0 do
     case Map.fetch(pdf.pages, page_number) do
       {:ok, ops} ->
+        if page_number != pdf.current_page, do: warn_open_marked_content(pdf, "set_page/2")
         %__MODULE__{pdf | current_page: page_number, operations: ops}
 
       :error ->
         raise ArgumentError, "unknown page: #{page_number}"
+    end
+  end
+
+  # A marked-content sequence has to begin and end in the same content stream,
+  # and each page is its own stream. Leaving one open while moving to another
+  # page splits it: an unclosed BDC here, a stray EMC there. That has always
+  # exported, so it warns rather than refuses; 0.5.0 makes it an error.
+  defp warn_open_marked_content(%__MODULE__{} = pdf, function) do
+    depth =
+      pdf
+      |> page_operations(pdf.current_page)
+      |> Enum.reduce(0, fn
+        {:begin_marked_content, _tag, _mcid}, depth -> depth + 1
+        {:begin_artifact}, depth -> depth + 1
+        {:end_marked_content}, depth -> depth - 1
+        _op, depth -> depth
+      end)
+
+    if depth > 0 do
+      IO.warn(
+        "Tincture.#{function} was called while #{open_sequence_label(pdf)} is open on page " <>
+          "#{pdf.current_page}. Its marked content would begin on one page and end on " <>
+          "another, which a content stream cannot hold. Close it before changing page. " <>
+          "This will raise in 0.5.0."
+      )
+    end
+  end
+
+  defp open_sequence_label(%__MODULE__{} = pdf) do
+    open =
+      Enum.find(pdf.structure_stack, fn element ->
+        Structure.content?(element.tag) and element.page_number == pdf.current_page
+      end)
+
+    case open do
+      nil -> "an artifact/2 block"
+      element -> "tag(:#{element.tag}, ...)"
     end
   end
 
@@ -479,52 +520,87 @@ defmodule Tincture.PDF do
        do: Map.put(element, :bbox_unknown, :spans_pages)
 
   defp resolve_figure_bbox(%{tag: :figure, mcid: mcid} = element, %__MODULE__{} = pdf) do
-    case FigureBounds.compute(page_operations(pdf, element.page_number), mcid) do
-      {:ok, bbox} -> Map.put(element, :bbox, bbox)
-      reason -> Map.put(element, :bbox_unknown, reason)
+    measure = fn font_name, size, text -> TextExtent.extent(pdf, font_name, size, text) end
+
+    case FigureBounds.compute(page_operations(pdf, element.page_number), mcid, measure) do
+      {:ok, bbox} ->
+        Map.put(element, :bbox, bbox)
+
+      # Nothing drawn means nothing to bound. Exporting such a figure has
+      # always worked, so it still does: no /BBox, and a warning.
+      :no_content ->
+        IO.warn(
+          "Tincture.tag(:figure, ...) #{figure_label(element)} on page #{element.page_number} " <>
+            "draws nothing, so it has no bounding box and none is written. Draw its content " <>
+            "inside the tag, or pass bbox: {left, bottom, right, top}. This will raise in 0.5.0."
+        )
+
+        Map.put(element, :bbox_unknown, :no_content)
     end
   end
 
   defp resolve_figure_bbox(element, _pdf), do: element
 
-  defp normalize_bbox(_tag, nil, _page_size), do: nil
-
-  defp normalize_bbox(:figure, bbox, page_size) do
-    bbox
-    |> bbox_of_four_numbers!()
-    |> bbox_ordered!()
-    |> bbox_within!(Page.media_box(page_size))
-  end
-
-  defp normalize_bbox(tag, _bbox, _page_size),
-    do: raise(ArgumentError, ":bbox is only valid on :figure, got it on #{inspect(tag)}")
-
-  defp bbox_of_four_numbers!(bbox) do
-    if is_tuple(bbox) and tuple_size(bbox) == 4 and
-         bbox |> Tuple.to_list() |> Enum.all?(&is_number/1) do
-      bbox
-    else
-      raise ArgumentError,
-            ":bbox must be {left, bottom, right, top}, four numbers, got: #{inspect(bbox)}"
+  defp figure_label(element) do
+    case Map.get(element, :alt) do
+      alt when is_binary(alt) and alt != "" -> "with alt text #{inspect(alt)}"
+      _no_alt -> "with no alt text"
     end
   end
 
-  defp bbox_ordered!({left, bottom, right, top} = bbox) when left < right and bottom < top,
-    do: bbox
+  # tag/4 has always ignored options it does not know, :bbox included, so a
+  # :bbox that cannot be used is ignored with a warning rather than refused:
+  # the figure falls back to the computed box. 0.5.0 makes it an error.
+  defp normalize_bbox(_tag, nil, _page_size), do: nil
 
-  defp bbox_ordered!(bbox) do
-    raise ArgumentError,
-          ":bbox must be {left, bottom, right, top} with left < right and bottom < top, " <>
-            "got: #{inspect(bbox)}"
+  defp normalize_bbox(:figure, bbox, page_size) do
+    case bbox_problem(bbox, Page.media_box(page_size)) do
+      nil ->
+        bbox
+
+      problem ->
+        warn_ignored_bbox(problem)
+        nil
+    end
   end
 
-  defp bbox_within!({left, bottom, right, top} = bbox, {width, height})
-       when left >= 0 and bottom >= 0 and right <= width and top <= height,
-       do: bbox
+  defp normalize_bbox(tag, _bbox, _page_size) do
+    warn_ignored_bbox(":bbox is only used on :figure, and was given on #{inspect(tag)}")
+    nil
+  end
 
-  defp bbox_within!(bbox, {width, height}) do
-    raise ArgumentError,
-          ":bbox #{inspect(bbox)} lies outside the page's MediaBox [0 0 #{width} #{height}]"
+  defp bbox_problem(bbox, media_box) do
+    cond do
+      not four_numbers?(bbox) ->
+        ":bbox must be {left, bottom, right, top}, four numbers, got: #{inspect(bbox)}"
+
+      not ordered?(bbox) ->
+        ":bbox must have left < right and bottom < top, got: #{inspect(bbox)}"
+
+      not within?(bbox, media_box) ->
+        {width, height} = media_box
+        ":bbox #{inspect(bbox)} lies outside the page's MediaBox [0 0 #{width} #{height}]"
+
+      true ->
+        nil
+    end
+  end
+
+  defp four_numbers?(bbox) when is_tuple(bbox) and tuple_size(bbox) == 4,
+    do: bbox |> Tuple.to_list() |> Enum.all?(&is_number/1)
+
+  defp four_numbers?(_other), do: false
+
+  defp ordered?({left, bottom, right, top}), do: left < right and bottom < top
+
+  defp within?({left, bottom, right, top}, {width, height}),
+    do: left >= 0 and bottom >= 0 and right <= width and top <= height
+
+  defp warn_ignored_bbox(problem) do
+    IO.warn(
+      "Tincture.tag/4: #{problem}. It is ignored, and a :figure's bounding box is " <>
+        "computed instead. This will raise in 0.5.0."
+    )
   end
 
   defp normalize_scope(_tag, nil), do: nil

@@ -1,5 +1,8 @@
 defmodule Tincture.LayoutAttributesTest do
-  use ExUnit.Case, async: true
+  # Not async: several tests capture stderr, which the whole VM shares.
+  use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   # Layout attributes on structure elements (ISO 32000-1 §14.8.5.4): the
   # /BBox a figure computes from what it draws, and the /Placement /Block an
@@ -150,58 +153,103 @@ defmodule Tincture.LayoutAttributesTest do
     end
   end
 
-  describe "a figure whose box cannot be computed" do
-    defp text_figure(opts \\ []) do
-      tagged(fn pdf ->
-        figure(pdf, opts, fn pdf ->
-          pdf |> Tincture.rectangle(50, 50, 100, 100, :fill) |> Tincture.text_at(60, 60, "label")
+  describe "text in a figure" do
+    defp text_figure_bbox(fun) do
+      pdf =
+        Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_font("Helvetica", 10)
+        |> Tincture.tag(:document, &figure(&1, fun))
+
+      {pdf, figure_element(pdf).bbox}
+    end
+
+    # The same estimate text_link/6 uses for its clickable area: the metric
+    # width, three quarters of the size above the baseline and a quarter below.
+    test "is bounded by its metric width and 0.75/0.25 of its size" do
+      {pdf, box} = text_figure_bbox(&Tincture.text_at(&1, 100, 200, "Label"))
+      width = Tincture.PDF.TextExtent.extent(pdf, "Helvetica", 10, "Label") |> elem(0)
+
+      assert box == {100, 197.5, 100 + width, 207.5}
+      assert width > 0
+    end
+
+    test "unions with the geometry around it" do
+      {_pdf, box} =
+        text_figure_bbox(fn pdf ->
+          pdf
+          |> Tincture.rectangle(50, 50, 300, 300, :fill)
+          |> Tincture.text_at(60, 60, "label")
         end)
-      end)
+
+      assert box == {50, 50, 350, 350}
     end
 
-    test "text inside it is a violation that names the figure by its alt text" do
-      assert [violation] = Tincture.pdf_ua_violations(text_figure())
-      assert violation.rule == :figure_without_bbox
-      assert violation.message =~ ~s(the :figure "a figure" on page 1 contains text)
-      assert violation.message =~ "bbox:"
+    test "rotated text is bounded by its rotated corners" do
+      {pdf, {left, bottom, right, top}} =
+        text_figure_bbox(&Tincture.text_at_rotated(&1, 100, 200, 90, "Label"))
+
+      width = Tincture.PDF.TextExtent.extent(pdf, "Helvetica", 10, "Label") |> elem(0)
+
+      # Turned 90 degrees anticlockwise about the start of the baseline: the
+      # run goes up the page, and the ascent extends to the left.
+      assert {left, bottom, right, top} == {92.5, 200.0, 102.5, 200 + width}
     end
 
-    test "export/2 refuses it" do
-      error = assert_raise ArgumentError, fn -> Tincture.export(text_figure()) end
-      assert error.message =~ "ISO 32000-1 clause 14.8.5.4.3, Table 344"
+    test "uses the same extent as a text link's clickable area" do
+      pdf =
+        Tincture.new()
+        |> Tincture.set_font("Helvetica", 12)
+        |> Tincture.text_link(72, 700, "Read more", "https://example.com")
+
+      [annotation] = Tincture.PDF.page_annotations(pdf, 1)
+      {width, ascent, descent} = Tincture.PDF.TextExtent.extent(pdf, "Helvetica", 12, "Read more")
+
+      bottom = 700 - descent
+      assert annotation.rect == {72, bottom, 72 + width, bottom + (ascent + descent)}
     end
 
-    test "enforce: false still exports it, with no /BBox" do
-      ExUnit.CaptureLog.capture_log(fn ->
-        binary = Tincture.export(text_figure(), enforce: false)
-        refute binary =~ "/BBox"
-      end)
-    end
-
-    test "a figure with neither alt text nor a box is named as such" do
-      pdf = tagged(&Tincture.tag(&1, :figure, fn pdf -> Tincture.text_at(pdf, 10, 10, "x") end))
-
-      assert [%{rule: :figure_without_alt}, %{rule: :figure_without_bbox, message: message}] =
-               Tincture.pdf_ua_violations(pdf)
-
-      assert message =~ "the :figure with no alt text on page 1"
-    end
-
-    test "a figure that draws nothing is a violation too" do
-      pdf = tagged(&figure(&1, fn pdf -> pdf end))
-
-      assert [%{rule: :figure_without_bbox, message: message}] = Tincture.pdf_ua_violations(pdf)
-      assert message =~ "draws nothing"
-    end
-
-    test "an explicit :bbox resolves it and is written as given" do
-      pdf = text_figure(bbox: {50, 50, 150, 160})
+    test "is no longer a violation, and the document exports with its /BBox" do
+      {pdf, _box} = text_figure_bbox(&Tincture.text_at(&1, 100, 200, "Label"))
 
       assert Tincture.pdf_ua_violations(pdf) == []
-      assert Tincture.export(pdf) =~ "/BBox [50 50 150 160]"
+      assert Tincture.export(pdf) =~ "/BBox [100 197.5 "
+    end
+  end
+
+  describe "a figure that draws nothing" do
+    test "warns, gets no /BBox, and still exports" do
+      {pdf, warning} = with_io(:stderr, fn -> tagged(&figure(&1, fn pdf -> pdf end)) end)
+
+      assert warning =~
+               ~s|Tincture.tag(:figure, ...) with alt text "a figure" on page 1 draws nothing|
+
+      assert warning =~ "This will raise in 0.5.0."
+      assert figure_element(pdf).bbox_unknown == :no_content
+      assert Tincture.pdf_ua_violations(pdf) == []
+      refute Tincture.export(pdf) =~ "/BBox"
     end
 
-    test "an explicit :bbox is used as is, even where one could be computed" do
+    test "is named as having no alt text when it has none" do
+      {_pdf, warning} =
+        with_io(:stderr, fn -> tagged(&Tincture.tag(&1, :figure, fn pdf -> pdf end)) end)
+
+      assert warning =~ "Tincture.tag(:figure, ...) with no alt text on page 1 draws nothing"
+    end
+
+    test "an explicit :bbox is used instead, silently" do
+      {pdf, warning} =
+        with_io(:stderr, fn ->
+          tagged(&figure(&1, [bbox: {10, 20, 30, 40}], fn pdf -> pdf end))
+        end)
+
+      assert warning == ""
+      assert Tincture.export(pdf) =~ "/BBox [10 20 30 40]"
+    end
+  end
+
+  describe "an explicit :bbox" do
+    test "is used as is, even where one could be computed" do
       pdf =
         tagged(fn pdf ->
           figure(pdf, [bbox: {0, 0, 300, 300}], &Tincture.rectangle(&1, 10, 10, 20, 20, :fill))
@@ -210,16 +258,56 @@ defmodule Tincture.LayoutAttributesTest do
       assert figure_element(pdf).bbox == {0, 0, 300, 300}
     end
 
+    test "accepts four numbers inside the MediaBox" do
+      assert figure_element(with_bbox({0, 0, 595, 842})).bbox == {0, 0, 595, 842}
+      assert figure_element(with_bbox({10.5, 20, 30, 40.25})).bbox == {10.5, 20, 30, 40.25}
+    end
+
+    # tag/4 has always ignored options it does not know, :bbox among them, so a
+    # :bbox it cannot use is ignored with a warning, and the box is computed.
+    for {name, bbox, message} <- [
+          {"a list", [0, 0, 10, 10], "four numbers"},
+          {"three numbers", {0, 0, 10}, "four numbers"},
+          {"a non-number", {0, 0, "10", 10}, "four numbers"},
+          {"left == right", {10, 0, 10, 10}, "left < right and bottom < top"},
+          {"left > right", {20, 0, 10, 10}, "left < right and bottom < top"},
+          {"bottom == top", {0, 10, 10, 10}, "left < right and bottom < top"},
+          {"left outside the page", {-1, 0, 10, 10}, "outside the page's MediaBox [0 0 595 842]"},
+          {"right outside the page", {0, 0, 596, 10}, "outside the page's MediaBox"},
+          {"top outside the page", {0, 0, 10, 843}, "outside the page's MediaBox"}
+        ] do
+      test "#{name} is ignored with a warning, and the box computed" do
+        {pdf, warning} = with_io(:stderr, fn -> with_bbox(unquote(Macro.escape(bbox))) end)
+
+        assert warning =~ unquote(message)
+        assert warning =~ "It is ignored"
+        assert warning =~ "This will raise in 0.5.0."
+        assert figure_element(pdf).bbox == {1, 1, 2, 2}
+      end
+    end
+
+    test "on another tag is ignored with a warning" do
+      {pdf, warning} = with_io(:stderr, fn -> with_bbox({0, 0, 10, 10}, :p) end)
+
+      assert warning =~ ":bbox is only used on :figure, and was given on :p"
+      assert warning =~ "This will raise in 0.5.0."
+      refute Tincture.export(pdf) =~ "/BBox"
+    end
+  end
+
+  describe "a figure across pages" do
     # ISO 32000-1 Table 344 requires BBox only of a figure "appearing in its
     # entirety on a single page".
-    test "a figure closed on another page gets no box and is not a violation" do
-      pdf =
-        tagged(fn pdf ->
-          figure(pdf, fn pdf ->
-            pdf
-            |> Tincture.rectangle(50, 50, 100, 100, :fill)
-            |> Tincture.add_page()
-            |> Tincture.rectangle(60, 60, 100, 100, :fill)
+    test "gets no box and is not a violation" do
+      {pdf, _warning} =
+        with_io(:stderr, fn ->
+          tagged(fn pdf ->
+            figure(pdf, fn pdf ->
+              pdf
+              |> Tincture.rectangle(50, 50, 100, 100, :fill)
+              |> Tincture.add_page()
+              |> Tincture.rectangle(60, 60, 100, 100, :fill)
+            end)
           end)
         end)
 
@@ -228,52 +316,10 @@ defmodule Tincture.LayoutAttributesTest do
     end
   end
 
-  describe ":bbox validation" do
-    defp with_bbox(bbox, tag \\ :figure) do
-      tagged(fn pdf ->
-        Tincture.tag(pdf, tag, [alt: "x", bbox: bbox], &Tincture.rectangle(&1, 1, 1, 1, 1, :fill))
-      end)
-    end
-
-    test "accepts four numbers inside the MediaBox" do
-      assert figure_element(with_bbox({0, 0, 595, 842})).bbox == {0, 0, 595, 842}
-      assert figure_element(with_bbox({10.5, 20, 30, 40.25})).bbox == {10.5, 20, 30, 40.25}
-    end
-
-    test "rejects anything but a four-number tuple" do
-      assert_raise ArgumentError, ~r/four numbers/, fn -> with_bbox([0, 0, 10, 10]) end
-      assert_raise ArgumentError, ~r/four numbers/, fn -> with_bbox({0, 0, 10}) end
-      assert_raise ArgumentError, ~r/four numbers/, fn -> with_bbox({0, 0, "10", 10}) end
-    end
-
-    test "rejects left >= right" do
-      assert_raise ArgumentError, ~r/left < right/, fn -> with_bbox({10, 0, 10, 10}) end
-      assert_raise ArgumentError, ~r/left < right/, fn -> with_bbox({20, 0, 10, 10}) end
-    end
-
-    test "rejects bottom >= top" do
-      assert_raise ArgumentError, ~r/bottom < top/, fn -> with_bbox({0, 10, 10, 10}) end
-    end
-
-    test "rejects a box outside the MediaBox" do
-      assert_raise ArgumentError, ~r/outside the page's MediaBox/, fn ->
-        with_bbox({-1, 0, 10, 10})
-      end
-
-      assert_raise ArgumentError, ~r/outside the page's MediaBox/, fn ->
-        with_bbox({0, 0, 596, 10})
-      end
-
-      assert_raise ArgumentError, ~r/outside the page's MediaBox/, fn ->
-        with_bbox({0, 0, 10, 843})
-      end
-    end
-
-    test "is only valid on :figure" do
-      assert_raise ArgumentError, ~r/only valid on :figure/, fn ->
-        with_bbox({0, 0, 10, 10}, :p)
-      end
-    end
+  defp with_bbox(bbox, tag \\ :figure) do
+    tagged(fn pdf ->
+      Tincture.tag(pdf, tag, [alt: "x", bbox: bbox], &Tincture.rectangle(&1, 1, 1, 1, 1, :fill))
+    end)
   end
 
   describe "/Placement /Block" do

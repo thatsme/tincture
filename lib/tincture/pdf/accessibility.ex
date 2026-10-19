@@ -15,9 +15,6 @@ defmodule Tincture.PDF.Accessibility do
   ## What is checked
 
     * a `:figure` with no `:alt` (clause 7.3);
-    * a `:figure` whose bounding box cannot be computed and was not given
-      with `:bbox` - it contains text, or draws nothing (ISO 32000-1 Table
-      344, `BBox`);
     * a link annotation outside the structure tree, or nested in an element
       other than `:link` (clause 7.18.5);
     * a link annotation with no `:contents` (clause 7.18.5).
@@ -44,8 +41,7 @@ defmodule Tincture.PDF.Accessibility do
   @type violation :: %{
           required(:rule) => atom(),
           required(:clause) => String.t(),
-          required(:message) => String.t(),
-          optional(:standard) => String.t()
+          required(:message) => String.t()
         }
 
   @doc """
@@ -57,12 +53,7 @@ defmodule Tincture.PDF.Accessibility do
   def violations(%PDF{} = pdf) do
     if PDF.tagged?(pdf) do
       Enum.flat_map(
-        [
-          &figures_without_alt/1,
-          &figures_without_bbox/1,
-          &links_outside_structure/1,
-          &links_without_description/1
-        ],
+        [&figures_without_alt/1, &links_outside_structure/1, &links_without_description/1],
         fn check -> check.(pdf) end
       )
     else
@@ -76,45 +67,8 @@ defmodule Tincture.PDF.Accessibility do
   @spec describe([violation()]) :: String.t()
   def describe(violations) do
     Enum.map_join(violations, "\n", fn violation ->
-      "  * #{violation.message} (#{Map.get(violation, :standard, "ISO 14289-1")} " <>
-        "clause #{violation.clause})"
+      "  * #{violation.message} (ISO 14289-1 clause #{violation.clause})"
     end)
-  end
-
-  # A reader that reflows or magnifies a figure needs to know where it is, and
-  # the bounding box is how it is told. Tincture computes one from what the
-  # figure draws, but a glyph's extent is not its advance width, so text inside
-  # a figure leaves the box unknown - as does a figure that draws nothing.
-  # Either way the caller has to supply it. A figure spanning pages needs none.
-  defp figures_without_bbox(%PDF{} = pdf) do
-    pdf.structure_tree
-    |> Structure.flatten()
-    |> Enum.filter(
-      &(&1.tag == :figure and Map.get(&1, :bbox_unknown) in [:contains_text, :no_content])
-    )
-    |> Enum.map(fn element ->
-      reason =
-        case element.bbox_unknown do
-          :contains_text -> "contains text, whose extent cannot be computed"
-          :no_content -> "draws nothing to compute a bounding box from"
-        end
-
-      %{
-        rule: :figure_without_bbox,
-        standard: "ISO 32000-1",
-        clause: "14.8.5.4.3, Table 344",
-        message:
-          "the :figure #{figure_name(element)} on page #{element.page_number} #{reason}. " <>
-            "Pass bbox: {left, bottom, right, top} to tag/4"
-      }
-    end)
-  end
-
-  defp figure_name(element) do
-    case Map.get(element, :alt) do
-      alt when is_binary(alt) and alt != "" -> inspect(alt)
-      _no_alt -> "with no alt text"
-    end
   end
 
   # A figure is the one element whose meaning is entirely outside the text

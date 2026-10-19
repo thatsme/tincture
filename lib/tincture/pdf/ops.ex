@@ -136,7 +136,7 @@ defmodule Tincture.PDF.Ops do
   # written (ISO 32000-1 §8.2, Figure 9): viewers skip it, so it never did
   # anything, and the usual cause is a shape that already painted itself
   # with its default :stroke. It is dropped rather than written, with a
-  # warning naming the fix. 0.4.0 makes it an error.
+  # warning naming the fix. 0.5.0 makes it an error.
   defp paint_open_path(%PDF{} = pdf, op, function, paint) do
     if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
       PDF.append_current_op(pdf, op)
@@ -146,7 +146,7 @@ defmodule Tincture.PDF.Ops do
           "#{if op in [:clip, :clip_even_odd], do: "clip to", else: "paint"} and no " <>
           "operator was written. A shape paints itself: pass its own paint argument " <>
           "(for example rectangle(pdf, x, y, w, h, #{paint})) instead, or start a path " <>
-          "with move_to/3. This will raise in 0.4.0."
+          "with move_to/3. This will raise in 0.5.0."
       )
 
       pdf
