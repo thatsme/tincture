@@ -257,7 +257,7 @@ defmodule Tincture.PDF do
   # A marked-content sequence has to begin and end in the same content stream,
   # and each page is its own stream. Leaving one open while moving to another
   # page splits it: an unclosed BDC here, a stray EMC there. That has always
-  # exported, so it warns rather than refuses; 0.5.0 makes it an error.
+  # exported, so it warns rather than refuses; 0.4.0 makes it an error.
   defp warn_open_marked_content(%__MODULE__{} = pdf, function) do
     depth =
       pdf
@@ -274,7 +274,7 @@ defmodule Tincture.PDF do
         "Tincture.#{function} was called while #{open_sequence_label(pdf)} is open on page " <>
           "#{pdf.current_page}. Its marked content would begin on one page and end on " <>
           "another, which a content stream cannot hold. Close it before changing page. " <>
-          "This will raise in 0.5.0."
+          "This will raise in 0.4.0."
       )
     end
   end
@@ -532,7 +532,7 @@ defmodule Tincture.PDF do
         IO.warn(
           "Tincture.tag(:figure, ...) #{figure_label(element)} on page #{element.page_number} " <>
             "draws nothing, so it has no bounding box and none is written. Draw its content " <>
-            "inside the tag, or pass bbox: {left, bottom, right, top}. This will raise in 0.5.0."
+            "inside the tag, or pass bbox: {left, bottom, right, top}. This will raise in 0.4.0."
         )
 
         Map.put(element, :bbox_unknown, :no_content)
@@ -550,7 +550,7 @@ defmodule Tincture.PDF do
 
   # tag/4 has always ignored options it does not know, :bbox included, so a
   # :bbox that cannot be used is ignored with a warning rather than refused:
-  # the figure falls back to the computed box. 0.5.0 makes it an error.
+  # the figure falls back to the computed box. 0.4.0 makes it an error.
   defp normalize_bbox(_tag, nil, _page_size), do: nil
 
   defp normalize_bbox(:figure, bbox, page_size) do
@@ -599,7 +599,7 @@ defmodule Tincture.PDF do
   defp warn_ignored_bbox(problem) do
     IO.warn(
       "Tincture.tag/4: #{problem}. It is ignored, and a :figure's bounding box is " <>
-        "computed instead. This will raise in 0.5.0."
+        "computed instead. This will raise in 0.4.0."
     )
   end
 

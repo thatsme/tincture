@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **No document that exports with 0.3.3 fails to export with this release, and
 none renders differently.** Every new check warns and carries on; the
-behaviours that warn are listed under Deprecated, and become errors in 0.5.0.
+behaviours that warn are listed under Deprecated, and become errors in 0.4.0.
 
 ### Added
 
@@ -26,7 +26,7 @@ behaviours that warn are listed under Deprecated, and become errors in 0.5.0.
 
 ### Deprecated
 
-Each of these warns now and raises in 0.5.0:
+Each of these warns now and raises in 0.4.0:
 
 - **`stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` or `clip_even_odd/1`
   with no open path.** Pass the shape's own `paint` argument instead, or start

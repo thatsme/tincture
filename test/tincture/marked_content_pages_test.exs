@@ -25,7 +25,7 @@ defmodule Tincture.MarkedContentPagesTest do
       end)
 
     assert warning =~ "Tincture.add_page/1 was called while tag(:p, ...) is open on page 1"
-    assert warning =~ "This will raise in 0.5.0."
+    assert warning =~ "This will raise in 0.4.0."
     assert length(Regex.scan(~r/warning: /, warning)) == 1
     assert is_binary(Tincture.export(pdf))
   end

@@ -224,7 +224,7 @@ defmodule Tincture.LayoutAttributesTest do
       assert warning =~
                ~s|Tincture.tag(:figure, ...) with alt text "a figure" on page 1 draws nothing|
 
-      assert warning =~ "This will raise in 0.5.0."
+      assert warning =~ "This will raise in 0.4.0."
       assert figure_element(pdf).bbox_unknown == :no_content
       assert Tincture.pdf_ua_violations(pdf) == []
       refute Tincture.export(pdf) =~ "/BBox"
@@ -281,7 +281,7 @@ defmodule Tincture.LayoutAttributesTest do
 
         assert warning =~ unquote(message)
         assert warning =~ "It is ignored"
-        assert warning =~ "This will raise in 0.5.0."
+        assert warning =~ "This will raise in 0.4.0."
         assert figure_element(pdf).bbox == {1, 1, 2, 2}
       end
     end
@@ -290,7 +290,7 @@ defmodule Tincture.LayoutAttributesTest do
       {pdf, warning} = with_io(:stderr, fn -> with_bbox({0, 0, 10, 10}, :p) end)
 
       assert warning =~ ":bbox is only used on :figure, and was given on :p"
-      assert warning =~ "This will raise in 0.5.0."
+      assert warning =~ "This will raise in 0.4.0."
       refute Tincture.export(pdf) =~ "/BBox"
     end
   end

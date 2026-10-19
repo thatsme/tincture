@@ -1051,7 +1051,7 @@ defmodule Tincture do
   open path - typically after a shape that already painted itself with its
   default `:stroke` - this writes nothing and warns, since the operator would
   be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.5.0 will raise rather than warn.
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec stroke(PDF.t()) :: PDF.t()
   def stroke(%PDF{} = pdf) do
@@ -1066,7 +1066,7 @@ defmodule Tincture do
   open path - typically after a shape that already painted itself with its
   default `:stroke` - this writes nothing and warns, since the operator would
   be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.5.0 will raise rather than warn.
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec fill(PDF.t()) :: PDF.t()
   def fill(%PDF{} = pdf) do
@@ -1081,7 +1081,7 @@ defmodule Tincture do
   open path - typically after a shape that already painted itself with its
   default `:stroke` - this writes nothing and warns, since the operator would
   be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.5.0 will raise rather than warn.
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec fill_even_odd(PDF.t()) :: PDF.t()
   def fill_even_odd(%PDF{} = pdf) do
@@ -1096,7 +1096,7 @@ defmodule Tincture do
   open path - typically after a shape that already painted itself with its
   default `:stroke` - this writes nothing and warns, since the operator would
   be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.5.0 will raise rather than warn.
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec clip(PDF.t()) :: PDF.t()
   def clip(%PDF{} = pdf) do
@@ -1111,7 +1111,7 @@ defmodule Tincture do
   open path - typically after a shape that already painted itself with its
   default `:stroke` - this writes nothing and warns, since the operator would
   be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.5.0 will raise rather than warn.
+  instead. 0.4.0 will raise rather than warn.
   """
   @spec clip_even_odd(PDF.t()) :: PDF.t()
   def clip_even_odd(%PDF{} = pdf) do
@@ -1424,7 +1424,7 @@ defmodule Tincture do
       figure draws, with text estimated from its font's metric width and
       size. It must be four numbers with `left < right` and `bottom < top`,
       within the page, and only on `:figure`; otherwise it is ignored with a
-      warning, which 0.5.0 will make an error.
+      warning, which 0.4.0 will make an error.
     * `:actual_text` — the text this content really represents, for when the
       glyphs are not the words (a ligature, a decorative capital).
     * `:lang` — a BCP 47 tag, when this element differs from the document.
@@ -1444,7 +1444,7 @@ defmodule Tincture do
 
   Layout attributes are written where the standard calls for them. A figure
   gets the bounding box of what it draws (`/BBox`); one that draws nothing
-  gets none, with a warning that 0.5.0 will make an error. An inline element —
+  gets none, with a warning that 0.4.0 will make an error. An inline element —
   `:link`, `:note`, `:span`, `:quote`, `:reference`, `:code`, `:figure`,
   `:formula` — placed directly in `:document`, `:part`, `:article`,
   `:section` or `:div` is declared a block (`/Placement /Block`), since that is
