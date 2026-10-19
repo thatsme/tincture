@@ -169,7 +169,6 @@ pdf =
         |> Tincture.set_stroke_color(rule)
         |> Tincture.set_line_width(0.75)
         |> Tincture.line(page_w - margin - 214, y + 13, page_w - margin, y + 13)
-        |> Tincture.stroke()
       else
         acc
       end
@@ -238,7 +237,6 @@ pdf =
   |> Tincture.set_stroke_color(rule)
   |> Tincture.set_line_width(0.75)
   |> Tincture.line(margin, 74, page_w - margin, 74)
-  |> Tincture.stroke()
   |> Tincture.set_fill_color(muted)
   |> Tincture.set_font(sans, 7.5)
   |> Tincture.text_at(margin, 60, "Northgate Instruments Ltd · Registered in England 04471902 · VAT GB 812 4471 02")

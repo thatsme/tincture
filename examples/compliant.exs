@@ -80,7 +80,6 @@ horizontal_rule = fn pdf, y ->
     |> Tincture.set_stroke_color(rule_grey)
     |> Tincture.set_line_width(0.75)
     |> Tincture.line(margin, y, page_w - margin, y)
-    |> Tincture.stroke()
   end)
 end
 

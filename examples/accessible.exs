@@ -82,7 +82,6 @@ pdf =
         |> Tincture.set_stroke_color(rule)
         |> Tincture.set_line_width(0.75)
         |> Tincture.line(margin, page_h - 124, page_w - margin, page_h - 124)
-        |> Tincture.stroke()
       end)
 
     # --- summary ----------------------------------------------------------
@@ -159,7 +158,6 @@ pdf =
             |> Tincture.set_stroke_color(rule)
             |> Tincture.set_line_width(0.75)
             |> Tincture.line(margin, y, page_w - margin, y)
-            |> Tincture.stroke()
           end)
         end)
       end)

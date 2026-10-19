@@ -61,7 +61,6 @@ section = fn pdf, y, title ->
   |> Tincture.set_stroke_color(rule)
   |> Tincture.set_line_width(0.75)
   |> Tincture.line(margin, y - 6, page_w - margin, y - 6)
-  |> Tincture.stroke()
 end
 
 label = fn pdf, x, y, text ->
@@ -78,7 +77,6 @@ underline = fn pdf, x, y, width ->
   |> Tincture.set_stroke_color(rule)
   |> Tincture.set_line_width(0.75)
   |> Tincture.line(x, y - 3, x + width, y - 3)
-  |> Tincture.stroke()
 end
 
 # --- your details ---------------------------------------------------------
@@ -235,7 +233,6 @@ pdf =
   |> Tincture.set_stroke_color(rule)
   |> Tincture.set_line_width(0.75)
   |> Tincture.line(margin, 66, page_w - margin, 66)
-  |> Tincture.stroke()
   |> Tincture.set_fill_color(muted)
   |> Tincture.set_font(sans, 7.5)
   |> Tincture.text_at(
