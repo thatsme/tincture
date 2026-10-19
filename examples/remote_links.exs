@@ -1,4 +1,5 @@
 Code.require_file("support/fonts.exs", __DIR__)
+Code.require_file("support/checks.exs", __DIR__)
 
 # A pair of documents that link to each other's pages.
 #
@@ -218,6 +219,16 @@ File.write!(main_out, main_binary)
 
 root = Path.dirname(main_out)
 
+checks = [
+  {"remote action", "GoToR", main_binary =~ "/S /GoToR"},
+  {"relative file spec", "/F", main_binary =~ "/F (Attached documents/"},
+  {"page 3 as index 2", "/D [2 /Fit]", main_binary =~ "/D [2 /Fit]"},
+  {"whole-file link", "/D [0 /XYZ null null null]",
+   main_binary =~ "/GoToR /F (Attached documents/Appendix-A.pdf) /D [0 /XYZ null null null]"},
+  {"reachable from tree", "/OBJR", main_binary =~ "/OBJR"},
+  {"described for a reader", ":contents", main_binary =~ "/Contents (Appendix A"}
+]
+
 IO.puts("""
 wrote #{Path.relative_to_cwd(root)}/
   Main-report.pdf                     #{byte_size(main_binary)} bytes
@@ -225,14 +236,11 @@ wrote #{Path.relative_to_cwd(root)}/
 
 What the main document carries:
 
-  remote action           GoToR         #{if main_binary =~ "/S /GoToR", do: "ok", else: "MISSING"}
-  relative file spec      /F            #{if main_binary =~ "/F (Attached documents/", do: "ok", else: "MISSING"}
-  page 3 as index 2       /D [2 /Fit]   #{if main_binary =~ "/D [2 /Fit]", do: "ok", else: "MISSING"}
-  whole-file link         no /D         #{if main_binary =~ "/GoToR /F (Attached documents/Appendix-A.pdf) >>", do: "ok", else: "MISSING"}
-  reachable from tree     /OBJR         #{if main_binary =~ "/OBJR", do: "ok", else: "MISSING"}
-  described for a reader  :contents     #{if main_binary =~ "/Contents (Appendix A", do: "ok", else: "MISSING"}
+#{Examples.Checks.table(checks)}
 
 Open Main-report.pdf in a desktop reader and click a link. Browser-embedded
 viewers will render the links and do nothing, which is their policy on
 local-file navigation rather than a fault in the document.
 """)
+
+Examples.Checks.halt_if_missing(checks)

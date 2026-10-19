@@ -1,4 +1,5 @@
 Code.require_file("support/fonts.exs", __DIR__)
+Code.require_file("support/checks.exs", __DIR__)
 
 # A digitally signed agreement.
 #
@@ -135,6 +136,12 @@ File.write!(path, binary)
 
 IO.puts("\nwrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
 
+checks = [
+  {"/SigFlags 3", "", {binary =~ "/SigFlags 3", "ok — signed, and append-only"}},
+  {"detached PKCS#7", "", binary =~ "/SubFilter /adbe.pkcs7.detached"},
+  {"signed at", "", {binary =~ "/M (D:", "recorded"}}
+]
+
 IO.puts("""
 
 The signature covers the file except its own /Contents string:
@@ -142,9 +149,7 @@ The signature covers the file except its own /Contents string:
   bytes #{start_one}–#{length_one} and #{start_two}–#{start_two + length_two}, of #{byte_size(binary)} total
   the #{start_two - length_one} byte gap is exactly the <...> holding the signature
 
-  /SigFlags 3        #{if binary =~ "/SigFlags 3", do: "ok — signed, and append-only", else: "MISSING"}
-  detached PKCS#7    #{if binary =~ "/SubFilter /adbe.pkcs7.detached", do: "ok", else: "MISSING"}
-  signed at          #{if binary =~ "/M (D:", do: "recorded", else: "MISSING"}
+#{Examples.Checks.table(checks)}
 
 Change any byte outside that gap and the signature stops verifying — which is
 the whole point. Check it with:
@@ -155,3 +160,5 @@ What this does not give you: proof of *when*. There is no timestamp authority,
 so the time above is the signing machine's own claim. Long-term validation
 needs an RFC 3161 timestamp, which Tincture does not yet produce.
 """)
+
+Examples.Checks.halt_if_missing(checks)

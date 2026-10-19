@@ -1,4 +1,5 @@
 Code.require_file("support/fonts.exs", __DIR__)
+Code.require_file("support/checks.exs", __DIR__)
 
 # A document that has to outlive the software that made it.
 #
@@ -212,17 +213,24 @@ File.write!(path, binary)
 
 IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
 
+checks = [
+  {"sRGB output intent", "set_pdf_a/2", binary =~ "/GTS_PDFA1"},
+  {"ICC profile embedded", "built in", binary =~ "/DestOutputProfile"},
+  {"conformance in XMP", "set_pdf_a/2", binary =~ "pdfaid:conformance"},
+  {"file identifier", "always", binary =~ "/ID [<"},
+  # Not a failure: without a font to embed the document is written anyway,
+  # with its PDF/A claim knowingly broken (see `enforce: false` above).
+  {"fonts embedded", "register_ttf",
+   if(embedded?, do: {:note, "ok"}, else: {:note, "NO - standard 14 in use"})},
+  {"tagged (needed for 2a)", "tag/4", binary =~ "/StructTreeRoot"},
+  {"remote link permitted", "GoToR", binary =~ "/S /GoToR"}
+]
+
 IO.puts("""
 
 What PDF/A needed, and where it came from:
 
-  sRGB output intent      set_pdf_a/2   #{if binary =~ "/GTS_PDFA1", do: "ok", else: "MISSING"}
-  ICC profile embedded    built in      #{if binary =~ "/DestOutputProfile", do: "ok", else: "MISSING"}
-  conformance in XMP      set_pdf_a/2   #{if binary =~ "pdfaid:conformance", do: "ok", else: "MISSING"}
-  file identifier         always        #{if binary =~ "/ID [<", do: "ok", else: "MISSING"}
-  fonts embedded          register_ttf  #{if embedded?, do: "ok", else: "NO - standard 14 in use"}
-  tagged (needed for 2a)  tag/4         #{if binary =~ "/StructTreeRoot", do: "ok", else: "MISSING"}
-  remote link permitted   GoToR         #{if binary =~ "/S /GoToR", do: "ok", else: "MISSING"}
+#{Examples.Checks.table(checks)}
 
 Building the same document twice produces identical bytes: the file identifier
 is derived from the content and the ICC profile carries no creation date, so an
@@ -233,3 +241,5 @@ Verify both standards independently:
     verapdf --flavour 2a  #{Path.relative_to_cwd(path)}
     verapdf --flavour ua1 #{Path.relative_to_cwd(path)}
 """)
+
+Examples.Checks.halt_if_missing(checks)

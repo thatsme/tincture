@@ -1,4 +1,5 @@
 Code.require_file("support/fonts.exs", __DIR__)
+Code.require_file("support/checks.exs", __DIR__)
 
 # A PDF/UA-1 compliant document, built as a checklist.
 #
@@ -275,24 +276,30 @@ File.write!(path, binary)
 
 IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
 
+checks = [
+  {"document language", "Tincture.set_language/2", binary =~ "/Lang"},
+  {"title in XMP metadata", "Tincture.set_metadata/2", binary =~ "/Type /Metadata"},
+  {"display title, not file", "/ViewerPreferences", binary =~ "/DisplayDocTitle true"},
+  {"marked as tagged", "/MarkInfo", binary =~ "/MarkInfo"},
+  {"logical structure", "Tincture.tag/4", binary =~ "/StructTreeRoot"},
+  {"decoration as artifact", "Tincture.artifact/2", binary =~ "/Artifact BMC"},
+  {"figure alternative text", ":alt", binary =~ "/Alt ("},
+  {"table header scope", ":scope", binary =~ "/O /Table /Scope"},
+  {"list structure", ":list / :list_item / :label", binary =~ "/S /LBody"},
+  {"link in a :link element", "/OBJR", binary =~ "/OBJR"},
+  {"link alternate text", ":contents", binary =~ "/Contents ("},
+  {"note identifier", "/ID + /IDTree", binary =~ "/IDTree"}
+]
+
 IO.puts("""
 
 Checklist, and where each is satisfied:
 
-  document language      Tincture.set_language/2            #{if binary =~ "/Lang", do: "ok", else: "MISSING"}
-  title in XMP metadata  Tincture.set_metadata/2            #{if binary =~ "/Type /Metadata", do: "ok", else: "MISSING"}
-  display title, not file  /ViewerPreferences               #{if binary =~ "/DisplayDocTitle true", do: "ok", else: "MISSING"}
-  marked as tagged       /MarkInfo                          #{if binary =~ "/MarkInfo", do: "ok", else: "MISSING"}
-  logical structure      Tincture.tag/4                     #{if binary =~ "/StructTreeRoot", do: "ok", else: "MISSING"}
-  decoration as artifact Tincture.artifact/2                #{if binary =~ "/Artifact BMC", do: "ok", else: "MISSING"}
-  figure alternative text  :alt                             #{if binary =~ "/Alt (", do: "ok", else: "MISSING"}
-  table header scope     :scope                             #{if binary =~ "/O /Table /Scope", do: "ok", else: "MISSING"}
-  list structure         :list / :list_item / :label        #{if binary =~ "/S /LBody", do: "ok", else: "MISSING"}
-  link in a :link element  /OBJR                            #{if binary =~ "/OBJR", do: "ok", else: "MISSING"}
-  link alternate text    :contents                          #{if binary =~ "/Contents (", do: "ok", else: "MISSING"}
-  note identifier        /ID + /IDTree                     #{if binary =~ "/IDTree", do: "ok", else: "MISSING"}
+#{Examples.Checks.table(checks)}
 
 Verify independently:
 
     verapdf --flavour ua1 #{Path.relative_to_cwd(path)}
 """)
+
+Examples.Checks.halt_if_missing(checks)
