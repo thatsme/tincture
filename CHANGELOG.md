@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **The examples no longer stroke lines twice.** `line/6` already strokes by
-  default, so the `stroke/1` that several examples called after it wrote a
-  painting operator with no path to paint: invalid PDF syntax that viewers
-  ignore. Code that copied the pattern from the examples should drop the extra
-  `stroke/1`.
+- **A shape piped into `stroke/1` or `fill/1` was painted wrongly.** `line/6`,
+  `rectangle/6` and `circle/5` already paint with `:stroke` by default, so a
+  following `stroke/1` wrote a painting operator with no path (invalid PDF
+  syntax that viewers ignore), and a following `fill/1` filled nothing, leaving
+  only the outline. The examples did the former and no longer do; code that
+  used either pattern should pass the shape's own `paint` argument (`:fill`,
+  `:stroke` or `:fill_and_stroke`) instead.
 
 ## [0.3.3] — 2026-10-18
 
