@@ -155,6 +155,49 @@ defmodule Tincture.PDF.Accessibility do
     end
   end
 
+  @doc false
+  # The two form-field rules 0.4.0 refuses in a tagged document, as warnings:
+  # a field with no tooltip, which is written as /TU and is the name a screen
+  # reader announces; and a field created outside every tag/4 scope, which
+  # 0.4.0 cannot give the Form element PDF/UA requires. One warning per field
+  # and rule, in field order, at export. An untagged document claims nothing,
+  # so nothing is checked.
+  @spec warn_form_deprecations(PDF.t()) :: :ok
+  def warn_form_deprecations(%PDF{} = pdf) do
+    if PDF.tagged?(pdf), do: Enum.each(pdf.form_fields, &warn_field_deprecations/1)
+
+    :ok
+  end
+
+  defp warn_field_deprecations(field) do
+    if blank?(Map.get(field, :tooltip)) do
+      IO.warn(
+        "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
+          "has no tooltip. In a tagged document every form field needs one: it is " <>
+          "written as /TU, the name a screen reader announces for the field. Pass " <>
+          "tooltip: \"...\". This will raise in 0.4.0."
+      )
+    end
+
+    if Map.get(field, :created_outside_structure, false) do
+      IO.warn(
+        "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
+          "is not in the structure tree. In a tagged document a form field must be " <>
+          "created inside a tag(...) scope so a reader can reach it. This will raise in " <>
+          "0.4.0."
+      )
+    end
+  end
+
+  @doc false
+  @spec field_kind(atom()) :: String.t()
+  def field_kind(:text), do: "text field"
+  def field_kind(:choice), do: "choice field"
+  def field_kind(:checkbox), do: "checkbox"
+  def field_kind(:radio), do: "radio group"
+  def field_kind(:push_button), do: "push button"
+  def field_kind(:signature), do: "signature field"
+
   defp blank?(nil), do: true
   defp blank?(text) when is_binary(text), do: String.trim(text) == ""
   defp blank?(_other), do: false
