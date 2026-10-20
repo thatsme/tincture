@@ -432,8 +432,10 @@ defmodule Tincture do
   its value can only use characters WinAnsi encodes: Latin text such as
   `"Größe"`, but not `"Ελλάδα"`. A value with any other character warns when
   the field is created, and 0.4.0 raises, because 0.4.0 draws the value into
-  the field's appearance itself. Line breaks in a multiline value are fine.
-  The alternative, a TrueType or OpenType font registered for the field,
+  the field's appearance itself. A line break is fine in the value of a
+  `multiline: true` field, whose appearance breaks the line there; in a
+  single-line value it warns like any other character. The alternative, a
+  TrueType or OpenType font registered for the field,
   arrives in 0.4.0. Until then, keep the value WinAnsi-encodable.
 
   ## Examples
@@ -536,7 +538,8 @@ defmodule Tincture do
 
   In a tagged document, a push button needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
-  characters WinAnsi encodes, as a text field's value (`text_field/7`).
+  characters WinAnsi encodes, as a text field's value (`text_field/7`), and
+  a line break in it warns.
 
   ## Examples
 
@@ -602,7 +605,7 @@ defmodule Tincture do
   In a tagged document, a choice field needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. Its `:value` and every one of
   its `:options` may only use characters WinAnsi encodes, as a text field's
-  value (`text_field/7`).
+  value (`text_field/7`), and a line break in any of them warns.
 
   ## Examples
 

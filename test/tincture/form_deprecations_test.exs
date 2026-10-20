@@ -158,13 +158,50 @@ defmodule Tincture.FormDeprecationsTest do
              end) == []
     end
 
-    test "line breaks in a multiline value do not warn" do
+    test "line breaks in a multiline text value do not warn" do
       assert warnings(fn ->
                Tincture.text_field(Tincture.new(), 72, 700, 200, 60, "notes",
                  multiline: true,
                  value: "Größe\nzweite Zeile\r\ndritte"
                )
              end) == []
+    end
+
+    test "a line break in a single-line text value warns" do
+      assert [warning] =
+               warnings(fn ->
+                 Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name",
+                   value: "Ada\nLovelace"
+                 )
+               end)
+
+      assert warning =~ ~s{text field "full_name" uses the standard font "Helvetica"}
+      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
+    end
+
+    test "a line break in a choice option warns" do
+      assert [warning] =
+               warnings(fn ->
+                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
+                   options: ["Italy", "Norway\nNorge"]
+                 )
+               end)
+
+      assert warning =~ ~s{choice field "country"}
+      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
+    end
+
+    test "a line break in a push-button label warns" do
+      assert [warning] =
+               warnings(fn ->
+                 Tincture.push_button(Tincture.new(), 72, 700, 80, 20, "go",
+                   label: "Send\nnow",
+                   action: :reset
+                 )
+               end)
+
+      assert warning =~ ~s{push button "go"}
+      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
     end
 
     test "a choice field with one Greek option warns" do

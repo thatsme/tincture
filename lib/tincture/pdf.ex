@@ -1153,18 +1153,19 @@ defmodule Tincture.PDF do
   # generated appearance can only draw what WinAnsi encodes. 0.4.0 generates
   # appearances and refuses such a value; 0.3.6 warns. The first character
   # that cannot be drawn is named, from the value, then the options, then the
-  # label. Line breaks are not drawn: a multiline appearance breaks the line
-  # there, so they are not checked.
+  # label. The one exemption is a line break in the value of a multiline text
+  # field: its appearance breaks the line there rather than drawing a glyph.
+  # Anywhere else - a single-line value, an option, a label - a line break is
+  # checked like any other character.
   defp warn_unencodable_field_text(%{type: type, font: font} = field)
        when type in [:text, :choice, :push_button] do
     texts =
-      [Map.get(field, :value) | Map.get(field, :options, [])] ++ [Map.get(field, :label)]
+      [checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)]
 
     with true <- Font.standard_font?(font),
          codepoint when is_integer(codepoint) <-
            texts
            |> Enum.filter(&is_binary/1)
-           |> Enum.map(&String.replace(&1, ["\r\n", "\n", "\r"], ""))
            |> Enum.find_value(&WinAnsi.first_unencodable/1) do
       unicode = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
 
@@ -1180,6 +1181,14 @@ defmodule Tincture.PDF do
   end
 
   defp warn_unencodable_field_text(_field), do: :ok
+
+  defp checked_value(%{type: :text, value: value, flags: flags}) when is_binary(value) do
+    if Bitwise.band(flags, @field_flag_multiline) != 0,
+      do: String.replace(value, ["\r\n", "\n", "\r"], ""),
+      else: value
+  end
+
+  defp checked_value(field), do: Map.get(field, :value)
 
   @doc """
   Add a radio button group: one field, one widget per choice.

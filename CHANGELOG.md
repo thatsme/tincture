@@ -30,9 +30,10 @@ Each of these warns now and raises in 0.4.0:
   uses a character WinAnsi cannot encode, with a standard-14 font.** The field
   call warns, naming the first such character. 0.4.0 draws the value into the
   field's appearance itself, and a standard-14 font is written with WinAnsi
-  encoding. Line breaks in a multiline value are not affected. *Migration:*
-  keep the value WinAnsi-encodable; from 0.4.0, register an embedded font for
-  the field.
+  encoding. Line breaks in a multiline text value are not affected; in a
+  single-line value, an option or a label, a line break warns like any other
+  character. *Migration:* keep the value WinAnsi-encodable; from 0.4.0,
+  register an embedded font for the field.
 
 ### Documentation
 
