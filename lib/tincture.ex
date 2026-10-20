@@ -141,10 +141,11 @@ defmodule Tincture do
 
   Close any content tag or `artifact/2` block first. A marked-content sequence
   has to begin and end in the same content stream, and each page is its own
-  stream. Calling this while a content tag such as `tag(:p, ...)`, or an
-  `artifact/2` block, is open on the current page warns, naming what is open,
-  and still adds the page. From 0.4.0 it raises. A grouping tag such as
-  `:section` may stay open across pages.
+  stream. Calling this while a content tag such as `tag(:p, ...)` or
+  `tag(:figure, ...)`, or an `artifact/2` block, is open on the current page
+  raises `ArgumentError`, naming what is open, because marked content cannot
+  span content streams. A grouping tag such as `:section` may stay open
+  across pages.
   """
   @spec add_page(PDF.t()) :: PDF.t()
   def add_page(%PDF{} = pdf) do
@@ -155,8 +156,9 @@ defmodule Tincture do
   Switch the current page by page number (1-based).
 
   Close any content tag or `artifact/2` block first, as for `add_page/1`.
-  Switching to another page while one is open on the current page warns, and
-  from 0.4.0 raises. Switching to the page already current does neither.
+  Switching to another page while one is open on the current page raises
+  `ArgumentError`, because marked content cannot span content streams.
+  Switching to the page already current does not.
   """
   @spec set_page(PDF.t(), pos_integer()) :: PDF.t()
   def set_page(%PDF{} = pdf, page_number) when is_integer(page_number) and page_number > 0 do
@@ -1104,9 +1106,9 @@ defmodule Tincture do
   A path must be open: started with `move_to/3`, continued with `line_to/3` or
   `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
   open path - typically after a shape that already painted itself with its
-  default `:stroke` - this writes nothing and warns, since the operator would
-  be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.4.0 will raise rather than warn.
+  default `:stroke` - this raises `ArgumentError`, since the operator would be
+  invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead.
   """
   @spec stroke(PDF.t()) :: PDF.t()
   def stroke(%PDF{} = pdf) do
@@ -1119,9 +1121,9 @@ defmodule Tincture do
   A path must be open: started with `move_to/3`, continued with `line_to/3` or
   `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
   open path - typically after a shape that already painted itself with its
-  default `:stroke` - this writes nothing and warns, since the operator would
-  be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.4.0 will raise rather than warn.
+  default `:stroke` - this raises `ArgumentError`, since the operator would be
+  invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead.
   """
   @spec fill(PDF.t()) :: PDF.t()
   def fill(%PDF{} = pdf) do
@@ -1134,9 +1136,9 @@ defmodule Tincture do
   A path must be open: started with `move_to/3`, continued with `line_to/3` or
   `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
   open path - typically after a shape that already painted itself with its
-  default `:stroke` - this writes nothing and warns, since the operator would
-  be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.4.0 will raise rather than warn.
+  default `:stroke` - this raises `ArgumentError`, since the operator would be
+  invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead.
   """
   @spec fill_even_odd(PDF.t()) :: PDF.t()
   def fill_even_odd(%PDF{} = pdf) do
@@ -1149,9 +1151,9 @@ defmodule Tincture do
   A path must be open: started with `move_to/3`, continued with `line_to/3` or
   `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
   open path - typically after a shape that already painted itself with its
-  default `:stroke` - this writes nothing and warns, since the operator would
-  be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.4.0 will raise rather than warn.
+  default `:stroke` - this raises `ArgumentError`, since the operator would be
+  invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead.
   """
   @spec clip(PDF.t()) :: PDF.t()
   def clip(%PDF{} = pdf) do
@@ -1164,9 +1166,9 @@ defmodule Tincture do
   A path must be open: started with `move_to/3`, continued with `line_to/3` or
   `bezier/7`, or left open by a shape drawn with `paint: :none`. Called with no
   open path - typically after a shape that already painted itself with its
-  default `:stroke` - this writes nothing and warns, since the operator would
-  be invalid and ignored by viewers. Pass the shape's own `paint` argument
-  instead. 0.4.0 will raise rather than warn.
+  default `:stroke` - this raises `ArgumentError`, since the operator would be
+  invalid and ignored by viewers. Pass the shape's own `paint` argument
+  instead.
   """
   @spec clip_even_odd(PDF.t()) :: PDF.t()
   def clip_even_odd(%PDF{} = pdf) do
@@ -1478,8 +1480,8 @@ defmodule Tincture do
       computed one. Normally unnecessary: the box is computed from what the
       figure draws, with text estimated from its font's metric width and
       size. It must be four numbers with `left < right` and `bottom < top`,
-      within the page, and only on `:figure`; otherwise it is ignored with a
-      warning, which 0.4.0 will make an error.
+      within the page, and only on `:figure`; otherwise `tag/4` raises
+      `ArgumentError`.
     * `:actual_text` — the text this content really represents, for when the
       glyphs are not the words (a ligature, a decorative capital).
     * `:lang` — a BCP 47 tag, when this element differs from the document.
@@ -1499,7 +1501,8 @@ defmodule Tincture do
 
   Layout attributes are written where the standard calls for them. A figure
   gets the bounding box of what it draws (`/BBox`); one that draws nothing
-  gets none, with a warning that 0.4.0 will make an error. An inline element —
+  raises `ArgumentError` when it closes, unless it is given `:bbox`. A figure
+  cannot span pages: changing page while it is open raises. An inline element —
   `:link`, `:note`, `:span`, `:quote`, `:reference`, `:code`, `:figure`,
   `:formula` — placed directly in `:document`, `:part`, `:article`,
   `:section` or `:div` is declared a block (`/Placement /Block`), since that is

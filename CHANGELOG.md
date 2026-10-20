@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` and `clip_even_odd/1`
+  raise with no open path.** *Migration:* pass the shape's own paint argument,
+  `rectangle(pdf, x, y, w, h, :fill)` in place of
+  `rectangle(pdf, x, y, w, h) |> fill()`, or open a path with `move_to/3`.
+- **`add_page/1` and `set_page/2` raise while a content tag or an `artifact/2`
+  block is open.** *Migration:* close the tag before changing page, and open
+  a new one on the next page.
+- **A `:figure` that draws nothing raises when it closes.** *Migration:* draw
+  the figure's content inside the tag, or pass `bbox:`.
+- **An unusable `:bbox` raises.** *Migration:* pass four numbers within the
+  page, ordered, and only on `:figure`; or omit it and let the box be
+  computed.
+- **`Tincture.PDF.Structure`'s element type no longer has `:bbox_unknown`**
+  (values `:no_content`, `:spans_pages`). Neither can occur now that a figure
+  drawing nothing raises, and a page change inside a content tag, a figure
+  included, raises. *Migration:* remove any match on them.
+
+Every one of the first four warned in 0.3.4, so a caller with no warnings in
+0.3.4 is unaffected by them.
+
 ## [0.3.6] — 2026-10-20
 
 **No output changes.** Every document exports to the same bytes as with

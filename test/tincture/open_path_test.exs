@@ -7,7 +7,8 @@ defmodule Tincture.OpenPathTest do
 
   # A painting or clipping operator with no path open is invalid where it is
   # written and ignored by viewers. stroke/1, fill/1, fill_even_odd/1, clip/1
-  # and clip_even_odd/1 called with nothing open write nothing, and warn.
+  # and clip_even_odd/1 called with nothing open raise ArgumentError, and
+  # write nothing to stderr.
 
   defp content(pdf) do
     [stream] =
@@ -18,27 +19,43 @@ defmodule Tincture.OpenPathTest do
     stream
   end
 
-  for {function, operator} <- [
-        stroke: "S",
-        fill: "f",
-        fill_even_odd: "f*",
-        clip: "W",
-        clip_even_odd: "W*"
+  # Runs fun, which must raise ArgumentError, with stderr captured. Returns the
+  # exception, and asserts nothing was written to stderr: the condition raises
+  # and does not also warn.
+  defp raises_silently(fun) do
+    parent = self()
+
+    stderr =
+      capture_io(:stderr, fn ->
+        send(parent, {:raised, assert_raise(ArgumentError, fun)})
+      end)
+
+    assert stderr == ""
+    assert_received {:raised, exception}
+    exception
+  end
+
+  for {function, operator, verb, paint} <- [
+        {:stroke, "S", "paint", ":stroke"},
+        {:fill, "f", "paint", ":fill"},
+        {:fill_even_odd, "f*", "paint", ":fill_even_odd"},
+        {:clip, "W", "clip to", ":none"},
+        {:clip_even_odd, "W*", "clip to", ":none"}
       ] do
     describe "#{function}/1" do
-      test "with no open path warns once and writes no operator" do
-        {pdf, warning} =
-          with_io(:stderr, fn ->
+      test "with no open path raises, naming the fix" do
+        exception =
+          raises_silently(fn ->
             Tincture.new()
             |> Tincture.rectangle(100, 100, 50, 50)
             |> then(&apply(Tincture, unquote(function), [&1]))
           end)
 
-        assert warning =~ "Tincture.#{unquote(function)}/1 was called with no open path"
-        assert warning =~ "pass its own paint argument"
-        assert warning =~ "0.4.0"
-        assert length(Regex.scan(~r/warning: /, warning)) == 1
-        assert content(pdf) == "100 100 50 50 re\nS\n"
+        assert exception.message ==
+                 "Tincture.#{unquote(function)}/1 was called with no open path, so there is " <>
+                   "nothing to #{unquote(verb)}. A shape paints itself: pass its own paint " <>
+                   "argument (for example rectangle(pdf, x, y, w, h, #{unquote(paint)})) " <>
+                   "instead, or start a path with move_to/3."
       end
 
       test "on a path opened with move_to/3 writes the operator, silently" do
@@ -57,15 +74,16 @@ defmodule Tincture.OpenPathTest do
     end
   end
 
-  test "rectangle |> fill writes exactly `re S`, and warns" do
-    {pdf, warning} =
-      with_io(:stderr, fn ->
+  test "rectangle |> fill raises, naming the shape's own paint argument" do
+    exception =
+      raises_silently(fn ->
         Tincture.new() |> Tincture.rectangle(10, 20, 30, 40) |> Tincture.fill()
       end)
 
-    assert content(pdf) == "10 20 30 40 re\nS\n"
-    assert warning =~ "Tincture.fill/1 was called with no open path"
-    assert warning =~ "rectangle(pdf, x, y, w, h, :fill)"
+    assert exception.message ==
+             "Tincture.fill/1 was called with no open path, so there is nothing to paint. " <>
+               "A shape paints itself: pass its own paint argument (for example " <>
+               "rectangle(pdf, x, y, w, h, :fill)) instead, or start a path with move_to/3."
   end
 
   test "a shape drawn with paint: :none leaves the path open for fill/1" do
@@ -106,23 +124,22 @@ defmodule Tincture.OpenPathTest do
     assert warning == ""
   end
 
-  test "one painting operator closes the path for the next call" do
-    {pdf, warning} =
-      with_io(:stderr, fn ->
-        Tincture.new()
-        |> Tincture.move_to(0, 0)
-        |> Tincture.line_to(10, 10)
-        |> Tincture.stroke()
-        |> Tincture.stroke()
-      end)
+  test "one painting operator closes the path, so a second one raises" do
+    pdf =
+      Tincture.new()
+      |> Tincture.move_to(0, 0)
+      |> Tincture.line_to(10, 10)
+      |> Tincture.stroke()
 
     assert content(pdf) == "0 0 m\n10 10 l\nS\n"
-    assert length(Regex.scan(~r/warning: /, warning)) == 1
+
+    exception = raises_silently(fn -> Tincture.stroke(pdf) end)
+    assert exception.message =~ "Tincture.stroke/1 was called with no open path"
   end
 
   test "the path is tracked per page" do
-    {pdf, warning} =
-      with_io(:stderr, fn ->
+    exception =
+      raises_silently(fn ->
         Tincture.new()
         |> Tincture.move_to(0, 0)
         |> Tincture.line_to(10, 10)
@@ -130,7 +147,6 @@ defmodule Tincture.OpenPathTest do
         |> Tincture.stroke()
       end)
 
-    assert warning =~ "no open path"
-    assert Tincture.PDF.page_operations(pdf, 2) == []
+    assert exception.message =~ "no open path"
   end
 end

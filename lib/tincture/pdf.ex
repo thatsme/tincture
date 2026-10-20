@@ -233,7 +233,7 @@ defmodule Tincture.PDF do
   @doc false
   @spec add_page(t()) :: t()
   def add_page(%__MODULE__{} = pdf) do
-    warn_open_marked_content(pdf, "add_page/1")
+    refuse_open_marked_content(pdf, "add_page/1")
 
     next_page =
       pdf
@@ -251,7 +251,7 @@ defmodule Tincture.PDF do
       when is_integer(page_number) and page_number > 0 do
     case Map.fetch(pdf.pages, page_number) do
       {:ok, ops} ->
-        if page_number != pdf.current_page, do: warn_open_marked_content(pdf, "set_page/2")
+        if page_number != pdf.current_page, do: refuse_open_marked_content(pdf, "set_page/2")
         %__MODULE__{pdf | current_page: page_number, operations: ops}
 
       :error ->
@@ -261,9 +261,9 @@ defmodule Tincture.PDF do
 
   # A marked-content sequence has to begin and end in the same content stream,
   # and each page is its own stream. Leaving one open while moving to another
-  # page splits it: an unclosed BDC here, a stray EMC there. That has always
-  # exported, so it warns rather than refuses; 0.4.0 makes it an error.
-  defp warn_open_marked_content(%__MODULE__{} = pdf, function) do
+  # page splits it: an unclosed BDC here, a stray EMC there. So the page
+  # change is refused.
+  defp refuse_open_marked_content(%__MODULE__{} = pdf, function) do
     depth =
       pdf
       |> page_operations(pdf.current_page)
@@ -275,13 +275,13 @@ defmodule Tincture.PDF do
       end)
 
     if depth > 0 do
-      IO.warn(
-        "Tincture.#{function} was called while #{open_sequence_label(pdf)} is open on page " <>
-          "#{pdf.current_page}. Its marked content would begin on one page and end on " <>
-          "another, which a content stream cannot hold. Close it before changing page. " <>
-          "This will raise in 0.4.0."
-      )
+      raise ArgumentError,
+            "Tincture.#{function} was called while #{open_sequence_label(pdf)} is open on " <>
+              "page #{pdf.current_page}. Its marked content would begin on one page and end " <>
+              "on another, which a content stream cannot hold. Close it before changing page."
     end
+
+    :ok
   end
 
   defp open_sequence_label(%__MODULE__{} = pdf) do
@@ -513,16 +513,9 @@ defmodule Tincture.PDF do
   # A figure's bounding box is computed when it closes, from what was drawn
   # inside it, unless the caller gave one. Run before the closing EMC is
   # appended, so the figure's marked content is still open in the page's ops.
+  # A figure always closes on the page it opened on: :figure is a content tag,
+  # and a page change with one open raises.
   defp resolve_figure_bbox(%{tag: :figure, bbox: _explicit} = element, _pdf), do: element
-
-  # ISO 32000-1 Table 344 requires BBox only "for any figure or table appearing
-  # in its entirety on a single page". A figure closed on another page than the
-  # one it opened on is not that, so it gets none and is not a violation.
-  defp resolve_figure_bbox(%{tag: :figure, page_number: page} = element, %__MODULE__{
-         current_page: current
-       })
-       when page != current,
-       do: Map.put(element, :bbox_unknown, :spans_pages)
 
   defp resolve_figure_bbox(%{tag: :figure, mcid: mcid} = element, %__MODULE__{} = pdf) do
     measure = fn font_name, size, text -> TextExtent.extent(pdf, font_name, size, text) end
@@ -531,16 +524,12 @@ defmodule Tincture.PDF do
       {:ok, bbox} ->
         Map.put(element, :bbox, bbox)
 
-      # Nothing drawn means nothing to bound. Exporting such a figure has
-      # always worked, so it still does: no /BBox, and a warning.
+      # Nothing drawn means nothing to bound, so the figure is refused.
       :no_content ->
-        IO.warn(
-          "Tincture.tag(:figure, ...) #{figure_label(element)} on page #{element.page_number} " <>
-            "draws nothing, so it has no bounding box and none is written. Draw its content " <>
-            "inside the tag, or pass bbox: {left, bottom, right, top}. This will raise in 0.4.0."
-        )
-
-        Map.put(element, :bbox_unknown, :no_content)
+        raise ArgumentError,
+              "Tincture.tag(:figure, ...) #{figure_label(element)} on page " <>
+                "#{element.page_number} draws nothing, so it has no bounding box. Draw its " <>
+                "content inside the tag, or pass bbox: {left, bottom, right, top}."
     end
   end
 
@@ -553,25 +542,19 @@ defmodule Tincture.PDF do
     end
   end
 
-  # tag/4 has always ignored options it does not know, :bbox included, so a
-  # :bbox that cannot be used is ignored with a warning rather than refused:
-  # the figure falls back to the computed box. 0.4.0 makes it an error.
+  # A :bbox that cannot be used is refused: four numbers, ordered, within the
+  # page, and only on :figure.
   defp normalize_bbox(_tag, nil, _page_size), do: nil
 
   defp normalize_bbox(:figure, bbox, page_size) do
     case bbox_problem(bbox, Page.media_box(page_size)) do
-      nil ->
-        bbox
-
-      problem ->
-        warn_ignored_bbox(problem)
-        nil
+      nil -> bbox
+      problem -> refuse_bbox(problem)
     end
   end
 
   defp normalize_bbox(tag, _bbox, _page_size) do
-    warn_ignored_bbox(":bbox is only used on :figure, and was given on #{inspect(tag)}")
-    nil
+    refuse_bbox(":bbox is only used on :figure, and was given on #{inspect(tag)}")
   end
 
   defp bbox_problem(bbox, media_box) do
@@ -601,11 +584,11 @@ defmodule Tincture.PDF do
   defp within?({left, bottom, right, top}, {width, height}),
     do: left >= 0 and bottom >= 0 and right <= width and top <= height
 
-  defp warn_ignored_bbox(problem) do
-    IO.warn(
-      "Tincture.tag/4: #{problem}. It is ignored, and a :figure's bounding box is " <>
-        "computed instead. This will raise in 0.4.0."
-    )
+  @spec refuse_bbox(String.t()) :: no_return()
+  defp refuse_bbox(problem) do
+    raise ArgumentError,
+          "Tincture.tag/4: #{problem}. Pass bbox: {left, bottom, right, top}, four numbers " <>
+            "within the page with left < right and bottom < top, and only on :figure."
   end
 
   defp normalize_scope(_tag, nil), do: nil
