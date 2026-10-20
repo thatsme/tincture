@@ -117,11 +117,14 @@ gates, but a failure discovered after tagging costs a version number.
 8. **Version and counts.**
 
    - Bump `@version` in `mix.exs`.
-   - Update the test count and coverage figure in `README.md` and `ROADMAP.md`
-     if they have moved. `mix test` prints the count. Take the coverage
-     percentage from the CI run on the release commit, which the Lint job's
-     `mix coveralls` prints, and say it is the CI figure: a local run can
-     differ from it by a tenth of a point or two between runs.
+   - Update the test count and coverage in `README.md` and `ROADMAP.md`.
+     `mix test` prints the count. Coverage is stated two ways. First, the
+     enforced floor: `minimum_coverage` in `coveralls.json`, quoted as "CI
+     fails below N%". Second, the measured value as a range: the lowest and
+     highest `[TOTAL]` that the Lint job's `mix coveralls` printed across the
+     CI runs on the release branch, quoted as "A–B% in CI at X.Y.Z". A single
+     figure is not quoted, because the CI value varies by a tenth between runs
+     on identical code. A local run can differ further, and is not used.
    - Re-derive the veraPDF rule and check counts the documentation quotes "at
      X.Y.Z", from the `verapdf-reports` artifact of the CI run on the release
      commit (`<details passedRules … passedChecks …>` in each report), and

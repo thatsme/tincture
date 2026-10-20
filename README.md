@@ -133,10 +133,11 @@ shrink.
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-At 0.3.5: 1,430 tests · 89.7% coverage, as measured in CI · Credo `--strict`
-clean, with pre-existing findings in `lib/` exempted inline one by one and
-`test/` and `scripts/` exempt from the structural checks · Dialyzer clean · CI
-on Elixir 1.16–1.19.
+At 0.3.5: 1,430 tests · coverage: CI fails below 80%; 89.7–89.8% in CI at
+0.3.5, varying by a tenth between identical runs · Credo `--strict` clean,
+with pre-existing findings in `lib/` exempted inline one by one and `test/` and
+`scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir
+1.16–1.19.
 
 ## What it does
 
