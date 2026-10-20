@@ -152,9 +152,11 @@ The signature covers the file except its own /Contents string:
 #{Examples.Checks.table(checks)}
 
 Change any byte outside that gap and the signature stops verifying — which is
-the whole point. Check it with:
+the whole point. Check it, from the repository root, with:
 
-    openssl asn1parse -inform DER -in <extracted signature>
+    elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
+    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der \\
+      -content tmp/sig/content.bin -noverify -out /dev/null
 
 What this does not give you: proof of *when*. There is no timestamp authority,
 so the time above is the signing machine's own claim. Long-term validation

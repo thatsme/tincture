@@ -5,11 +5,13 @@ defmodule Tincture.PDF do
 
   alias Tincture.Font
   alias Tincture.Font.TTF
+  alias Tincture.PDF.Accessibility
   alias Tincture.PDF.FigureBounds
   alias Tincture.PDF.Page
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
   alias Tincture.PDF.TextExtent
+  alias Tincture.PDF.WinAnsi
   require Logger
 
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
@@ -140,7 +142,10 @@ defmodule Tincture.PDF do
             optional(:options) => [String.t()],
             optional(:widgets) => [radio_widget()],
             optional(:action) => button_action(),
-            optional(:label) => String.t()
+            optional(:label) => String.t(),
+            # Internal: whether the field was created with no structure
+            # element open. Read only by the 0.3.6 warnings; never written.
+            optional(:created_outside_structure) => boolean()
           }
   @type op ::
           text_op()
@@ -1137,9 +1142,53 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:options, normalize_choice_options(type, Keyword.get(opts, :options)))
       |> maybe_put_field(:action, normalize_action(type, Keyword.get(opts, :action)))
       |> maybe_put_field(:label, normalize_label(type, Keyword.get(opts, :label)))
+      |> Map.put(:created_outside_structure, pdf.structure_stack == [])
+
+    warn_unencodable_field_text(field)
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end
+
+  # A standard-14 field font is written in /DR with /WinAnsiEncoding, so a
+  # generated appearance can only draw what WinAnsi encodes. 0.4.0 generates
+  # appearances and refuses such a value; 0.3.6 warns. The first character
+  # that cannot be drawn is named, from the value, then the options, then the
+  # label. The one exemption is a line break in the value of a multiline text
+  # field: its appearance breaks the line there rather than drawing a glyph.
+  # Anywhere else - a single-line value, an option, a label - a line break is
+  # checked like any other character.
+  defp warn_unencodable_field_text(%{type: type, font: font} = field)
+       when type in [:text, :choice, :push_button] do
+    texts =
+      [checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)]
+
+    with true <- Font.standard_font?(font),
+         codepoint when is_integer(codepoint) <-
+           texts
+           |> Enum.filter(&is_binary/1)
+           |> Enum.find_value(&WinAnsi.first_unencodable/1) do
+      unicode = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
+
+      IO.warn(
+        "#{Accessibility.field_kind(type)} #{inspect(field.name)} uses the standard font " <>
+          "#{inspect(font)}, which cannot draw #{inspect(<<codepoint::utf8>>)} (U+#{unicode}): " <>
+          "its encoding is WinAnsi. Register a TrueType or OpenType font that has the " <>
+          "character and use it for the field. This will raise in 0.4.0."
+      )
+    end
+
+    :ok
+  end
+
+  defp warn_unencodable_field_text(_field), do: :ok
+
+  defp checked_value(%{type: :text, value: value, flags: flags}) when is_binary(value) do
+    if Bitwise.band(flags, @field_flag_multiline) != 0,
+      do: String.replace(value, ["\r\n", "\n", "\r"], ""),
+      else: value
+  end
+
+  defp checked_value(field), do: Map.get(field, :value)
 
   @doc """
   Add a radio button group: one field, one widget per choice.
@@ -1204,6 +1253,7 @@ defmodule Tincture.PDF do
         widgets: widgets
       }
       |> maybe_put_field(:tooltip, Keyword.get(opts, :tooltip))
+      |> Map.put(:created_outside_structure, pdf.structure_stack == [])
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-10-20
+
+**No output changes.** Every document exports to the same bytes as with
+0.3.5. Three new warnings announce what 0.4.0 refuses in forms. Each warns and
+carries on.
+
+### Deprecated
+
+Each of these warns now and raises in 0.4.0:
+
+- **A form field with no `:tooltip` in a tagged document.** Export warns once
+  for each such field; a radio group is one field. The tooltip is written as
+  `/TU`, the name a screen reader announces for the field. *Migration:* pass
+  `tooltip: "..."` to every field function in a tagged document.
+- **A form field created outside every `tag/4` scope in a tagged document.**
+  Export warns once for each such field. 0.4.0 places every field in the
+  structure tree, under the element that is open when the field is created,
+  and a field with none open has no place there. *Migration:* create the field
+  inside a `tag/4` scope, for example `:section` or `:div`.
+- **A text field, choice field or push button whose value, options or label
+  uses a character WinAnsi cannot encode, with a standard-14 font.** The field
+  call warns, naming the first such character. 0.4.0 draws the value into the
+  field's appearance itself, and a standard-14 font is written with WinAnsi
+  encoding. Line breaks in a multiline text value are not affected; in a
+  single-line value, an option or a label, a line break warns like any other
+  character. *Migration:* keep the value WinAnsi-encodable; from 0.4.0,
+  register an embedded font for the field.
+
+### Documentation
+
+- **`examples/signed.exs` prints how to verify the signature.** It now names
+  `scripts/extract_signature.exs` and the `openssl cms -verify` command, as
+  `examples/README.md` does, in place of `openssl asn1parse`.
+
 ## [0.3.5] — 2026-10-20
 
 **Documentation only. No behaviour changes, and no output changes.** 0.3.4's
@@ -778,7 +812,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/thatsme/tincture/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/thatsme/tincture/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/thatsme/tincture/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/thatsme/tincture/compare/v0.3.2...v0.3.3

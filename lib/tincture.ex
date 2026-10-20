@@ -418,6 +418,26 @@ defmodule Tincture do
     * `:page` — which page to place the widget on. Defaults to the current
       page.
 
+  ## In a tagged document
+
+  Every form field needs a `:tooltip`. It is written as `/TU`, the name a
+  screen reader announces for the field. Every form field must also be created
+  inside a `tag/4` scope, so that a reader can reach it from the structure
+  tree. `export/2` warns for each field that breaks either rule, and 0.4.0
+  raises. An untagged document is not checked.
+
+  ## Characters a standard font can draw
+
+  A field's font is one of the standard 14, written with WinAnsi encoding, so
+  its value can only use characters WinAnsi encodes: Latin text such as
+  `"Größe"`, but not `"Ελλάδα"`. A value with any other character warns when
+  the field is created, and 0.4.0 raises, because 0.4.0 draws the value into
+  the field's appearance itself. A line break is fine in the value of a
+  `multiline: true` field, whose appearance breaks the line there; in a
+  single-line value it warns like any other character. The alternative, a
+  TrueType or OpenType font registered for the field,
+  arrives in 0.4.0. Until then, keep the value WinAnsi-encodable.
+
   ## Examples
 
       pdf
@@ -443,6 +463,9 @@ defmodule Tincture do
     * `:value` — `true` for checked. Defaults to `false`.
     * `:read_only`, `:required`, `:no_export` — field flags.
     * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+
+  In a tagged document, a checkbox needs a `:tooltip` and must be created
+  inside a `tag/4` scope, as for `text_field/7`.
 
   ## Examples
 
@@ -479,6 +502,9 @@ defmodule Tincture do
     * `:tooltip`, `:border`, `:font`, `:size` — as for `text_field/7`.
     * `:page` — the default page for buttons that do not name their own.
 
+  In a tagged document, the group needs one `:tooltip` and must be created
+  inside a `tag/4` scope, as for `text_field/7`.
+
   ## Examples
 
       Tincture.radio_group(pdf, "delivery", [
@@ -509,6 +535,11 @@ defmodule Tincture do
     * `:label` — the caption drawn on the button face.
     * `:read_only`, `:required`, `:no_export` — field flags.
     * `:tooltip`, `:border`, `:font`, `:size`, `:page` — as for `text_field/7`.
+
+  In a tagged document, a push button needs a `:tooltip` and must be created
+  inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
+  characters WinAnsi encodes, as a text field's value (`text_field/7`), and
+  a line break in it warns.
 
   ## Examples
 
@@ -541,6 +572,9 @@ defmodule Tincture do
     * `:read_only`, `:required`, `:no_export` — field flags.
     * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
 
+  In a tagged document, a signature field needs a `:tooltip` and must be
+  created inside a `tag/4` scope, as for `text_field/7`.
+
   ## Examples
 
       Tincture.signature_field(pdf, 72, 120, 220, 48, "signature",
@@ -567,6 +601,11 @@ defmodule Tincture do
     * `:sort` — present the options sorted. Defaults to `false`.
     * `:read_only`, `:required`, `:no_export`, `:tooltip`, `:border`,
       `:page`, `:font`, `:size` — as for `text_field/7`.
+
+  In a tagged document, a choice field needs a `:tooltip` and must be created
+  inside a `tag/4` scope, as for `text_field/7`. Its `:value` and every one of
+  its `:options` may only use characters WinAnsi encodes, as a text field's
+  value (`text_field/7`), and a line break in any of them warns.
 
   ## Examples
 
@@ -1681,12 +1720,23 @@ defmodule Tincture do
 
   See `pdf_a_violations/1` and `pdf_ua_violations/1` to inspect without
   exporting.
+
+  ## Form fields in a tagged document
+
+  In a tagged document, export warns for each form field with no `:tooltip`,
+  and for each form field created outside every `tag/4` scope. The document
+  still exports, unchanged. 0.4.0 refuses both, following `:enforce` like the
+  other PDF/UA checks. See `text_field/7`.
   """
   @spec export(PDF.t(), keyword()) :: binary()
   def export(pdf, opts \\ [])
 
   def export(%PDF{} = pdf, opts) when is_list(opts) do
     enforce? = Keyword.get(opts, :enforce, true)
+
+    # Warnings for what 0.4.0 refuses in a tagged form; they do not change
+    # what is exported.
+    Accessibility.warn_form_deprecations(pdf)
 
     pdf
     |> check_archival(enforce?)
