@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] — 2026-10-20
+
+**Encrypted documents stored some strings wrongly.** In a document encrypted
+with `encrypt/2`, a string containing a control character, such as a line
+break or a tab, was stored with that character replaced by its escape code, so
+a reader showed `\012` where the line break should have been. Only encrypted
+documents are affected, and in them only strings outside the page content that
+contain a byte from 0 to 31 or 127. Text drawn on a page is not affected, and
+neither is a string that also contains a non-ASCII character, such as an
+accented letter, because that is written in another form. Every release from
+0.1.0 to 0.3.6 has the defect. **Regenerate any encrypted document whose
+strings contained such characters.** The most likely case is a form with a
+pre-filled multiline text field, whose value holds line breaks.
+
+### Fixed
+
+- **Control characters in the strings of an encrypted document.** Document
+  metadata, bookmark titles, links and their descriptions, form fields (names,
+  values, options, tooltips and button captions) and structure attributes
+  (alternative text, actual text, titles, languages and identifiers) now keep
+  bytes 0 to 31 and 127 when the document is encrypted. Each is checked by
+  reading the encrypted document back with a reader written independently from
+  ISO 32000-1. Unencrypted output is unchanged: every example exports to the
+  same bytes as with 0.3.6.
+
 ## [0.3.6] — 2026-10-20
 
 **No output changes.** Every document exports to the same bytes as with
@@ -812,7 +837,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/thatsme/tincture/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/thatsme/tincture/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/thatsme/tincture/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/thatsme/tincture/compare/v0.3.3...v0.3.4
