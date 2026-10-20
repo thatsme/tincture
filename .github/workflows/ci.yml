@@ -126,6 +126,44 @@ jobs:
       - name: Run tests
         run: mix test
 
+  # Tests tagged :benchmark assert on measured timings, so they are excluded
+  # from `mix test` (test/test_helper.exs) and run here alone, on one runner,
+  # with nothing else competing for it. Under a parallel test run the ratio
+  # check in test/tincture/benchmark/typography_test.exs measures the load,
+  # not the code.
+  benchmark:
+    name: Benchmark (Elixir 1.19.5 / OTP 28.1)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-benchmark-1.19.5-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-benchmark-1.19.5-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --force
+
+      - name: Run benchmark tests
+        run: mix test --only benchmark
+
   # The examples are the first thing a reader runs and nothing else covers them.
   # Run them twice: once with a font installed, which exercises embedding and
   # subsetting, and once with the helper forced to find none. That second run is

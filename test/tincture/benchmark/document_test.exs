@@ -3,23 +3,42 @@ defmodule Tincture.Benchmark.DocumentTest do
 
   alias Tincture.Benchmark.Document
 
-  test "run/1 returns timing and memory metrics for all document scenarios" do
+  # Tests tagged :benchmark depend on measured values. They are excluded
+  # from the default suite (test/test_helper.exs) and run in CI's Benchmark
+  # job with `mix test --only benchmark`.
+
+  @scenarios [:paragraph_flow, :table_heavy, :template_paginated]
+
+  test "run/1 returns the report shape for all document scenarios" do
     report = Document.run(iterations: 1, warmup: 0, print: false)
 
     assert report.meta.iterations == 1
     assert report.meta.warmup == 0
 
-    for scenario <- [:paragraph_flow, :table_heavy, :template_paginated] do
+    for scenario <- @scenarios do
       metrics = Map.fetch!(report.scenarios, scenario)
 
       assert metrics.iterations == 1
-      assert metrics.total_us > 0
-      assert metrics.us_per_iter > 0
-      assert metrics.ips > 0
+      assert is_integer(metrics.total_us)
+      assert is_float(metrics.us_per_iter)
+      assert is_float(metrics.ips)
       assert is_integer(metrics.memory_bytes_delta)
       assert metrics.memory_bytes_delta >= 0
       assert is_integer(metrics.gpos_guardrail_skips)
       assert metrics.gpos_guardrail_skips >= 0
+    end
+  end
+
+  @tag :benchmark
+  test "run/1 measures a positive time for every scenario" do
+    report = Document.run(iterations: 5, warmup: 2, print: false)
+
+    for scenario <- @scenarios do
+      metrics = Map.fetch!(report.scenarios, scenario)
+
+      assert metrics.total_us > 0
+      assert metrics.us_per_iter > 0
+      assert metrics.ips > 0
     end
   end
 
