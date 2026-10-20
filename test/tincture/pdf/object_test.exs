@@ -135,6 +135,107 @@ defmodule Tincture.PDF.ObjectTest do
     end
   end
 
+  describe "unescape_literal/1, against ISO 32000-1 7.3.4.2" do
+    # The section's own examples, as they appear on pages 15 and 16, with the
+    # enclosing parentheses removed.
+
+    test "Example 1: newlines and balanced parentheses need no escape" do
+      assert Object.unescape_literal("This is a string") == "This is a string"
+
+      assert Object.unescape_literal("Strings may contain newlines\nand such.") ==
+               "Strings may contain newlines\nand such."
+
+      assert Object.unescape_literal(
+               "Strings may contain balanced parentheses ( ) and\nspecial characters (*!&}^% and so on)."
+             ) ==
+               "Strings may contain balanced parentheses ( ) and\nspecial characters (*!&}^% and so on)."
+
+      assert Object.unescape_literal("") == ""
+      assert Object.unescape_literal("It has zero (0) length.") == "It has zero (0) length."
+    end
+
+    test "Example 2: a backslash at the end of a line continues the string" do
+      assert Object.unescape_literal("These \\\ntwo strings \\\nare the same.") ==
+               "These two strings are the same."
+
+      assert Object.unescape_literal("These \\\r\ntwo strings \\\rare the same.") ==
+               "These two strings are the same."
+    end
+
+    test "Example 3: an end-of-line marker, written or escaped, is one LINE FEED" do
+      assert Object.unescape_literal("This string has an end-of-line at the end of it.\n") ==
+               "This string has an end-of-line at the end of it.\n"
+
+      assert Object.unescape_literal("So does this one.\\n") == "So does this one.\n"
+      assert Object.unescape_literal("a\rb\r\nc\nd") == "a\nb\nc\nd"
+    end
+
+    test "Example 4: octal escapes give bytes outside printable ASCII" do
+      assert Object.unescape_literal("This string contains \\245two octal characters\\307.") ==
+               "This string contains " <> <<0o245>> <> "two octal characters" <> <<0o307>> <> "."
+    end
+
+    test "Example 5: one to three octal digits" do
+      assert Object.unescape_literal("\\0053") == <<0o005, ?3>>
+      assert Object.unescape_literal("\\053") == "+"
+      assert Object.unescape_literal("\\53") == "+"
+    end
+
+    test "Table 3, every sequence" do
+      assert Object.unescape_literal("\\n\\r\\t\\b\\f\\(\\)\\\\") == "\n\r\t\b\f()\\"
+    end
+
+    test "high-order overflow in an octal escape is ignored" do
+      assert Object.unescape_literal("\\777") == <<0o777 |> rem(256)>>
+    end
+
+    test "a backslash before any other character is ignored" do
+      assert Object.unescape_literal("\\q\\8\\ ") == "q8 "
+    end
+  end
+
+  describe "unescape_literal/1 inverts what the writer escapes" do
+    # The writer's literal path: what format_text/1 does for a string it writes
+    # as a literal, one escape_byte/1 per byte. The encryptor relies on undoing
+    # it exactly; when the two disagreed, encrypted strings were corrupted.
+    defp written_literal(bytes),
+      do: bytes |> :binary.bin_to_list() |> Enum.map_join(&Object.escape_byte/1)
+
+    defp mismatches(strings) do
+      for bytes <- strings, Object.unescape_literal(written_literal(bytes)) != bytes, do: bytes
+    end
+
+    test "every single byte" do
+      assert mismatches(for(byte <- 0..255, do: <<byte>>)) == []
+    end
+
+    test "every pair of bytes" do
+      assert mismatches(for(a <- 0..255, b <- 0..255, do: <<a, b>>)) == []
+    end
+
+    test "1,000 strings of 0 to 64 random bytes, from a fixed seed" do
+      {strings, _state} =
+        Enum.map_reduce(1..1000, :rand.seed_s(:exsss, {7, 3, 37}), fn _n, state ->
+          {length, state} = :rand.uniform_s(65, state)
+
+          Enum.map_reduce(1..(length - 1)//1, state, fn _i, state ->
+            {byte, state} = :rand.uniform_s(256, state)
+            {byte - 1, state}
+          end)
+          |> then(fn {bytes, state} -> {:erlang.list_to_binary(bytes), state} end)
+        end)
+
+      assert mismatches(strings) == []
+    end
+
+    test "every ASCII string format_text/1 writes as a literal" do
+      for byte <- 0..127 do
+        assert "(" <> literal = Object.format_text(<<byte>>)
+        assert Object.unescape_literal(String.slice(literal, 0..-2//1)) == <<byte>>
+      end
+    end
+  end
+
   describe "sanitize_name/1" do
     test "keeps characters legal in a PDF name" do
       assert Object.sanitize_name("Helvetica") == "Helvetica"

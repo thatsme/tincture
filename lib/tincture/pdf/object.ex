@@ -104,6 +104,44 @@ defmodule Tincture.PDF.Object do
 
   def escape_byte(byte), do: <<byte>>
 
+  @doc false
+  # The bytes of a literal string, given its contents without the enclosing
+  # parentheses: the inverse of `escape_byte/1`, and of every other form ISO
+  # 32000-1 7.3.4.2 allows, in one pass. Table 3's escapes; `\ddd` as one to
+  # three octal digits, high-order overflow ignored; a backslash before an
+  # end-of-line marker continues the string, and both are dropped; a backslash
+  # before any other character is ignored; and an end-of-line marker without
+  # one, CR, LF or CR LF, is a single LINE FEED.
+  @spec unescape_literal(binary()) :: binary()
+  def unescape_literal(contents) when is_binary(contents), do: unescape(contents, [])
+
+  defp unescape(<<>>, acc), do: acc |> Enum.reverse() |> :erlang.list_to_binary()
+  defp unescape(<<"\\n", rest::binary>>, acc), do: unescape(rest, [?\n | acc])
+  defp unescape(<<"\\r", rest::binary>>, acc), do: unescape(rest, [?\r | acc])
+  defp unescape(<<"\\t", rest::binary>>, acc), do: unescape(rest, [?\t | acc])
+  defp unescape(<<"\\b", rest::binary>>, acc), do: unescape(rest, [?\b | acc])
+  defp unescape(<<"\\f", rest::binary>>, acc), do: unescape(rest, [?\f | acc])
+  defp unescape(<<"\\(", rest::binary>>, acc), do: unescape(rest, [?( | acc])
+  defp unescape(<<"\\)", rest::binary>>, acc), do: unescape(rest, [?) | acc])
+  defp unescape(<<"\\\\", rest::binary>>, acc), do: unescape(rest, [?\\ | acc])
+  defp unescape(<<"\\\r\n", rest::binary>>, acc), do: unescape(rest, acc)
+  defp unescape(<<"\\\r", rest::binary>>, acc), do: unescape(rest, acc)
+  defp unescape(<<"\\\n", rest::binary>>, acc), do: unescape(rest, acc)
+
+  defp unescape(<<"\\", digit, rest::binary>>, acc) when digit in ?0..?7,
+    do: unescape_octal(rest, digit - ?0, 1, acc)
+
+  defp unescape(<<"\\", rest::binary>>, acc), do: unescape(rest, acc)
+  defp unescape(<<"\r\n", rest::binary>>, acc), do: unescape(rest, [?\n | acc])
+  defp unescape(<<"\r", rest::binary>>, acc), do: unescape(rest, [?\n | acc])
+  defp unescape(<<byte, rest::binary>>, acc), do: unescape(rest, [byte | acc])
+
+  defp unescape_octal(<<digit, rest::binary>>, value, count, acc)
+       when count < 3 and digit in ?0..?7,
+       do: unescape_octal(rest, value * 8 + digit - ?0, count + 1, acc)
+
+  defp unescape_octal(rest, value, _count, acc), do: unescape(rest, [rem(value, 256) | acc])
+
   @doc """
   Reduce `name` to characters legal in a PDF name object.
 
