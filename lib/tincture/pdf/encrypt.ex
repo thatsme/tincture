@@ -39,6 +39,8 @@ defmodule Tincture.PDF.Encrypt do
 
   import Bitwise
 
+  alias Tincture.PDF.Object
+
   @typedoc "Everything needed to encrypt a document's strings and streams."
   @type t :: %{
           key: binary(),
@@ -358,7 +360,7 @@ defmodule Tincture.PDF.Encrypt do
 
   defp scan_strings(<<"(", rest::binary>>, context, acc) do
     {contents, remainder} = take_literal_string(rest, 0, [])
-    encrypted = contents |> unescape_literal() |> encrypt(context) |> escape_literal()
+    encrypted = contents |> Object.unescape_literal() |> encrypt(context) |> escape_literal()
     scan_strings(remainder, context, ["(#{encrypted})" | acc])
   end
 
@@ -414,13 +416,6 @@ defmodule Tincture.PDF.Encrypt do
   end
 
   defp take_hex_string(<<>>, _acc), do: :error
-
-  defp unescape_literal(contents) do
-    contents
-    |> String.replace("\\(", "(")
-    |> String.replace("\\)", ")")
-    |> String.replace("\\\\", "\\")
-  end
 
   defp escape_literal(binary) do
     binary

@@ -16,6 +16,8 @@ defmodule Tincture.EncryptTest do
   """
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO, only: [with_io: 2]
+
   alias Tincture.PDF.Encrypt
 
   @zero_iv <<0::size(16)-unit(8)>>
@@ -386,6 +388,303 @@ defmodule Tincture.EncryptTest do
 
       assert open_document(binary, "first") == :wrong_password
       assert {:ok, _key} = open_document(binary, "second")
+    end
+  end
+
+  # -- strings outside content streams ---------------------------------------
+  #
+  # A content stream is encrypted whole. Every other string is encrypted on its
+  # own, after its object has been serialised: the encryptor finds each literal
+  # string in the object, recovers the string's bytes from the escapes the
+  # writer used, and encrypts those bytes. These tests read each such string
+  # back the way ISO 32000-1 says a reader must, without calling the encryptor.
+
+  # Object offsets from the cross-reference table rather than a scan of the
+  # file, since ciphertext can contain "obj" or "endobj".
+  defp object_offsets(binary) do
+    [_, startxref] = Regex.run(~r/startxref\s+(\d+)\s+%%EOF\s*\z/, binary)
+    "xref" <> table = drop(binary, String.to_integer(startxref))
+    [subsection | entries] = table |> String.trim_leading() |> String.split(~r/\r?\n/)
+    [first, count] = subsection |> String.split() |> Enum.map(&String.to_integer/1)
+
+    entries
+    |> Enum.take(count)
+    |> Enum.with_index(first)
+    |> Enum.flat_map(fn {entry, number} ->
+      case String.split(entry) do
+        [offset, _generation, "n"] -> [{number, String.to_integer(offset)}]
+        _free -> []
+      end
+    end)
+  end
+
+  defp drop(binary, count), do: binary_part(binary, count, byte_size(binary) - count)
+
+  # The strings in one object's dictionary, as {key, bytes}. The key is the
+  # last name before the string, which for an array of strings is the array's.
+  defp dictionary_strings(binary, offset) do
+    [_, body] = Regex.run(~r/\A\d+ \d+ obj\s(.*)\z/s, drop(binary, offset))
+    lex_strings(body, nil, [])
+  end
+
+  defp lex_strings(<<"endobj", _::binary>>, _key, acc), do: Enum.reverse(acc)
+  defp lex_strings(<<"stream", _::binary>>, _key, acc), do: Enum.reverse(acc)
+  defp lex_strings(<<"<<", rest::binary>>, key, acc), do: lex_strings(rest, key, acc)
+
+  defp lex_strings(<<"/", rest::binary>>, _key, acc) do
+    [name] = Regex.run(~r/\A[^\s\/\[\]<>()]*/, rest)
+    lex_strings(drop(rest, byte_size(name)), name, acc)
+  end
+
+  defp lex_strings(<<"(", rest::binary>>, key, acc) do
+    {bytes, rest} = literal_string(rest, 0, [])
+    lex_strings(rest, key, [{key, bytes} | acc])
+  end
+
+  defp lex_strings(<<"<", rest::binary>>, key, acc) do
+    [digits] = Regex.run(~r/\A[0-9A-Fa-f\s]*/, rest)
+    ">" <> rest = drop(rest, byte_size(digits))
+    bytes = digits |> String.replace(~r/\s/, "") |> Base.decode16!(case: :mixed)
+    lex_strings(rest, key, [{key, bytes} | acc])
+  end
+
+  defp lex_strings(<<_byte, rest::binary>>, key, acc), do: lex_strings(rest, key, acc)
+  defp lex_strings(<<>>, _key, acc), do: Enum.reverse(acc)
+
+  # ISO 32000-1 7.3.4.2 and its Table 3: balanced parentheses need no escape;
+  # a backslash before an end-of-line marker continues the string and both are
+  # dropped; \ddd is one to three octal digits with high-order overflow
+  # ignored; a backslash before any other character is ignored; and an
+  # unescaped end-of-line marker, CR, LF or CR LF, is one LINE FEED.
+  @table_3 %{
+    ?n => ?\n,
+    ?r => ?\r,
+    ?t => ?\t,
+    ?b => ?\b,
+    ?f => ?\f,
+    ?( => ?(,
+    ?) => ?),
+    ?\\ => ?\\
+  }
+
+  defp literal_string(<<")", rest::binary>>, 0, acc),
+    do: {acc |> Enum.reverse() |> :erlang.list_to_binary(), rest}
+
+  defp literal_string(<<")", rest::binary>>, depth, acc),
+    do: literal_string(rest, depth - 1, [?) | acc])
+
+  defp literal_string(<<"(", rest::binary>>, depth, acc),
+    do: literal_string(rest, depth + 1, [?( | acc])
+
+  defp literal_string(<<"\\\r\n", rest::binary>>, depth, acc),
+    do: literal_string(rest, depth, acc)
+
+  defp literal_string(<<"\\", eol, rest::binary>>, depth, acc) when eol in [?\r, ?\n],
+    do: literal_string(rest, depth, acc)
+
+  defp literal_string(<<"\\", char, rest::binary>>, depth, acc) when is_map_key(@table_3, char),
+    do: literal_string(rest, depth, [Map.fetch!(@table_3, char) | acc])
+
+  defp literal_string(<<"\\", rest::binary>>, depth, acc) do
+    case octal(rest, 0, 0) do
+      {0, _value, rest} -> literal_string(rest, depth, acc)
+      {_digits, value, rest} -> literal_string(rest, depth, [rem(value, 256) | acc])
+    end
+  end
+
+  defp literal_string(<<"\r\n", rest::binary>>, depth, acc),
+    do: literal_string(rest, depth, [?\n | acc])
+
+  defp literal_string(<<"\r", rest::binary>>, depth, acc),
+    do: literal_string(rest, depth, [?\n | acc])
+
+  defp literal_string(<<byte, rest::binary>>, depth, acc),
+    do: literal_string(rest, depth, [byte | acc])
+
+  defp octal(<<digit, rest::binary>>, count, value) when count < 3 and digit in ?0..?7,
+    do: octal(rest, count + 1, value * 8 + digit - ?0)
+
+  defp octal(rest, count, value), do: {count, value, rest}
+
+  # Every string under `key` in the document's objects, decrypted. The
+  # /Encrypt dictionary is the one object written in the clear.
+  defp decrypted_strings(binary, password, key) do
+    {:ok, file_key} = open_document(binary, password)
+    [_, encrypt_object] = Regex.run(~r|/Encrypt (\d+) 0 R|, binary)
+
+    for {number, offset} <- object_offsets(binary),
+        number != String.to_integer(encrypt_object),
+        {^key, ciphertext} <- dictionary_strings(binary, offset),
+        do: decrypt(ciphertext, file_key)
+  end
+
+  # A text string is UTF-16BE behind a byte order mark, or else single bytes.
+  # The single bytes are compared as they are rather than mapped through
+  # PDFDocEncoding: what is under test is whether the bytes survive.
+  defp text_string(<<0xFE, 0xFF, utf16::binary>>),
+    do: :unicode.characters_to_binary(utf16, {:utf16, :big})
+
+  defp text_string(bytes), do: bytes
+
+  # Each string site the public API writes outside a content stream, as
+  # {site, the key it is written under}.
+  @string_sites [
+    title: "Title",
+    author: "Author",
+    subject: "Subject",
+    keywords: "Keywords",
+    creator: "Creator",
+    bookmark: "Title",
+    language: "Lang",
+    link_uri: "URI",
+    link_contents: "Contents",
+    link_to_file: "F",
+    field_name: "T",
+    field_value: "V",
+    tooltip: "TU",
+    choice_option: "Opt",
+    choice_value: "V",
+    button_label: "CA",
+    button_url: "URI",
+    button_submit: "F",
+    figure_alt: "Alt",
+    actual_text: "ActualText",
+    element_title: "T",
+    element_lang: "Lang",
+    note_id: "ID",
+    note_id_tree: "Names"
+  ]
+
+  # Every byte 1-31, then 0, then 127: everything the writer escapes as octal
+  # in an ASCII string.
+  @control_bytes "a" <> :erlang.list_to_binary(Enum.to_list(1..31) ++ [0, 127]) <> "z"
+
+  @string_inputs [
+    control_bytes: @control_bytes,
+    balanced_parentheses: "Section 2 (Overview)",
+    unbalanced_parentheses: "a) b ( c",
+    backslash: "dir\\sub\\file",
+    non_ascii: "Ελληνικά (τίτλος)",
+    empty: ""
+  ]
+
+  # Where the public API refuses an input, for a reason of its own: a blank
+  # bookmark, language, link description or figure alternative, and a path to
+  # another file that is not ASCII.
+  @refused %{
+    bookmark: [:empty],
+    language: [:empty],
+    link_contents: [:empty],
+    link_to_file: [:non_ascii],
+    figure_alt: [:empty]
+  }
+
+  # Where the writer, by design, writes nothing: an empty field value has no
+  # /V (Tincture.PDF.Serialize, field_value_entries/1).
+  @not_written %{field_value: [:empty], choice_value: [:empty]}
+
+  defp written_value(site, value) when site in [:link_uri, :button_url, :button_submit],
+    do: "https://example.com/" <> value
+
+  defp written_value(:link_to_file, value), do: "reports/" <> value <> ".pdf"
+  defp written_value(:field_name, value), do: "field " <> value
+  defp written_value(site, value) when site in [:note_id, :note_id_tree], do: "note " <> value
+  defp written_value(_site, value), do: value
+
+  # A path to another file is written with forward slashes whatever separator
+  # it was given (Tincture.PDF, normalize_link_path/1).
+  defp expected_value(:link_to_file, written), do: String.replace(written, "\\", "/")
+  defp expected_value(_site, written), do: written
+
+  defp document_with(site, value) when site in [:title, :author, :subject, :keywords, :creator],
+    do: Tincture.new() |> Tincture.set_metadata([{site, value}]) |> Tincture.text_at(0, 0, "x")
+
+  defp document_with(:bookmark, value),
+    do: Tincture.new() |> Tincture.text_at(0, 0, "x") |> Tincture.add_bookmark(value, 1)
+
+  defp document_with(:language, value),
+    do: Tincture.new() |> Tincture.set_language(value) |> Tincture.text_at(0, 0, "x")
+
+  defp document_with(site, value) when site in [:link_uri, :link_to_file],
+    do: Tincture.new() |> Tincture.link(0, 0, 10, 10, link_target(site, value))
+
+  defp document_with(:link_contents, value),
+    do: Tincture.new() |> Tincture.link(0, 0, 10, 10, "https://example.com/", contents: value)
+
+  defp document_with(:field_name, value),
+    do: Tincture.new() |> Tincture.text_field(0, 0, 90, 20, value)
+
+  defp document_with(:field_value, value),
+    do: Tincture.new() |> Tincture.text_field(0, 0, 90, 40, "f", value: value, multiline: true)
+
+  defp document_with(:tooltip, value),
+    do: Tincture.new() |> Tincture.text_field(0, 0, 90, 20, "f", tooltip: value)
+
+  defp document_with(:choice_option, value),
+    do: Tincture.new() |> Tincture.choice_field(0, 0, 90, 20, "c", options: ["x", value])
+
+  defp document_with(:choice_value, value),
+    do:
+      Tincture.new()
+      |> Tincture.choice_field(0, 0, 90, 20, "c", options: ["x", value], value: value)
+
+  defp document_with(:button_label, value),
+    do: Tincture.new() |> Tincture.push_button(0, 0, 90, 20, "b", label: value, action: :reset)
+
+  defp document_with(:button_url, value),
+    do: Tincture.new() |> Tincture.push_button(0, 0, 90, 20, "b", action: {:url, value})
+
+  defp document_with(:button_submit, value),
+    do: Tincture.new() |> Tincture.push_button(0, 0, 90, 20, "b", action: {:submit, value})
+
+  defp document_with(:figure_alt, value) do
+    Tincture.new()
+    |> Tincture.set_language("en")
+    |> Tincture.tag(:figure, [alt: value], &Tincture.rectangle(&1, 0, 0, 10, 10, :fill))
+  end
+
+  defp document_with(site, value) when site in [:actual_text, :element_title, :element_lang] do
+    option = %{actual_text: :actual_text, element_title: :title, element_lang: :lang}[site]
+
+    Tincture.new()
+    |> Tincture.set_language("en")
+    |> Tincture.tag(:p, [{option, value}], &Tincture.text_at(&1, 0, 0, "x"))
+  end
+
+  defp document_with(site, value) when site in [:note_id, :note_id_tree] do
+    Tincture.new()
+    |> Tincture.set_language("en")
+    |> Tincture.tag(:note, [id: value], &Tincture.text_at(&1, 0, 0, "x"))
+  end
+
+  defp link_target(:link_uri, value), do: value
+  defp link_target(:link_to_file, value), do: {:file, value}
+
+  describe "a string outside a content stream reads back exactly" do
+    for {site, key} <- @string_sites do
+      test "#{site}, written under /#{key}" do
+        site = unquote(site)
+        key = unquote(key)
+
+        for {input, value} <- @string_inputs, input not in Map.get(@refused, site, []) do
+          written = written_value(site, value)
+
+          # Characters a standard font cannot draw warn; that is not under test.
+          {pdf, _warnings} = with_io(:stderr, fn -> document_with(site, written) end)
+          binary = pdf |> Tincture.encrypt(user_password: "p") |> Tincture.export()
+          read_back = binary |> decrypted_strings("p", key) |> Enum.map(&text_string/1)
+
+          if input in Map.get(@not_written, site, []) do
+            assert read_back == [], "#{site}, input #{input}: read back #{inspect(read_back)}"
+          else
+            expected = expected_value(site, written)
+
+            assert expected in read_back,
+                   "#{site}, input #{input}: expected #{inspect(expected)}, " <>
+                     "read back #{inspect(read_back)}"
+          end
+        end
+      end
     end
   end
 end
