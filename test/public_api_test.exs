@@ -14,6 +14,26 @@ defmodule Tincture.PublicApiTest do
   # for exactly the same reason.
   #
   # To remove one deliberately, delete its entry in the same commit and say why.
+  #
+  # Types and specs are snapshotted too, in test/fixtures/public_api_types.txt:
+  # every @type and @opaque of every documented module built from lib/, and the
+  # @spec of every function in @public_api, one per line, rendered and
+  # normalised as Tincture.Test.ApiSnapshot describes. That snapshot is anchored
+  # to v0.3.6. Its check is stricter than the one for functions: every recorded
+  # definition must still exist and be identical. A new type or spec passes;
+  # any change to a recorded one fails, widening included. To change one
+  # deliberately, edit its line in the same commit and say why.
+  #
+  # Since v0.3.6: Tincture.PDF.Structure's t/0 lost optional(:bbox_unknown) =>
+  # :no_content | :spans_pages. Neither value can occur once W2 and W3 raise
+  # (stage 1 of 0.4.0).
+  #
+  # To regenerate it for a release, run in a worktree of that release's tag,
+  # with test/support/api_snapshot.ex present:
+  #
+  #     MIX_ENV=test mix run -e "Tincture.Test.ApiSnapshot.write!()"
+
+  alias Tincture.Test.ApiSnapshot
 
   # Documented API: exported, and shown in the generated docs.
   @public_api [
@@ -196,14 +216,6 @@ defmodule Tincture.PublicApiTest do
     {Tincture.Telemetry, :enabled?, 0},
     {Tincture.Telemetry, :execute, 3},
     {Tincture.Telemetry, :span, 3},
-    {Tincture.Test.MeasurableFont, :advance_units, 1},
-    {Tincture.Test.MeasurableFont, :binary, 0},
-    {Tincture.Test.MeasurableFont, :expected_width, 2},
-    {Tincture.Test.MeasurableFont, :units_per_em, 0},
-    {Tincture.Test.MeasurableFont, :write!, 0},
-    {Tincture.Test.PKI, :generate, 0},
-    {Tincture.Test.PKI, :generate, 1},
-    {Tincture.Test.PKI, :verify_detached, 3},
     {Tincture.Typography, :layout_paragraph, 2},
     {Tincture.Typography, :layout_paragraph, 3},
     {Tincture.Typography, :layout_paragraph_with_spill, 3},
@@ -269,12 +281,30 @@ defmodule Tincture.PublicApiTest do
     {Tincture.PDF.Serialize, :export, 1}
   ]
 
+  # Under MIX_ENV=test, test/support compiles into the :tincture application,
+  # so only modules built from lib/ count as published.
   defp current_api do
     for module <- Application.spec(:tincture, :modules) || [],
         Code.ensure_loaded?(module),
+        ApiSnapshot.in_lib?(module),
         {name, arity} <- module.__info__(:functions),
         into: MapSet.new(),
         do: {module, name, arity}
+  end
+
+  test "every listed function belongs to a module built from lib/" do
+    outside =
+      for {module, name, arity} <- @public_api ++ @internal_published,
+          not (Code.ensure_loaded?(module) and ApiSnapshot.in_lib?(module)),
+          do: "#{inspect(module)}.#{name}/#{arity}"
+
+    assert outside == [],
+           """
+           #{length(outside)} listed function(s) are not in a module built from lib/,
+           so no package carries them:
+
+           #{Enum.map_join(outside, "\n", &"  #{&1}")}
+           """
   end
 
   test "every function published in v0.3.2 still exists with the same name and arity" do
@@ -295,5 +325,71 @@ defmodule Tincture.PublicApiTest do
 
            #{Enum.map_join(missing, "\n", fn {kind, {module, name, arity}} -> "  [#{kind}] #{inspect(module)}.#{name}/#{arity}" end)}
            """
+  end
+
+  defp snapshot, do: ApiSnapshot.path() |> File.read!() |> ApiSnapshot.from_text()
+
+  defp describe_mismatch({:missing, key}), do: "  gone: #{key}"
+
+  defp describe_mismatch({:changed, key, recorded, now}),
+    do: "  changed: #{key}\n    recorded: #{recorded}\n    now:      #{now}"
+
+  test "every type and spec in the snapshot still exists with an identical definition" do
+    mismatches = ApiSnapshot.mismatches(snapshot(), ApiSnapshot.entries(@public_api))
+
+    assert mismatches == [],
+           """
+           #{length(mismatches)} recorded type(s) or spec(s) are gone or changed.
+
+           A changed type or spec is a contract change for a published package. If it is
+           intentional, edit its line in #{ApiSnapshot.path()} in this same commit and say
+           why in the comment above.
+
+           #{Enum.map_join(mismatches, "\n", &describe_mismatch/1)}
+           """
+  end
+
+  test "the snapshot's types come only from documented modules, and @public_api feeds its specs" do
+    assert ApiSnapshot.public_api() == @public_api
+
+    modules =
+      snapshot()
+      |> Enum.reject(fn {key, _definition} -> String.starts_with?(key, "spec ") end)
+      |> Enum.map(fn {key, _definition} ->
+        [_kind, name] = String.split(key, " ", parts: 2)
+        name |> String.replace(~r/\.[^.]+\/\d+$/, "") |> then(&Module.concat([&1]))
+      end)
+      |> Enum.uniq()
+
+    assert modules -- ApiSnapshot.documented_modules() == []
+  end
+
+  describe "self-check: the comparison" do
+    test "reports a definition changed by one value" do
+      [{key, definition} | rest] = snapshot()
+      altered = [{key, definition <> " | :added_value"} | rest]
+
+      assert [{:changed, ^key, _recorded, ^definition}] =
+               ApiSnapshot.mismatches(altered, ApiSnapshot.entries(@public_api))
+    end
+
+    test "reports a recorded entry that no longer exists" do
+      gone = "type Tincture.NoSuchModule.t/0"
+
+      assert [{:missing, ^gone}] =
+               ApiSnapshot.mismatches(
+                 [{gone, "t() :: term()"}],
+                 ApiSnapshot.entries(@public_api)
+               )
+    end
+
+    test "passes a new entry that is not in the snapshot" do
+      assert ApiSnapshot.mismatches(tl(snapshot()), ApiSnapshot.entries(@public_api)) == []
+    end
+
+    test "normalisation removes line wrapping and bracket padding only" do
+      assert ApiSnapshot.normalise("foo(\n  a,\n  b\n) ::\n  %{\n    x: [ 1 ]\n  }") ==
+               "foo(a, b) :: %{x: [1]}"
+    end
   end
 end

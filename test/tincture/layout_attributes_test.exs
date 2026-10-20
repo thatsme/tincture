@@ -217,24 +217,40 @@ defmodule Tincture.LayoutAttributesTest do
     end
   end
 
+  # Runs fun, which must raise ArgumentError, with stderr captured. Returns the
+  # exception, and asserts nothing was written to stderr: the condition raises
+  # and does not also warn.
+  defp raises_silently(fun) do
+    parent = self()
+
+    stderr =
+      capture_io(:stderr, fn ->
+        send(parent, {:raised, assert_raise(ArgumentError, fun)})
+      end)
+
+    assert stderr == ""
+    assert_received {:raised, exception}
+    exception
+  end
+
   describe "a figure that draws nothing" do
-    test "warns, gets no /BBox, and still exports" do
-      {pdf, warning} = with_io(:stderr, fn -> tagged(&figure(&1, fn pdf -> pdf end)) end)
+    test "raises when it closes, naming its alt text" do
+      exception = raises_silently(fn -> tagged(&figure(&1, fn pdf -> pdf end)) end)
 
-      assert warning =~
-               ~s|Tincture.tag(:figure, ...) with alt text "a figure" on page 1 draws nothing|
-
-      assert warning =~ "This will raise in 0.4.0."
-      assert figure_element(pdf).bbox_unknown == :no_content
-      assert Tincture.pdf_ua_violations(pdf) == []
-      refute Tincture.export(pdf) =~ "/BBox"
+      assert exception.message ==
+               ~s|Tincture.tag(:figure, ...) with alt text "a figure" on page 1 draws nothing, | <>
+                 "so it has no bounding box. Draw its content inside the tag, or pass " <>
+                 "bbox: {left, bottom, right, top}."
     end
 
     test "is named as having no alt text when it has none" do
-      {_pdf, warning} =
-        with_io(:stderr, fn -> tagged(&Tincture.tag(&1, :figure, fn pdf -> pdf end)) end)
+      exception =
+        raises_silently(fn -> tagged(&Tincture.tag(&1, :figure, fn pdf -> pdf end)) end)
 
-      assert warning =~ "Tincture.tag(:figure, ...) with no alt text on page 1 draws nothing"
+      assert exception.message ==
+               "Tincture.tag(:figure, ...) with no alt text on page 1 draws nothing, so it " <>
+                 "has no bounding box. Draw its content inside the tag, or pass " <>
+                 "bbox: {left, bottom, right, top}."
     end
 
     test "an explicit :bbox is used instead, silently" do
@@ -263,44 +279,51 @@ defmodule Tincture.LayoutAttributesTest do
       assert figure_element(with_bbox({10.5, 20, 30, 40.25})).bbox == {10.5, 20, 30, 40.25}
     end
 
-    # tag/4 has always ignored options it does not know, :bbox among them, so a
-    # :bbox it cannot use is ignored with a warning, and the box is computed.
-    for {name, bbox, message} <- [
-          {"a list", [0, 0, 10, 10], "four numbers"},
-          {"three numbers", {0, 0, 10}, "four numbers"},
-          {"a non-number", {0, 0, "10", 10}, "four numbers"},
-          {"left == right", {10, 0, 10, 10}, "left < right and bottom < top"},
-          {"left > right", {20, 0, 10, 10}, "left < right and bottom < top"},
-          {"bottom == top", {0, 10, 10, 10}, "left < right and bottom < top"},
-          {"left outside the page", {-1, 0, 10, 10}, "outside the page's MediaBox [0 0 595 842]"},
-          {"right outside the page", {0, 0, 596, 10}, "outside the page's MediaBox"},
-          {"top outside the page", {0, 0, 10, 843}, "outside the page's MediaBox"}
-        ] do
-      test "#{name} is ignored with a warning, and the box computed" do
-        {pdf, warning} = with_io(:stderr, fn -> with_bbox(unquote(Macro.escape(bbox))) end)
+    # A :bbox that cannot be used raises, naming the problem and the fix.
+    @fix "Pass bbox: {left, bottom, right, top}, four numbers within the page with " <>
+           "left < right and bottom < top, and only on :figure."
 
-        assert warning =~ unquote(message)
-        assert warning =~ "It is ignored"
-        assert warning =~ "This will raise in 0.4.0."
-        assert figure_element(pdf).bbox == {1, 1, 2, 2}
+    for {name, bbox, problem} <- [
+          {"a list", [0, 0, 10, 10],
+           ":bbox must be {left, bottom, right, top}, four numbers, got: [0, 0, 10, 10]"},
+          {"three numbers", {0, 0, 10},
+           ":bbox must be {left, bottom, right, top}, four numbers, got: {0, 0, 10}"},
+          {"a non-number", {0, 0, "10", 10},
+           ~s|:bbox must be {left, bottom, right, top}, four numbers, got: {0, 0, "10", 10}|},
+          {"left == right", {10, 0, 10, 10},
+           ":bbox must have left < right and bottom < top, got: {10, 0, 10, 10}"},
+          {"left > right", {20, 0, 10, 10},
+           ":bbox must have left < right and bottom < top, got: {20, 0, 10, 10}"},
+          {"bottom == top", {0, 10, 10, 10},
+           ":bbox must have left < right and bottom < top, got: {0, 10, 10, 10}"},
+          {"left outside the page", {-1, 0, 10, 10},
+           ":bbox {-1, 0, 10, 10} lies outside the page's MediaBox [0 0 595 842]"},
+          {"right outside the page", {0, 0, 596, 10},
+           ":bbox {0, 0, 596, 10} lies outside the page's MediaBox [0 0 595 842]"},
+          {"top outside the page", {0, 0, 10, 843},
+           ":bbox {0, 0, 10, 843} lies outside the page's MediaBox [0 0 595 842]"}
+        ] do
+      test "#{name} raises, naming the problem" do
+        exception = raises_silently(fn -> with_bbox(unquote(Macro.escape(bbox))) end)
+
+        assert exception.message == "Tincture.tag/4: #{unquote(problem)}. #{@fix}"
       end
     end
 
-    test "on another tag is ignored with a warning" do
-      {pdf, warning} = with_io(:stderr, fn -> with_bbox({0, 0, 10, 10}, :p) end)
+    test "on another tag raises" do
+      exception = raises_silently(fn -> with_bbox({0, 0, 10, 10}, :p) end)
 
-      assert warning =~ ":bbox is only used on :figure, and was given on :p"
-      assert warning =~ "This will raise in 0.4.0."
-      refute Tincture.export(pdf) =~ "/BBox"
+      assert exception.message ==
+               "Tincture.tag/4: :bbox is only used on :figure, and was given on :p. #{@fix}"
     end
   end
 
-  describe "a figure across pages" do
-    # ISO 32000-1 Table 344 requires BBox only of a figure "appearing in its
-    # entirety on a single page".
-    test "gets no box and is not a violation" do
-      {pdf, _warning} =
-        with_io(:stderr, fn ->
+  describe "a figure cannot span pages" do
+    # :figure is a content tag, so a page change while one is open would split
+    # its marked content across two content streams. W2 refuses it.
+    test "add_page/1 inside an open :figure raises" do
+      exception =
+        raises_silently(fn ->
           tagged(fn pdf ->
             figure(pdf, fn pdf ->
               pdf
@@ -311,8 +334,24 @@ defmodule Tincture.LayoutAttributesTest do
           end)
         end)
 
-      assert figure_element(pdf).bbox_unknown == :spans_pages
-      assert Tincture.pdf_ua_violations(pdf) == []
+      assert exception.message ==
+               "Tincture.add_page/1 was called while tag(:figure, ...) is open on page 1. " <>
+                 "Its marked content would begin on one page and end on another, which a " <>
+                 "content stream cannot hold. Close it before changing page."
+    end
+  end
+
+  describe "elements other than :figure that draw nothing" do
+    # Only :figure is bounded: no other element gets a /BBox, so one that draws
+    # nothing has nothing to lose, and closes as before, silently.
+    for tag <- [:formula, :table] do
+      test "an empty :#{tag} closes without raising or warning, and gets no /BBox" do
+        {pdf, warning} =
+          with_io(:stderr, fn -> tagged(&Tincture.tag(&1, unquote(tag), fn pdf -> pdf end)) end)
+
+        assert warning == ""
+        refute Tincture.export(pdf) =~ "/BBox"
+      end
     end
   end
 

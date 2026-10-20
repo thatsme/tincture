@@ -94,8 +94,7 @@ defmodule Tincture.PDF.Structure do
           optional(:lang) => String.t(),
           optional(:title) => String.t(),
           optional(:scope) => :row | :column | :both,
-          optional(:bbox) => {number(), number(), number(), number()},
-          optional(:bbox_unknown) => :no_content | :spans_pages
+          optional(:bbox) => {number(), number(), number(), number()}
         }
 
   # ISO 32000-1 §14.8.4.4 lists the inline-level structure types, and

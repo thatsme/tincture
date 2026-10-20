@@ -6,7 +6,8 @@ defmodule Tincture.MarkedContentPagesTest do
 
   # A marked-content sequence has to begin and end in one content stream, and
   # each page is its own stream. Changing page while a content tag or an
-  # artifact is open splits the sequence; it warns, and still exports.
+  # artifact is open would split the sequence, so it raises ArgumentError, and
+  # writes nothing to stderr.
 
   defp document(fun) do
     Tincture.new()
@@ -14,9 +15,24 @@ defmodule Tincture.MarkedContentPagesTest do
     |> Tincture.tag(:document, fun)
   end
 
-  test "add_page/1 inside a content tag warns, naming the tag, and still exports" do
-    {pdf, warning} =
-      with_io(:stderr, fn ->
+  # Runs fun, which must raise ArgumentError, with stderr captured. Returns the
+  # exception, and asserts nothing was written to stderr.
+  defp raises_silently(fun) do
+    parent = self()
+
+    stderr =
+      capture_io(:stderr, fn ->
+        send(parent, {:raised, assert_raise(ArgumentError, fun)})
+      end)
+
+    assert stderr == ""
+    assert_received {:raised, exception}
+    exception
+  end
+
+  test "add_page/1 inside a content tag raises, naming the tag" do
+    exception =
+      raises_silently(fn ->
         document(fn pdf ->
           Tincture.tag(pdf, :p, fn pdf ->
             pdf |> Tincture.text_at(50, 700, "one") |> Tincture.add_page()
@@ -24,15 +40,15 @@ defmodule Tincture.MarkedContentPagesTest do
         end)
       end)
 
-    assert warning =~ "Tincture.add_page/1 was called while tag(:p, ...) is open on page 1"
-    assert warning =~ "This will raise in 0.4.0."
-    assert length(Regex.scan(~r/warning: /, warning)) == 1
-    assert is_binary(Tincture.export(pdf))
+    assert exception.message ==
+             "Tincture.add_page/1 was called while tag(:p, ...) is open on page 1. Its " <>
+               "marked content would begin on one page and end on another, which a content " <>
+               "stream cannot hold. Close it before changing page."
   end
 
   test "names the innermost open content tag" do
-    {_pdf, warning} =
-      with_io(:stderr, fn ->
+    exception =
+      raises_silently(fn ->
         document(fn pdf ->
           Tincture.tag(pdf, :p, fn pdf ->
             Tincture.tag(pdf, :span, &Tincture.add_page/1)
@@ -40,21 +56,24 @@ defmodule Tincture.MarkedContentPagesTest do
         end)
       end)
 
-    assert warning =~ "while tag(:span, ...) is open"
+    assert exception.message =~ "while tag(:span, ...) is open"
   end
 
   test "an open artifact is named as such" do
-    {_pdf, warning} =
-      with_io(:stderr, fn ->
+    exception =
+      raises_silently(fn ->
         document(&Tincture.artifact(&1, fn pdf -> Tincture.add_page(pdf) end))
       end)
 
-    assert warning =~ "while an artifact/2 block is open on page 1"
+    assert exception.message ==
+             "Tincture.add_page/1 was called while an artifact/2 block is open on page 1. " <>
+               "Its marked content would begin on one page and end on another, which a " <>
+               "content stream cannot hold. Close it before changing page."
   end
 
-  test "set_page/2 to another page inside a content tag warns" do
-    {_pdf, warning} =
-      with_io(:stderr, fn ->
+  test "set_page/2 to another page inside a content tag raises" do
+    exception =
+      raises_silently(fn ->
         pdf = Tincture.add_page(Tincture.new())
 
         pdf
@@ -62,18 +81,22 @@ defmodule Tincture.MarkedContentPagesTest do
         |> Tincture.tag(:p, &Tincture.set_page(&1, 2))
       end)
 
-    assert warning =~ "Tincture.set_page/2 was called while tag(:p, ...) is open on page 1"
+    assert exception.message ==
+             "Tincture.set_page/2 was called while tag(:p, ...) is open on page 1. Its " <>
+               "marked content would begin on one page and end on another, which a content " <>
+               "stream cannot hold. Close it before changing page."
   end
 
-  test "set_page/2 to the current page does not warn" do
-    {_pdf, warning} =
+  test "set_page/2 to the current page neither raises nor warns" do
+    {pdf, warning} =
       with_io(:stderr, fn -> Tincture.tag(Tincture.new(), :p, &Tincture.set_page(&1, 1)) end)
 
+    assert %Tincture.PDF{} = pdf
     assert warning == ""
   end
 
-  test "a container open across pages does not warn: it has no marked content" do
-    {_pdf, warning} =
+  test "a container open across pages neither raises nor warns: it has no marked content" do
+    {pdf, warning} =
       with_io(:stderr, fn ->
         document(fn pdf ->
           pdf
@@ -83,6 +106,7 @@ defmodule Tincture.MarkedContentPagesTest do
         end)
       end)
 
+    assert is_binary(Tincture.export(pdf))
     assert warning == ""
   end
 end
