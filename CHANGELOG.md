@@ -26,8 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drawing nothing raises, and a page change inside a content tag, a figure
   included, raises. *Migration:* remove any match on them.
 
-Every one of the first four warned in 0.3.4, so a caller with no warnings in
-0.3.4 is unaffected by them.
+Every one of the first four has warned since 0.3.4, so code that runs
+without these warnings is unaffected by them, and the fifth follows from
+them.
 
 ## [0.3.6] — 2026-10-20
 
