@@ -138,6 +138,13 @@ defmodule Tincture do
 
   @doc """
   Add a new page and make it the current page.
+
+  Close any content tag or `artifact/2` block first. A marked-content sequence
+  has to begin and end in the same content stream, and each page is its own
+  stream. Calling this while a content tag such as `tag(:p, ...)`, or an
+  `artifact/2` block, is open on the current page warns, naming what is open,
+  and still adds the page. From 0.4.0 it raises. A grouping tag such as
+  `:section` may stay open across pages.
   """
   @spec add_page(PDF.t()) :: PDF.t()
   def add_page(%PDF{} = pdf) do
@@ -146,6 +153,10 @@ defmodule Tincture do
 
   @doc """
   Switch the current page by page number (1-based).
+
+  Close any content tag or `artifact/2` block first, as for `add_page/1`.
+  Switching to another page while one is open on the current page warns, and
+  from 0.4.0 raises. Switching to the page already current does neither.
   """
   @spec set_page(PDF.t(), pos_integer()) :: PDF.t()
   def set_page(%PDF{} = pdf, page_number) when is_integer(page_number) and page_number > 0 do
@@ -518,9 +529,11 @@ defmodule Tincture do
   @doc """
   Add a signature field: a place for someone to sign.
 
-  This reserves the field. Tincture does not yet *apply* a digital signature —
-  that needs a `/ByteRange` computed over the finished file — so the field is
-  left unsigned for a viewer to fill.
+  On its own this reserves the field, unsigned, for a viewer to fill. To sign it
+  as the document is exported, pass its name to `sign/3`.
+
+  The widget carries no appearance stream, so a static render shows nothing for
+  the field, and a document that declares PDF/A refuses to export with one.
 
   ## Options
 
@@ -1602,15 +1615,24 @@ defmodule Tincture do
   `:a3b`, `:a3u` and `:a3a` select part 3, which differs only in permitting
   arbitrary embedded files.
 
-  ## What this does not do
+  ## What `export/2` refuses
 
-  Declaring a level does not enforce it. PDF/A also requires every font to be
-  embedded — so the standard 14 are not usable, since they are referenced by
-  name rather than embedded — and forbids encryption. Tincture does not refuse
-  to build a document that breaks those rules, because the check belongs to a
-  validator that can see the whole file.
+  A declared level is checked when the document is exported. `export/2` raises
+  on a document that breaks a PDF/A rule Tincture can see, naming the clause,
+  unless it is given `enforce: false`. It refuses:
 
-  Validate the result. `veraPDF` is free:
+    * a font that is not embedded, so the standard 14 are not usable, since
+      they are referenced by name rather than embedded;
+    * encryption;
+    * text and choice fields, signature fields and push buttons;
+    * at `:a2a` and `:a3a`, a document that is not tagged.
+
+  `pdf_a_violations/1` lists the same violations without exporting. See
+  `Tincture.PDF.Archival`.
+
+  That check is not a conformance check. Tincture sees the document it built,
+  not the file a validator sees, so passing it means only that nothing Tincture
+  knows of is wrong. Validate the result. `veraPDF` is free:
 
       verapdf --flavour 2b out.pdf
 

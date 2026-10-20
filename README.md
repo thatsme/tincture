@@ -50,8 +50,11 @@ all five.** PAC is a Windows desktop application with no command line, so it is
 an audit at a point in time rather than a gate. What it found and what remains
 is in [ROADMAP.md](ROADMAP.md#1-accessibility--tagged-pdf-pdfua).
 
-**PKCS#7 detached signatures**: `signed.pdf`'s signature passes
-`openssl cms -verify` in the test suite.
+**PKCS#7 detached signatures**: the test suite verifies SHA-256, SHA-384 and
+SHA-512 signatures with an independent verifier that shares no code with the
+signer. CI verifies `signed.pdf` with `openssl cms -verify` on every commit,
+and checks that a tampered copy fails. That checks the signature's integrity
+only: the example's certificate is self-signed, so chain trust is not checked.
 
 The veraPDF reports are uploaded as a build artifact on every run, and the
 release checklist attaches them to the GitHub release, so the claim is
@@ -121,7 +124,7 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.3.4"}
+{:tincture, "~> 0.3.5"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine

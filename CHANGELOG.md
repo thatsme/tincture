@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-10-20
+
+**Documentation only. No behaviour changes, and no output changes.** 0.3.4's
+documentation made claims that were not true of the code; this release
+corrects them.
+
+### Documentation
+
+- **Signature verification is described as it is done.** 0.3.4's README and
+  ROADMAP said signatures pass `openssl cms -verify` in the test suite. They
+  were verified there by an independent Elixir verifier, and for SHA-256 only:
+  SHA-384 and SHA-512 signatures were checked for being well-formed, not
+  verified. The test suite now verifies all three digests, and checks that
+  altering the document breaks each. CI now also verifies `signed.pdf` with
+  `openssl cms -verify` on every commit, and checks that a tampered copy fails.
+  That checks the signature's integrity only, since the example's certificate
+  is self-signed and chain trust is not checked. `Tincture.PDF.CMS`'s docs
+  made the same claim, and are corrected the same way.
+- **`set_pdf_a/2` no longer says a declared level is not enforced.** It is:
+  `export/2` refuses a document that breaks a PDF/A rule Tincture can see,
+  unless given `enforce: false`, as `export/2` and `Tincture.PDF.Archival`
+  already said. The docs now list what is refused.
+- **`signature_field/7` no longer says Tincture does not apply signatures.**
+  `sign/3` has applied them since 0.2.0. The docs now point to it, and say that
+  a signature field shows nothing in a static render and is refused in a
+  document that declares PDF/A.
+- **`add_page/1` and `set_page/2` document the 0.3.4 warning.** Changing page
+  while a content tag or an `artifact/2` block is open warns, and raises from
+  0.4.0. Their docs did not say so.
+
+### Infrastructure
+
+- **CI verifies the signed example with openssl,** using
+  `scripts/extract_signature.exs`, which shares no code with the signer, and
+  requires a tampered copy to fail.
+
 ## [0.3.4] — 2026-10-19
 
 **No document that exports with 0.3.3 fails to export with this release, and
@@ -708,7 +744,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/thatsme/tincture/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/thatsme/tincture/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/thatsme/tincture/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/thatsme/tincture/compare/v0.3.1...v0.3.2

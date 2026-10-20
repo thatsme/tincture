@@ -16,7 +16,7 @@ forms you need" are different claims.
 |---|---|
 | Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.4: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.4: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
-| Digital signatures | passes `openssl cms -verify` in the test suite ([3](#3-digital-signatures)) |
+| Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
 | Telemetry | ([9](#9-operability)) |
 
 **Next, roughly in order**
@@ -309,12 +309,21 @@ What remains:
 
 ## 3. Digital signatures
 
-**Status: done; the signature passes `openssl cms -verify` in the test
-suite.** `Tincture.sign/3` produces a detached PKCS#7 signature covering the
-whole file, in a `/ByteRange` a verifier can reproduce.
-`examples/output/signed.pdf` checks out with:
+**Status: done.** `Tincture.sign/3` produces a detached PKCS#7 signature
+covering the whole file, in a `/ByteRange` a verifier can reproduce.
 
-    openssl cms -verify -binary -inform DER -in <extracted> -content <byte range>
+Two checks, neither sharing code with the signer:
+
+- the test suite verifies SHA-256, SHA-384 and SHA-512 signatures with an
+  independent verifier, and checks that altering the document breaks each;
+- CI verifies `examples/output/signed.pdf` with `openssl cms -verify` on every
+  commit, and checks that a tampered copy fails. The example's certificate is
+  self-signed, so this checks the signature's integrity, not chain trust.
+
+The CI check runs:
+
+    elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
+    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der       -content tmp/sig/content.bin -noverify -out /dev/null
 
 OTP ships no CMS encoder, so `Tincture.PDF.CMS` builds the `SignedData`
 structure in DER directly — still no third-party dependencies, since `:crypto`

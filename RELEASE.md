@@ -120,6 +120,9 @@ gates, but a failure discovered after tagging costs a version number.
      `examples/README.md`. Change "at X.Y.Z" to the new version even where a
      count has not moved, so every figure names the release it was measured
      at.
+   - Every verification claim names the tool that checks it, and that check is
+     a CI step or a test, never a tool run once by hand. The one exception is
+     the PAC audit, which cites its date and the commit it ran on (step 4).
 
 9. **ROADMAP reflects what just shipped.** Move completed items out of "next"
    and strike them through in their section, as the existing entries do.

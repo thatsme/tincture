@@ -30,9 +30,12 @@ defmodule Tincture.PDF.CMS do
 
   ## Interoperability
 
-  Output is verified against OpenSSL in the test suite rather than only against
-  itself, because a signature format that only its author can read is not a
-  signature format.
+  Output is verified by tools that share no code with this module, because a
+  signature format that only its author can read is not a signature format.
+  The test suite verifies SHA-256, SHA-384 and SHA-512 signatures with an
+  independent verifier. CI verifies the signed example with
+  `openssl cms -verify`, for the signature's integrity only: the example's
+  certificate is self-signed, so chain trust is not checked.
   """
 
   import Bitwise

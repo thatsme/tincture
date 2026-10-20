@@ -193,9 +193,14 @@ Shows:
 - **The `/ByteRange`**, printed by the script — the whole file except the
   `<...>` holding the signature itself.
 
-Extract and check it yourself:
+Extract and check it yourself, from the repository root:
 
-    openssl cms -verify -binary -inform DER -in <extracted> -content <byte range>
+    elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
+    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der       -content tmp/sig/content.bin -noverify -out /dev/null
+
+`-noverify` skips chain trust, which a self-signed certificate cannot pass; the
+signature and the content digest are still checked. CI runs the same commands
+on every commit.
 
 A self-signed certificate proves the document has not changed; it says nothing
 about *who* signed it that you did not already take on faith. And with no
