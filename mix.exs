@@ -93,6 +93,8 @@ defmodule Tincture.MixProject do
       ],
       check: [
         "format --check-formatted",
+        "cmd elixir scripts/check_absolute_paths.exs --self-test",
+        "cmd elixir scripts/check_absolute_paths.exs",
         "compile --force --warnings-as-errors",
         "credo --strict",
         "dialyzer",
