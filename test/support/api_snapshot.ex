@@ -33,9 +33,13 @@ defmodule Tincture.Test.ApiSnapshot do
     |> Enum.sort()
   end
 
-  # In the test environment, test/support is compiled into the :tincture
-  # application too. Only modules built from lib/ are published.
-  defp in_lib?(module) do
+  @doc """
+  Whether `module` was compiled from a source file under `lib/`. In the test
+  environment, test/support is compiled into the :tincture application too,
+  and only modules built from lib/ are published.
+  """
+  @spec in_lib?(module()) :: boolean()
+  def in_lib?(module) do
     source = module.module_info(:compile) |> Keyword.get(:source, ~c"") |> to_string()
     source |> Path.relative_to_cwd() |> String.starts_with?("lib/")
   end

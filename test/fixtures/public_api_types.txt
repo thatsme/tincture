@@ -80,12 +80,6 @@ spec Tincture.PDF.tagged?/1	tagged?(t()) :: boolean()
 spec Tincture.Telemetry.enabled?/0	enabled?() :: boolean()
 spec Tincture.Telemetry.execute/3	execute([atom()], map(), map()) :: :ok
 spec Tincture.Telemetry.span/3	span([atom()], map(), (-> {result, map()})) :: result when result: var
-spec Tincture.Test.MeasurableFont.advance_units/1	advance_units(char()) :: pos_integer() | nil
-spec Tincture.Test.MeasurableFont.binary/0	binary() :: binary()
-spec Tincture.Test.MeasurableFont.expected_width/2	expected_width(String.t(), number()) :: float()
-spec Tincture.Test.MeasurableFont.units_per_em/0	units_per_em() :: pos_integer()
-spec Tincture.Test.MeasurableFont.write!/0	write!() :: Path.t()
-spec Tincture.Test.PKI.generate/1	generate(String.t()) :: %{private_key: tuple(), public_key: tuple(), certificate: binary()}
 spec Tincture.Typography.Hyphen.hyphenate/3	hyphenate(String.t(), locale(), [option()]) :: [String.t()]
 spec Tincture.Typography.RichText.from_plain/2	from_plain(String.t(), keyword()) :: t()
 spec Tincture.Typography.RichText.from_runs/2	from_runs([Tincture.Typography.RichText.Run.t()], keyword()) :: t()

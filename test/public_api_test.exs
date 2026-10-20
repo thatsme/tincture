@@ -216,14 +216,6 @@ defmodule Tincture.PublicApiTest do
     {Tincture.Telemetry, :enabled?, 0},
     {Tincture.Telemetry, :execute, 3},
     {Tincture.Telemetry, :span, 3},
-    {Tincture.Test.MeasurableFont, :advance_units, 1},
-    {Tincture.Test.MeasurableFont, :binary, 0},
-    {Tincture.Test.MeasurableFont, :expected_width, 2},
-    {Tincture.Test.MeasurableFont, :units_per_em, 0},
-    {Tincture.Test.MeasurableFont, :write!, 0},
-    {Tincture.Test.PKI, :generate, 0},
-    {Tincture.Test.PKI, :generate, 1},
-    {Tincture.Test.PKI, :verify_detached, 3},
     {Tincture.Typography, :layout_paragraph, 2},
     {Tincture.Typography, :layout_paragraph, 3},
     {Tincture.Typography, :layout_paragraph_with_spill, 3},
@@ -289,12 +281,30 @@ defmodule Tincture.PublicApiTest do
     {Tincture.PDF.Serialize, :export, 1}
   ]
 
+  # Under MIX_ENV=test, test/support compiles into the :tincture application,
+  # so only modules built from lib/ count as published.
   defp current_api do
     for module <- Application.spec(:tincture, :modules) || [],
         Code.ensure_loaded?(module),
+        ApiSnapshot.in_lib?(module),
         {name, arity} <- module.__info__(:functions),
         into: MapSet.new(),
         do: {module, name, arity}
+  end
+
+  test "every listed function belongs to a module built from lib/" do
+    outside =
+      for {module, name, arity} <- @public_api ++ @internal_published,
+          not (Code.ensure_loaded?(module) and ApiSnapshot.in_lib?(module)),
+          do: "#{inspect(module)}.#{name}/#{arity}"
+
+    assert outside == [],
+           """
+           #{length(outside)} listed function(s) are not in a module built from lib/,
+           so no package carries them:
+
+           #{Enum.map_join(outside, "\n", &"  #{&1}")}
+           """
   end
 
   test "every function published in v0.3.2 still exists with the same name and arity" do
