@@ -310,6 +310,30 @@ defmodule Tincture.LinkStructureTest do
       assert violation.message =~ ":p element"
     end
 
+    test "export refuses a link nested in the wrong element, unless enforce: false" do
+      pdf =
+        Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.tag(:document, fn doc ->
+          Tincture.tag(doc, :p, fn page ->
+            Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"},
+              contents: "the example home page"
+            )
+          end)
+        end)
+
+      assert_raise ArgumentError, ~r/inside a :p element rather than a :link one/, fn ->
+        Tincture.export(pdf)
+      end
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Tincture.export(pdf, enforce: false) =~ "%PDF"
+        end)
+
+      assert log =~ "inside a :p element rather than a :link one"
+    end
+
     test "an untagged document claims nothing, so reports nothing" do
       pdf =
         Tincture.new()

@@ -164,6 +164,52 @@ jobs:
       - name: Run examples with an embedded font
         run: mix examples
 
+      # veraPDF below validates the documents this job just regenerated. The
+      # README says it validates the committed ones, which is true only while
+      # the two are the same bytes, so that is checked rather than assumed.
+      # signed.pdf is the exception: the example mints a new key on every run.
+      - name: The regenerated examples match the committed ones
+        run: |
+          changed=$(git status --porcelain -- examples/output ':!examples/output/signed.pdf')
+          if [ -n "$changed" ]; then
+            echo "regenerated examples differ from the committed ones:"
+            echo "$changed"
+            exit 1
+          fi
+          echo "PASS  every regenerated example matches its committed bytes, signed.pdf excepted"
+
+      # The signature is checked by a verifier that is not Tincture's: the
+      # extraction script shares no code with Tincture.PDF.Sign or
+      # Tincture.PDF.CMS, and openssl does the cryptography. -noverify skips
+      # chain trust only, because the example's certificate is self-signed; the
+      # signature and the content digest are still checked. The tamper half
+      # flips one bit of the signed content and requires the same command to
+      # fail, since a check that cannot fail proves nothing.
+      - name: Verify the signed example with openssl
+        run: |
+          set -eu
+          openssl version
+          elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
+
+          verify() {
+            openssl cms -verify -binary -inform DER -in tmp/sig/signature.der \
+              -content "$1" -noverify -out /dev/null
+          }
+
+          verify tmp/sig/content.bin
+
+          elixir -e '
+            content = File.read!("tmp/sig/content.bin")
+            <<head::binary-size(1000), byte, tail::binary>> = content
+            File.write!("tmp/sig/tampered.bin", <<head::binary, Bitwise.bxor(byte, 1), tail::binary>>)
+          '
+
+          if verify tmp/sig/tampered.bin; then
+            echo "FAIL  tampered content still verifies"
+            exit 1
+          fi
+          echo "PASS  tampered content is rejected"
+
       # Every conformance claim in the README rests on veraPDF, so it runs
       # here rather than on whichever machine last had it installed. Through
       # 0.2.0 it did not, which is how a tagged link that was unreachable from

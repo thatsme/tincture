@@ -176,11 +176,39 @@ defmodule Tincture.SignatureTest do
       for digest <- [:sha256, :sha384, :sha512] do
         binary = signed_document(pki, digest: digest)
 
-        # verify_detached checks the sha256 binding; for the others just assert
-        # the blob is well-formed and the range arithmetic holds.
-        assert byte_size(signature_blob(binary)) > 0
-        assert signed_bytes(binary) != ""
+        assert :ok =
+                 PKI.verify_detached(
+                   signature_blob(binary),
+                   signed_bytes(binary),
+                   pki.public_key,
+                   digest
+                 ),
+               "#{digest} signature does not verify"
+
+        {offset, length} = :binary.match(binary, "This document has been")
+        tampered = replace_at(binary, offset, length, "THIS document has been")
+
+        assert {:error, :digest_mismatch} =
+                 PKI.verify_detached(
+                   signature_blob(tampered),
+                   signed_bytes(tampered),
+                   pki.public_key,
+                   digest
+                 ),
+               "tampering does not break the #{digest} signature"
       end
+    end
+
+    test "a signature checked against another digest does not verify", %{pki: pki} do
+      binary = signed_document(pki, digest: :sha384)
+
+      assert {:error, :digest_mismatch} =
+               PKI.verify_detached(
+                 signature_blob(binary),
+                 signed_bytes(binary),
+                 pki.public_key,
+                 :sha256
+               )
     end
   end
 

@@ -66,19 +66,24 @@ defmodule Tincture.Test.PKI do
 
   Returns `:ok`, or `{:error, reason}` naming which half failed — the digest
   binding the content, or the signature binding the attributes.
+
+  `digest` is the algorithm the signer was asked to use, `:sha256`, `:sha384`
+  or `:sha512`. It is given by the caller rather than read from the blob, so a
+  signer that silently used another digest fails here.
   """
-  @spec verify_detached(binary(), binary(), tuple()) :: :ok | {:error, atom()}
-  def verify_detached(cms_der, content, public_key) do
+  @spec verify_detached(binary(), binary(), tuple(), :sha256 | :sha384 | :sha512) ::
+          :ok | {:error, atom()}
+  def verify_detached(cms_der, content, public_key, digest \\ :sha256) do
     tree = parse(cms_der)
 
     with {:ok, signed_attributes} <- find_signed_attributes(tree),
          {:ok, signature} <- find_signature(tree),
-         :ok <- check_message_digest(signed_attributes, content) do
+         :ok <- check_message_digest(signed_attributes, content, digest) do
       # The signature covers the attributes re-tagged as a SET OF, which is
       # what CMS requires and what a verifier reconstructs.
       signed = <<0x31>> <> der_length(byte_size(signed_attributes.body)) <> signed_attributes.body
 
-      if :public_key.verify(signed, :sha256, signature, public_key) do
+      if :public_key.verify(signed, digest, signature, public_key) do
         :ok
       else
         {:error, :bad_signature}
@@ -86,8 +91,8 @@ defmodule Tincture.Test.PKI do
     end
   end
 
-  defp check_message_digest(signed_attributes, content) do
-    expected = :crypto.hash(:sha256, content)
+  defp check_message_digest(signed_attributes, content, digest) do
+    expected = :crypto.hash(digest, content)
 
     recorded =
       signed_attributes.children

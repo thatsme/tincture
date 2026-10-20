@@ -29,10 +29,11 @@ document, not a library, so every result below names the document it was
 measured on.
 
 [veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
-these committed documents. Each passes it on every commit; the counts are as
-measured at 0.3.4:
+these documents as the examples regenerate them; the same job fails if any of
+them differs from its committed bytes. Each passes on every commit; the counts
+are as measured at 0.3.5:
 
-| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.4 |
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.5 |
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
@@ -50,8 +51,11 @@ all five.** PAC is a Windows desktop application with no command line, so it is
 an audit at a point in time rather than a gate. What it found and what remains
 is in [ROADMAP.md](ROADMAP.md#1-accessibility--tagged-pdf-pdfua).
 
-**PKCS#7 detached signatures**: `signed.pdf`'s signature passes
-`openssl cms -verify` in the test suite.
+**PKCS#7 detached signatures**: the test suite verifies SHA-256, SHA-384 and
+SHA-512 signatures with an independent verifier that shares no code with the
+signer. CI verifies `signed.pdf` with `openssl cms -verify` on every commit,
+and checks that a tampered copy fails. That checks the signature's integrity
+only: the example's certificate is self-signed, so chain trust is not checked.
 
 The veraPDF reports are uploaded as a build artifact on every run, and the
 release checklist attaches them to the GitHub release, so the claim is
@@ -80,7 +84,8 @@ four heading levels that had never been checked at all. All are in
 
 A clean run says only as much as the documents you ran it on. veraPDF *does*
 check that a link annotation is nested in a `/Link` element and carries an
-alternate description — both are machine rules, ISO 14289-1 clause 7.18.5.
+alternate description — both are machine rules, ISO 14289-1 clause 7.18.5,
+tests 1 and 2 in veraPDF 1.30.2's PDF/UA-1 profile.
 Tincture passed 106/106 for two releases while getting the first of those
 wrong, because `compliant.pdf` contained no link annotations: a rule with
 nothing to match counts as passed, so the score was full marks on a paper that
@@ -121,16 +126,18 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.3.4"}
+{:tincture, "~> 0.3.5"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-1,426 tests · 89.7% coverage, as measured in CI · Credo `--strict` clean, with
-70 pre-existing findings in `lib/` exempted inline and `test/` and `scripts/`
-exempt from the structural checks · Dialyzer clean · CI on Elixir 1.16–1.19.
+At 0.3.5: 1,430 tests · coverage: CI fails below 80%; 89.7–89.8% in CI at
+0.3.5, varying by a tenth between identical runs · Credo `--strict` clean,
+with pre-existing findings in `lib/` exempted inline one by one and `test/` and
+`scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir
+1.16–1.19.
 
 ## What it does
 

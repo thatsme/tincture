@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-10-20
+
+**Documentation only. No behaviour changes, and no output changes.** 0.3.4's
+documentation made claims that were not true of the code; this release
+corrects them.
+
+### Documentation
+
+- **Signature verification is described as it is done.** 0.3.4's README and
+  ROADMAP said signatures pass `openssl cms -verify` in the test suite. They
+  were verified there by an independent Elixir verifier, and for SHA-256 only:
+  SHA-384 and SHA-512 signatures were checked for being well-formed, not
+  verified. The test suite now verifies all three digests, and checks that
+  altering the document breaks each. CI now also verifies `signed.pdf` with
+  `openssl cms -verify` on every commit, and checks that a tampered copy fails.
+  That checks the signature's integrity only, since the example's certificate
+  is self-signed and chain trust is not checked. `Tincture.PDF.CMS`'s docs
+  made the same claim, and are corrected the same way.
+- **`set_pdf_a/2` no longer says a declared level is not enforced.** It is:
+  `export/2` refuses a document that breaks a PDF/A rule Tincture can see,
+  unless given `enforce: false`, as `export/2` and `Tincture.PDF.Archival`
+  already said. The docs now list what is refused.
+- **`export/2`'s `:enforce` option no longer says it applies only to PDF/A.**
+  It also governs the PDF/UA checks on a tagged document, which `export/2`
+  has refused since 0.3.0 when they fail.
+- **`signature_field/7` no longer says Tincture does not apply signatures.**
+  `sign/3` has applied them since 0.2.0. The docs now point to it, and say that
+  a signature field shows nothing in a static render and is refused in a
+  document that declares PDF/A.
+- **Digital signatures are no longer listed under 0.1.0.** They first shipped
+  in 0.2.0; the 0.1.0 entry now says so.
+- **`add_page/1` and `set_page/2` document the 0.3.4 warning.** Changing page
+  while a content tag or an `artifact/2` block is open warns, and raises from
+  0.4.0. Their docs did not say so.
+- **Every other statement that something is verified now names its evidence,
+  or no longer claims to be verified.** Each was checked against a CI step, a
+  test, or veraPDF 1.30.2's profiles:
+  - Viewer behaviour for links between documents (SumatraPDF, Edge, Firefox,
+    macOS Preview) is described as observed by hand at 0.3.2 and 0.3.3, not as
+    verified.
+  - The encryption docs no longer list readers that support the output; no
+    reader is run against it. They say what is checked: the test suite
+    decrypts the output with an independent implementation of the
+    specification's algorithms. They no longer name `qpdf --decrypt`, which
+    nothing runs.
+  - Statements about what veraPDF checks cite the rule: PDF/UA-1 7.1-3 for
+    untagged content, 7.18.5-1 and 7.18.5-2 for links, and 7.3-1 for figures.
+  - The ROADMAP said an absent `/CIDSet` passes PDF/A-1 validation. It does
+    not: PDF/A-1 requires one (PDFA-1B 6.3.5-3). Only PDF/A-2 makes it
+    optional.
+  - The README's test and coverage figures name the release they were measured
+    at. The count of Credo findings exempted inline, given as 70, is no longer
+    quoted.
+  - `Tincture.PDF.Archival` no longer says every rule was confirmed against
+    veraPDF, or that checkboxes and radio buttons are fine for PDF/A. Tincture
+    does not refuse them, but no validated document carries one.
+  - `Tincture.PDF.Sign` said altering any byte breaks a signature. Bytes inside
+    the `/Contents` string are excluded from what is signed.
+  - The ROADMAP no longer lists telemetry as checked by an independent tool, or
+    says that everything done was checked against a validator.
+  - `RELEASE.md` no longer says `mix check` is every gate CI runs; the
+    absolute-path check is listed beside it. It gives the right reason
+    `signed.pdf` changes on every run: a new key, not the signing time.
+
+### Infrastructure
+
+- **CI verifies `signed.pdf` with `openssl cms -verify`, and fails if the
+  committed example documents differ from the ones it validates.**
+
 ## [0.3.4] — 2026-10-19
 
 **No document that exports with 0.3.3 fails to export with this release, and
@@ -518,11 +587,12 @@ the public API under this name is new and may still move before 1.0.
 
   This is not a conformance check and does not claim to be — Tincture sees the
   document it built, not the file a validator sees.
-- **Digital signatures.** `Tincture.sign/3` produces a detached PKCS#7
-  signature covering the whole file, verified against OpenSSL rather than only
-  against itself. `Tincture.PDF.CMS` builds the CMS `SignedData` structure in
-  DER, since OTP ships no encoder for it; `:crypto` and `:public_key` are OTP
-  applications, so there are still no third-party dependencies.
+- **Digital signatures** (first shipped in 0.2.0; listed here in error until
+  0.3.5). `Tincture.sign/3` produces a detached PKCS#7 signature covering the
+  whole file, verified against OpenSSL rather than only against itself.
+  `Tincture.PDF.CMS` builds the CMS `SignedData` structure in DER, since OTP
+  ships no encoder for it; `:crypto` and `:public_key` are OTP applications,
+  so there are still no third-party dependencies.
 
   Signing is the one thing in Tincture that is not a pure transformation: a
   signature covers the finished bytes, so `export/2` reserves space, measures
@@ -708,7 +778,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/thatsme/tincture/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/thatsme/tincture/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/thatsme/tincture/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/thatsme/tincture/compare/v0.3.1...v0.3.2

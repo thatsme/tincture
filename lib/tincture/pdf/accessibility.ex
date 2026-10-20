@@ -19,8 +19,8 @@ defmodule Tincture.PDF.Accessibility do
       other than `:link` (clause 7.18.5);
     * a link annotation with no `:contents` (clause 7.18.5).
 
-  Clause numbers are read from veraPDF's validation profiles rather than
-  recalled.
+  Clause numbers are those of the matching rules in veraPDF 1.30.2's PDF/UA-1
+  profile (7.3-1, 7.18.5-1 and 7.18.5-2).
 
   ## What this can and cannot tell you
 

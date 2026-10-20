@@ -27,7 +27,7 @@ defmodule Tincture.PDF.Sign do
 
   `/ByteRange [0 a b c]` covers bytes `0..a` and `b..b+c` — that is, the whole
   file except the `<...>` holding the signature. A verifier repeats exactly that
-  and compares. Anything altered afterwards, anywhere in the file, breaks it.
+  and compares. Anything altered afterwards outside that `<...>` breaks it.
 
   ## What this does not do
 

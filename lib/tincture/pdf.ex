@@ -344,8 +344,8 @@ defmodule Tincture.PDF do
 
   Rules, borders, background shading and repeating page furniture carry no
   information a reader needs. In a tagged document every operator must be
-  either tagged or marked as an artifact — content that is neither is a
-  conformance failure, and is read out as stray noise.
+  either tagged or marked as an artifact — content that is neither breaks
+  PDF/UA-1 (veraPDF rule 7.1-3), and is read out as stray noise.
 
   An artifact has no structure element and no marked-content id; it exists only
   to say "skip this".

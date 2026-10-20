@@ -10,8 +10,7 @@ defmodule Tincture.PDF.Archival do
 
   ## What this can and cannot tell you
 
-  Everything checked here was confirmed against veraPDF rather than read off a
-  specification, and each violation names the clause it breaks.
+  Each violation names the ISO 19005-2 clause it breaks.
 
   It is still **not a conformance check**. Tincture sees the document it built,
   not the file a validator sees, and PDF/A has requirements no library can
@@ -23,7 +22,9 @@ defmodule Tincture.PDF.Archival do
 
   ## What is allowed that you might expect not to be
 
-  Checkboxes, radio buttons and links are fine. They were not always: links
+  Checkboxes, radio buttons and links are not refused. Links are validated: CI
+  runs veraPDF on an archival example that carries one. No validated document
+  carries a checkbox or a radio button. They were not always allowed: links
   lacked the `/F` key every annotation needs, and `/NeedAppearances` was set
   whenever a document had any form field at all. Both were fixed rather than
   forbidden, because a rule that bans working features is a bug in the rule.
