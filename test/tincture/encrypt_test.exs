@@ -563,7 +563,7 @@ defmodule Tincture.EncryptTest do
     control_bytes: @control_bytes,
     balanced_parentheses: "Section 2 (Overview)",
     unbalanced_parentheses: "a) b ( c",
-    backslash: "C:\\dir\\file",
+    backslash: "dir\\sub\\file",
     non_ascii: "Ελληνικά (τίτλος)",
     empty: ""
   ]
