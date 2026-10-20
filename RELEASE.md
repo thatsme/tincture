@@ -21,14 +21,17 @@ gates, but a failure discovered after tagging costs a version number.
 1. **The Lint and Test gates CI runs, in the same order.**
 
        mix check
+
+   That alias is `format --check-formatted`, the absolute-path self-test and
+   scan, `compile --force --warnings-as-errors`, `credo --strict`, `dialyzer`,
+   and `coveralls`. The coverage floor lives in `coveralls.json`. The
+   absolute-path check is a script rather than a Mix task; the alias runs it
+   through `mix cmd`, and it can also be run on its own:
+
        elixir scripts/check_absolute_paths.exs --self-test
        elixir scripts/check_absolute_paths.exs
 
-   That alias is `format --check-formatted`, `compile --force
-   --warnings-as-errors`, `credo --strict`, `dialyzer`, and `coveralls`. The
-   coverage floor lives in `coveralls.json`. The absolute-path check is a
-   script rather than a Mix task, so the alias does not run it. The Examples
-   job's gates are steps 2 and 3.
+   The Examples job's gates are steps 2 and 3.
 
 2. **The examples, both ways.**
 
