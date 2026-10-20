@@ -589,8 +589,8 @@ the public API under this name is new and may still move before 1.0.
   document it built, not the file a validator sees.
 - **Digital signatures** (first shipped in 0.2.0; listed here in error until
   0.3.5). `Tincture.sign/3` produces a detached PKCS#7 signature covering the
-  whole file, verified against OpenSSL rather than only against itself. `Tincture.PDF.CMS` builds the CMS `SignedData` structure in
-  DER, since OTP ships no encoder for it; `:crypto` and `:public_key` are OTP
+  whole file, verified against OpenSSL rather than only against itself.
+  `Tincture.PDF.CMS` builds the CMS `SignedData` structure in DER, since OTP ships no encoder for it; `:crypto` and `:public_key` are OTP
   applications, so there are still no third-party dependencies.
 
   Signing is the one thing in Tincture that is not a pure transformation: a
