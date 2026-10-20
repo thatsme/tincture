@@ -1,0 +1,247 @@
+spec Tincture.Font.Binary.bytes/3	bytes(binary(), non_neg_integer(), pos_integer()) :: binary() | nil
+spec Tincture.Font.Binary.s16/2	s16(binary(), non_neg_integer()) :: {:ok, integer()} | :error
+spec Tincture.Font.Binary.s16_list/1	s16_list(binary()) :: [integer()]
+spec Tincture.Font.Binary.slice/3	slice(binary(), non_neg_integer(), non_neg_integer()) :: {:ok, binary()} | :error
+spec Tincture.Font.Binary.u16/2	u16(binary(), non_neg_integer()) :: {:ok, non_neg_integer()} | :error
+spec Tincture.Font.Binary.u16_list/1	u16_list(binary()) :: [non_neg_integer()]
+spec Tincture.Font.Binary.u32/2	u32(binary(), non_neg_integer()) :: {:ok, non_neg_integer()} | :error
+spec Tincture.Font.Binary.u32_list/1	u32_list(binary()) :: [non_neg_integer()]
+spec Tincture.Font.CFF.decode_index_offsets/2	decode_index_offsets(binary(), 1..4) :: {:ok, [non_neg_integer()]} | :error
+spec Tincture.Font.CFF.fixed_16_16_to_number/1	fixed_16_16_to_number(integer()) :: number()
+spec Tincture.Font.CFF.nondecreasing?/1	nondecreasing?([number()]) :: boolean()
+spec Tincture.Font.CFF.normalize_name_value/1	normalize_name_value(term()) :: String.t() | nil
+spec Tincture.Font.CFF.parse_dict_number/1	parse_dict_number(binary()) :: {:ok, number(), binary()} | :error
+spec Tincture.Font.CFF.parse_index/1	parse_index(binary()) :: {:ok, index()} | :error
+spec Tincture.Font.CFF.parse_index_objects/3	parse_index_objects([non_neg_integer()], pos_integer(), binary()) :: {:ok, [binary()], binary(), non_neg_integer()} | :error
+spec Tincture.Font.CFF.parse_real_number/1	parse_real_number(binary()) :: {:ok, number(), binary(), pos_integer()} | :error
+spec Tincture.Font.Context.from_pdf/1	from_pdf(map()) :: t()
+spec Tincture.Font.Context.kerning_codepoint/1	kerning_codepoint(String.t()) :: integer() | nil
+spec Tincture.Font.Context.measurable?/2	measurable?(t(), String.t()) :: boolean()
+spec Tincture.Font.Context.measure/4	measure(t(), String.t(), number(), String.t()) :: {:ok, float()} | {:unresolved, float()}
+spec Tincture.Font.Context.new/0	new() :: t()
+spec Tincture.Font.Context.pair_kerning_units/3	pair_kerning_units(integer() | nil, integer() | nil, map()) :: integer()
+spec Tincture.Font.Context.text_width/5	text_width(t(), String.t(), number(), String.t(), keyword()) :: float()
+spec Tincture.Font.OpenType.GPOS.begin_guardrail_scope/0	begin_guardrail_scope() :: term()
+spec Tincture.Font.OpenType.GPOS.end_guardrail_scope/1	end_guardrail_scope(term()) :: :ok
+spec Tincture.Font.OpenType.GPOS.guardrail_scope_key/0	guardrail_scope_key() :: term()
+spec Tincture.Font.OpenType.GPOS.guardrail_skips/0	guardrail_skips() :: non_neg_integer()
+spec Tincture.Font.TTF.parse_basic_tables/1	parse_basic_tables(binary()) :: {:ok, basic_metrics()} | :error
+spec Tincture.Font.UnicodeRanges.all_zero?/1	all_zero?(term()) :: boolean()
+spec Tincture.Font.UnicodeRanges.bit_for_codepoint/1	bit_for_codepoint(integer()) :: 0..122 | nil
+spec Tincture.Font.UnicodeRanges.supports_codepoint?/2	supports_codepoint?({integer(), integer(), integer(), integer()}, integer()) :: boolean()
+spec Tincture.Layout.Box.flow_across_boxes/4	flow_across_boxes(Tincture.PDF.t(), Tincture.Typography.RichText.t(), [box()], [option()]) :: {Tincture.PDF.t(), Tincture.Layout.Box.FlowResult.t()}
+spec Tincture.Layout.Box.flow_text/7	flow_text(Tincture.PDF.t(), number(), number(), number(), number(), Tincture.Typography.RichText.t(), [option()]) :: {Tincture.PDF.t(), Tincture.Typography.LayoutResult.t()}
+spec Tincture.Layout.Table.render/6	render(Tincture.PDF.t(), number(), number(), [number()] | :auto, [row()], [option()]) :: {Tincture.PDF.t(), Tincture.Layout.Table.RenderResult.t()}
+spec Tincture.Layout.Template.new/1	new([option()]) :: t()
+spec Tincture.Layout.Template.parse_xml/1	parse_xml(String.t()) :: {:ok, t(), Tincture.Typography.RichText.t()} | {:error, xml_error()}
+spec Tincture.Layout.Template.render/4	render(Tincture.PDF.t(), t(), Tincture.Typography.RichText.t(), [Tincture.Layout.Box.option()]) :: {Tincture.PDF.t(), Tincture.Layout.Template.RenderResult.t()}
+spec Tincture.Layout.Template.render_document/4	render_document(Tincture.PDF.t(), t(), Tincture.Typography.RichText.t(), [document_option()]) :: {Tincture.PDF.t(), Tincture.Layout.Template.DocumentResult.t()}
+spec Tincture.Layout.Template.render_xml_document/3	render_xml_document(Tincture.PDF.t(), String.t(), [document_option()]) :: {:ok, Tincture.PDF.t(), Tincture.Layout.Template.DocumentResult.t()} | {:error, xml_error()}
+spec Tincture.Layout.Template.with_footer/3	with_footer(t(), String.t(), [slot_option()]) :: t()
+spec Tincture.Layout.Template.with_header/3	with_header(t(), String.t(), [slot_option()]) :: t()
+spec Tincture.PDF.Accessibility.describe/1	describe([violation()]) :: String.t()
+spec Tincture.PDF.Accessibility.violations/1	violations(Tincture.PDF.t()) :: [violation()]
+spec Tincture.PDF.Archival.describe/1	describe([violation()]) :: String.t()
+spec Tincture.PDF.Archival.violations/1	violations(Tincture.PDF.t()) :: [violation()]
+spec Tincture.PDF.CMS.sign_detached/6	sign_detached(binary(), tuple(), binary(), [binary()], digest(), DateTime.t()) :: binary()
+spec Tincture.PDF.Encrypt.encrypt/2	encrypt(binary(), t()) :: binary()
+spec Tincture.PDF.Encrypt.encrypt_dictionary/1	encrypt_dictionary(t()) :: String.t()
+spec Tincture.PDF.Encrypt.encrypt_object/2	encrypt_object(iodata(), t()) :: iodata()
+spec Tincture.PDF.Encrypt.id/1	id(t()) :: binary()
+spec Tincture.PDF.Encrypt.new/1	new(keyword()) :: t()
+spec Tincture.PDF.Encrypt.permission_flags/1	permission_flags([permission()]) :: integer()
+spec Tincture.PDF.ICC.components/0	components() :: pos_integer()
+spec Tincture.PDF.ICC.output_condition_identifier/0	output_condition_identifier() :: String.t()
+spec Tincture.PDF.ICC.srgb/0	srgb() :: binary()
+spec Tincture.PDF.Object.encode_text/2	encode_text(String.t(), :pdf_text | :identity_h) :: {:literal, String.t()} | {:hex, String.t()}
+spec Tincture.PDF.Object.escape_byte/1	escape_byte(integer()) :: String.t()
+spec Tincture.PDF.Object.format_text/2	format_text(String.t(), :pdf_text | :identity_h) :: String.t()
+spec Tincture.PDF.Object.num/1	num(number()) :: String.t()
+spec Tincture.PDF.Object.sanitize_name/1	sanitize_name(String.t()) :: String.t()
+spec Tincture.PDF.Object.unicode_text?/1	unicode_text?(String.t()) :: boolean()
+spec Tincture.PDF.Sign.apply_signature/2	apply_signature(binary(), map()) :: binary()
+spec Tincture.PDF.Sign.default_reserved_bytes/0	default_reserved_bytes() :: pos_integer()
+spec Tincture.PDF.Sign.placeholder_dictionary/1	placeholder_dictionary(map()) :: String.t()
+spec Tincture.PDF.Structure.container?/1	container?(tag()) :: boolean()
+spec Tincture.PDF.Structure.content?/1	content?(tag()) :: boolean()
+spec Tincture.PDF.Structure.empty?/1	empty?([t()]) :: boolean()
+spec Tincture.PDF.Structure.flatten/1	flatten([t()]) :: [t()]
+spec Tincture.PDF.Structure.tag_name/1	tag_name(tag()) :: String.t()
+spec Tincture.PDF.Structure.tags/0	tags() :: %{required(tag()) => String.t()}
+spec Tincture.PDF.add_radio_group/4	add_radio_group(t(), String.t(), [keyword()], keyword()) :: t()
+spec Tincture.PDF.begin_artifact/1	begin_artifact(t()) :: t()
+spec Tincture.PDF.begin_structure/3	begin_structure(t(), Tincture.PDF.Structure.tag(), keyword()) :: t()
+spec Tincture.PDF.end_artifact/1	end_artifact(t()) :: t()
+spec Tincture.PDF.end_structure/1	end_structure(t()) :: t()
+spec Tincture.PDF.set_language/2	set_language(t(), String.t()) :: t()
+spec Tincture.PDF.set_pdf_a/2	set_pdf_a(t(), atom()) :: t()
+spec Tincture.PDF.set_signature/3	set_signature(t(), String.t(), keyword()) :: t()
+spec Tincture.PDF.tagged?/1	tagged?(t()) :: boolean()
+spec Tincture.Telemetry.enabled?/0	enabled?() :: boolean()
+spec Tincture.Telemetry.execute/3	execute([atom()], map(), map()) :: :ok
+spec Tincture.Telemetry.span/3	span([atom()], map(), (-> {result, map()})) :: result when result: var
+spec Tincture.Test.MeasurableFont.advance_units/1	advance_units(char()) :: pos_integer() | nil
+spec Tincture.Test.MeasurableFont.binary/0	binary() :: binary()
+spec Tincture.Test.MeasurableFont.expected_width/2	expected_width(String.t(), number()) :: float()
+spec Tincture.Test.MeasurableFont.units_per_em/0	units_per_em() :: pos_integer()
+spec Tincture.Test.MeasurableFont.write!/0	write!() :: Path.t()
+spec Tincture.Test.PKI.generate/1	generate(String.t()) :: %{private_key: tuple(), public_key: tuple(), certificate: binary()}
+spec Tincture.Typography.Hyphen.hyphenate/3	hyphenate(String.t(), locale(), [option()]) :: [String.t()]
+spec Tincture.Typography.RichText.from_plain/2	from_plain(String.t(), keyword()) :: t()
+spec Tincture.Typography.RichText.from_runs/2	from_runs([Tincture.Typography.RichText.Run.t()], keyword()) :: t()
+spec Tincture.Typography.RichText.from_tokens/1	from_tokens([token()]) :: t()
+spec Tincture.Typography.RichText.remeasure/2	remeasure(t(), Tincture.Font.Context.t()) :: t()
+spec Tincture.Typography.RichText.unmeasured_fonts/1	unmeasured_fonts(t()) :: [String.t()]
+spec Tincture.Typography.layout_paragraph/3	layout_paragraph(Tincture.Typography.RichText.t(), number(), [option()]) :: [Tincture.Typography.Line.t()]
+spec Tincture.Typography.layout_paragraph_with_spill/4	layout_paragraph_with_spill(Tincture.Typography.RichText.t(), number(), pos_integer(), [option()]) :: Tincture.Typography.LayoutResult.t()
+spec Tincture.add_bookmark/3	add_bookmark(Tincture.PDF.t(), String.t(), pos_integer()) :: Tincture.PDF.t()
+spec Tincture.add_page/1	add_page(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.artifact/2	artifact(Tincture.PDF.t(), (Tincture.PDF.t() -> Tincture.PDF.t())) :: Tincture.PDF.t()
+spec Tincture.bezier/7	bezier(Tincture.PDF.t(), number(), number(), number(), number(), number(), number()) :: Tincture.PDF.t()
+spec Tincture.checkbox/6	checkbox(Tincture.PDF.t(), number(), number(), number(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.choice_field/7	choice_field(Tincture.PDF.t(), number(), number(), number(), number(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.circle/5	circle(Tincture.PDF.t(), number(), number(), number(), paint()) :: Tincture.PDF.t()
+spec Tincture.clip/1	clip(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.clip_even_odd/1	clip_even_odd(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.encrypt/2	encrypt(Tincture.PDF.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.export/2	export(Tincture.PDF.t(), keyword()) :: binary()
+spec Tincture.fill/1	fill(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.fill_even_odd/1	fill_even_odd(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.image_jpeg/6	image_jpeg(Tincture.PDF.t(), number(), number(), number(), number(), Path.t()) :: Tincture.PDF.t()
+spec Tincture.image_png/6	image_png(Tincture.PDF.t(), number(), number(), number(), number(), Path.t()) :: Tincture.PDF.t()
+spec Tincture.line/6	line(Tincture.PDF.t(), number(), number(), number(), number(), paint()) :: Tincture.PDF.t()
+spec Tincture.line_to/3	line_to(Tincture.PDF.t(), number(), number()) :: Tincture.PDF.t()
+spec Tincture.linear_gradient/7	linear_gradient(Tincture.PDF.t(), number(), number(), number(), number(), [{number(), {number(), number(), number()}}], keyword()) :: Tincture.PDF.t()
+spec Tincture.link/6	link(Tincture.PDF.t(), number(), number(), number(), number(), Tincture.PDF.link_target()) :: Tincture.PDF.t()
+spec Tincture.link/7	link(Tincture.PDF.t(), number(), number(), number(), number(), Tincture.PDF.link_target(), keyword()) :: Tincture.PDF.t()
+spec Tincture.move_to/3	move_to(Tincture.PDF.t(), number(), number()) :: Tincture.PDF.t()
+spec Tincture.new/0	new() :: Tincture.PDF.t()
+spec Tincture.page_size/2	page_size(Tincture.PDF.t(), page_size()) :: Tincture.PDF.t()
+spec Tincture.pdf_a_violations/1	pdf_a_violations(Tincture.PDF.t()) :: [Tincture.PDF.Archival.violation()]
+spec Tincture.pdf_ua_violations/1	pdf_ua_violations(Tincture.PDF.t()) :: [Tincture.PDF.Accessibility.violation()]
+spec Tincture.push_button/7	push_button(Tincture.PDF.t(), number(), number(), number(), number(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.radial_gradient/7	radial_gradient(Tincture.PDF.t(), number(), number(), number(), number(), [{number(), {number(), number(), number()}}], keyword()) :: Tincture.PDF.t()
+spec Tincture.radio_group/4	radio_group(Tincture.PDF.t(), String.t(), [keyword()], keyword()) :: Tincture.PDF.t()
+spec Tincture.rectangle/6	rectangle(Tincture.PDF.t(), number(), number(), number(), number(), paint()) :: Tincture.PDF.t()
+spec Tincture.register_otf_font/3	register_otf_font(Tincture.PDF.t(), String.t(), Path.t()) :: Tincture.PDF.t()
+spec Tincture.register_otf_font/4	register_otf_font(Tincture.PDF.t(), String.t(), Path.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.register_ttf_font/3	register_ttf_font(Tincture.PDF.t(), String.t(), Path.t()) :: Tincture.PDF.t()
+spec Tincture.register_ttf_font/4	register_ttf_font(Tincture.PDF.t(), String.t(), Path.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.restore_state/1	restore_state(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.save/3	save(Tincture.PDF.t(), Path.t(), keyword()) :: :ok | {:error, term()}
+spec Tincture.save_state/1	save_state(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.set_alpha/2	set_alpha(Tincture.PDF.t(), number() | keyword()) :: Tincture.PDF.t()
+spec Tincture.set_dash/3	set_dash(Tincture.PDF.t(), [number()], number()) :: Tincture.PDF.t()
+spec Tincture.set_fill_color/2	set_fill_color(Tincture.PDF.t(), {number(), number(), number()}) :: Tincture.PDF.t()
+spec Tincture.set_font/3	set_font(Tincture.PDF.t(), String.t(), number()) :: Tincture.PDF.t()
+spec Tincture.set_language/2	set_language(Tincture.PDF.t(), String.t()) :: Tincture.PDF.t()
+spec Tincture.set_line_cap/2	set_line_cap(Tincture.PDF.t(), 0 | 1 | 2) :: Tincture.PDF.t()
+spec Tincture.set_line_join/2	set_line_join(Tincture.PDF.t(), 0 | 1 | 2) :: Tincture.PDF.t()
+spec Tincture.set_line_width/2	set_line_width(Tincture.PDF.t(), number()) :: Tincture.PDF.t()
+spec Tincture.set_metadata/2	set_metadata(Tincture.PDF.t(), map() | keyword()) :: Tincture.PDF.t()
+spec Tincture.set_miter_limit/2	set_miter_limit(Tincture.PDF.t(), number()) :: Tincture.PDF.t()
+spec Tincture.set_page/2	set_page(Tincture.PDF.t(), pos_integer()) :: Tincture.PDF.t()
+spec Tincture.set_pdf_a/2	set_pdf_a(Tincture.PDF.t(), atom()) :: Tincture.PDF.t()
+spec Tincture.set_stroke_color/2	set_stroke_color(Tincture.PDF.t(), {number(), number(), number()}) :: Tincture.PDF.t()
+spec Tincture.sign/3	sign(Tincture.PDF.t(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.signature_field/7	signature_field(Tincture.PDF.t(), number(), number(), number(), number(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.stroke/1	stroke(Tincture.PDF.t()) :: Tincture.PDF.t()
+spec Tincture.tag/4	tag(Tincture.PDF.t(), atom(), keyword(), (Tincture.PDF.t() -> Tincture.PDF.t())) :: Tincture.PDF.t()
+spec Tincture.tagged?/1	tagged?(Tincture.PDF.t()) :: boolean()
+spec Tincture.text_at/4	text_at(Tincture.PDF.t(), number(), number(), String.t()) :: Tincture.PDF.t()
+spec Tincture.text_at_rotated/5	text_at_rotated(Tincture.PDF.t(), number(), number(), number(), String.t()) :: Tincture.PDF.t()
+spec Tincture.text_at_rotated_with_fallback/6	text_at_rotated_with_fallback(Tincture.PDF.t(), number(), number(), number(), String.t(), [String.t()]) :: Tincture.PDF.t()
+spec Tincture.text_at_rotated_with_fallback/7	text_at_rotated_with_fallback(Tincture.PDF.t(), number(), number(), number(), String.t(), [String.t()], keyword()) :: Tincture.PDF.t()
+spec Tincture.text_at_with_fallback/5	text_at_with_fallback(Tincture.PDF.t(), number(), number(), String.t(), [String.t()]) :: Tincture.PDF.t()
+spec Tincture.text_at_with_fallback/6	text_at_with_fallback(Tincture.PDF.t(), number(), number(), String.t(), [String.t()], keyword()) :: Tincture.PDF.t()
+spec Tincture.text_field/7	text_field(Tincture.PDF.t(), number(), number(), number(), number(), String.t(), keyword()) :: Tincture.PDF.t()
+spec Tincture.text_link/5	text_link(Tincture.PDF.t(), number(), number(), String.t(), Tincture.PDF.link_target()) :: Tincture.PDF.t()
+spec Tincture.text_link/6	text_link(Tincture.PDF.t(), number(), number(), String.t(), Tincture.PDF.link_target(), keyword()) :: Tincture.PDF.t()
+spec Tincture.text_paragraph/6	text_paragraph(Tincture.PDF.t(), number(), number(), rich_text(), number(), [paragraph_option()]) :: Tincture.PDF.t()
+type Tincture.Font.CFF.index/0	index() :: %{objects: [binary()], rest: binary(), size: non_neg_integer(), offsets: [non_neg_integer()], objects_data_offset: non_neg_integer()}
+type Tincture.Font.Context.t/0	t() :: %Tincture.Font.Context{embedded: %{optional(String.t()) => map()}}
+type Tincture.Font.TTF.basic_metrics/0	basic_metrics() :: %{units_per_em: pos_integer(), num_glyphs: pos_integer(), number_of_h_metrics: pos_integer(), advance_widths: [non_neg_integer()], max_advance_width: non_neg_integer(), cmap_by_code: %{optional(non_neg_integer()) => non_neg_integer()}, cmap_var_selectors: [non_neg_integer()], cmap_non_default_uvs: %{optional({non_neg_integer(), non_neg_integer()}) => non_neg_integer()}, gsub_scripts: [String.t()], gsub_features: [String.t()], gsub_ligatures: %{optional(String.t()) => String.t()}, gsub_ligatures_all: %{optional(String.t()) => String.t()}, gsub_substitutions_all: %{optional(String.t()) => String.t()}, gpos_scripts: [String.t()], gpos_features: [String.t()], gpos_pair_kerns: %{optional({non_neg_integer(), non_neg_integer()}) => integer()}, gpos_guardrail_skips: non_neg_integer(), italic: boolean(), bold: boolean(), italic_angle: float(), fixed_pitch: boolean(), head_bbox: {integer(), integer(), integer(), integer()} | nil, hhea_ascender: integer(), hhea_descender: integer(), hhea_line_gap: integer(), hhea_advance_width_max: non_neg_integer(), typo_ascender: integer() | nil, typo_descender: integer() | nil, typo_line_gap: integer() | nil, os2_avg_char_width: integer() | nil, x_height: integer() | nil, cap_height: integer() | nil, os2_weight_class: non_neg_integer() | nil, os2_width_class: non_neg_integer() | nil, os2_family_class: integer() | nil, os2_vendor_id: String.t() | nil, os2_version: non_neg_integer() | nil, os2_fs_selection: non_neg_integer() | nil, os2_fs_type: non_neg_integer() | nil, os2_subscript_x_size: integer() | nil, os2_subscript_y_size: integer() | nil, os2_subscript_x_offset: integer() | nil, os2_subscript_y_offset: integer() | nil, os2_superscript_x_size: integer() | nil, os2_superscript_y_size: integer() | nil, os2_superscript_x_offset: integer() | nil, os2_superscript_y_offset: integer() | nil, os2_strikeout_size: integer() | nil, os2_strikeout_position: integer() | nil, os2_unicode_ranges: {non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer()} | nil, os2_code_page_ranges: {non_neg_integer(), non_neg_integer()} | nil, os2_first_char_index: non_neg_integer() | nil, os2_last_char_index: non_neg_integer() | nil, os2_default_char: non_neg_integer() | nil, os2_break_char: non_neg_integer() | nil, os2_max_context: non_neg_integer() | nil, os2_lower_optical_point_size: non_neg_integer() | nil, os2_upper_optical_point_size: non_neg_integer() | nil, os2_win_ascent: non_neg_integer() | nil, os2_win_descent: non_neg_integer() | nil, os2_italic: boolean(), os2_oblique: boolean(), os2_bold: boolean(), os2_panose: binary() | nil, cff_stem_h: non_neg_integer() | nil, cff_stem_v: non_neg_integer() | nil, cff_force_bold: boolean() | nil, cff_weight_class: non_neg_integer() | nil, font_family: String.t() | nil, index_to_loc_format: 0 | 1, glyph_offsets: [non_neg_integer()], glyph_bboxes_by_id: %{optional(non_neg_integer()) => {integer(), integer(), integer(), integer()}}, glyph_contour_counts_by_id: %{optional(non_neg_integer()) => non_neg_integer()}, glyph_point_counts_by_id: %{optional(non_neg_integer()) => pos_integer()}, glyph_simple_instruction_lengths_by_id: %{optional(non_neg_integer()) => non_neg_integer()}, glyph_composite_instruction_lengths_by_id: %{optional(non_neg_integer()) => non_neg_integer()}, glyph_outline_types_by_id: %{optional(non_neg_integer()) => :simple | :composite}, glyph_component_counts_by_id: %{optional(non_neg_integer()) => non_neg_integer()}, glyph_component_glyph_ids_by_id: %{optional(non_neg_integer()) => [non_neg_integer()]}, cff_charstring_count: non_neg_integer(), cff_charstring_lengths_by_id: %{optional(non_neg_integer()) => non_neg_integer()}, font_bbox: {integer(), integer(), integer(), integer()} | nil}
+type Tincture.Layout.Box.FlowResult.t/0	t() :: %Tincture.Layout.Box.FlowResult{box_results: [Tincture.Typography.LayoutResult.t()], boxes_used: non_neg_integer(), overflow?: boolean(), spill_text: String.t()}
+type Tincture.Layout.Box.box/0	box() :: {number(), number(), number(), number()}
+type Tincture.Layout.Box.option/0	option() :: Tincture.Typography.option() | {:rotate, number()}
+type Tincture.Layout.Table.RenderResult.t/0	t() :: %Tincture.Layout.Table.RenderResult{columns: non_neg_integer(), height: float(), row_height: float(), rows: non_neg_integer(), widths: [float()]}
+type Tincture.Layout.Table.option/0	option() :: {:font, String.t()} | {:header_font, String.t()} | {:font_size, number()} | {:padding, number()} | {:valign, :top | :middle | :bottom} | {:border, boolean()} | {:header_rows, non_neg_integer()} | {:row_height, number()} | {:table_width, number()} | {:min_col_width, number()}
+type Tincture.Layout.Table.row/0	row() :: [term()]
+type Tincture.Layout.Template.DocumentResult.t/0	t() :: %Tincture.Layout.Template.DocumentResult{overflow?: boolean(), page_results: [Tincture.Layout.Template.RenderResult.t()], pages_used: non_neg_integer(), spill_text: String.t()}
+type Tincture.Layout.Template.RenderResult.t/0	t() :: %Tincture.Layout.Template.RenderResult{body_flow: Tincture.Layout.Box.FlowResult.t(), overflow?: boolean(), spill_text: String.t()}
+type Tincture.Layout.Template.Slot.t/0	t() :: %Tincture.Layout.Template.Slot{font: String.t(), size: float(), text: String.t()}
+type Tincture.Layout.Template.box/0	box() :: {float(), float(), float(), float()}
+type Tincture.Layout.Template.document_option/0	document_option() :: Tincture.Layout.Box.option() | {:page_number_start, pos_integer()} | {:page_total, pos_integer()} | {:max_pages, pos_integer()}
+type Tincture.Layout.Template.margin_tuple/0	margin_tuple() :: {number(), number(), number(), number()}
+type Tincture.Layout.Template.option/0	option() :: {:page_size, Tincture.PDF.page_size()} | {:margins, margin_tuple()} | {:columns, pos_integer()} | {:gutter, number()} | {:header_height, number()} | {:footer_height, number()}
+type Tincture.Layout.Template.slot_option/0	slot_option() :: {:font, String.t()} | {:size, number()} | {:height, number()}
+type Tincture.Layout.Template.t/0	t() :: %Tincture.Layout.Template{body_boxes: [box()], columns: pos_integer(), footer: Tincture.Layout.Template.Slot.t() | nil, footer_height: float(), gutter: float(), header: Tincture.Layout.Template.Slot.t() | nil, header_height: float(), margins: %{left: float(), right: float(), top: float(), bottom: float()}, page_size: Tincture.PDF.page_size()}
+type Tincture.Layout.Template.xml_error/0	xml_error() :: :invalid_xml | :missing_body | {:invalid_page_size, String.t()} | {:invalid_margins, String.t()} | {:invalid_columns, String.t()} | {:invalid_gutter, String.t()} | {:invalid_slot_size, String.t()} | {:invalid_slot_height, String.t()} | {:invalid_body_size, String.t()}
+type Tincture.PDF.Accessibility.violation/0	violation() :: %{rule: atom(), clause: String.t(), message: String.t()}
+type Tincture.PDF.Archival.violation/0	violation() :: %{rule: atom(), clause: String.t(), message: String.t()}
+type Tincture.PDF.CMS.digest/0	digest() :: :sha256 | :sha384 | :sha512
+type Tincture.PDF.Encrypt.permission/0	permission() :: :print | :modify | :copy | :annotate | :fill_forms | :extract_for_accessibility | :assemble | :print_high_quality
+type Tincture.PDF.Encrypt.t/0	t() :: %{key: binary(), encrypt_dictionary: String.t(), id: binary()}
+type Tincture.PDF.Structure.t/0	t() :: %{:tag => tag(), :page_number => pos_integer(), :mcid => non_neg_integer() | nil, :kids => [t()], optional(:alt) => String.t(), optional(:actual_text) => String.t(), optional(:lang) => String.t(), optional(:title) => String.t(), optional(:scope) => :row | :column | :both, optional(:bbox) => {number(), number(), number(), number()}}
+type Tincture.PDF.Structure.tag/0	tag() :: atom()
+type Tincture.PDF.alpha_op/0	alpha_op() :: {:set_alpha, number(), number()}
+type Tincture.PDF.annotation/0	annotation() :: %{id: pos_integer(), type: :link, rect: {number(), number(), number(), number()}, target: link_target(), border: annotation_border(), contents: String.t() | nil, new_window: boolean() | nil}
+type Tincture.PDF.annotation_border/0	annotation_border() :: :none | {number(), number(), number()}
+type Tincture.PDF.begin_artifact_op/0	begin_artifact_op() :: {:begin_artifact}
+type Tincture.PDF.begin_marked_content_op/0	begin_marked_content_op() :: {:begin_marked_content, String.t(), non_neg_integer()}
+type Tincture.PDF.bezier_op/0	bezier_op() :: {:bezier, number(), number(), number(), number(), number(), number()}
+type Tincture.PDF.bookmark/0	bookmark() :: %{title: String.t(), page_number: pos_integer()}
+type Tincture.PDF.button_action/0	button_action() :: :reset | {:url, String.t()} | {:submit, String.t()}
+type Tincture.PDF.circle_op/0	circle_op() :: {:circle, number(), number(), number(), paint()}
+type Tincture.PDF.clip_even_odd_op/0	clip_even_odd_op() :: :clip_even_odd
+type Tincture.PDF.clip_op/0	clip_op() :: :clip
+type Tincture.PDF.color_op/0	color_op() :: {:set_stroke_color, rgb()} | {:set_fill_color, rgb()}
+type Tincture.PDF.draw_op/0	draw_op() :: {:line, number(), number(), number(), number(), paint()}
+type Tincture.PDF.embedded_font/0	embedded_font() :: %{:format => :ttf | :otf, :name => String.t(), :data => binary(), :subset => embedded_font_subset_mode(), optional(:ttf_metrics) => ttf_metrics()}
+type Tincture.PDF.embedded_font_option/0	embedded_font_option() :: {:subset, embedded_font_subset_mode()} | {:enforce_embedding_permissions, boolean()}
+type Tincture.PDF.embedded_font_subset_mode/0	embedded_font_subset_mode() :: :none | :ascii_basic | :used_text
+type Tincture.PDF.end_marked_content_op/0	end_marked_content_op() :: {:end_marked_content}
+type Tincture.PDF.fill_even_odd_op/0	fill_even_odd_op() :: :fill_even_odd
+type Tincture.PDF.fill_op/0	fill_op() :: :fill
+type Tincture.PDF.font/0	font() :: {String.t(), number()}
+type Tincture.PDF.form_field/0	form_field() :: %{:type => form_field_type(), :name => String.t(), :page_number => pos_integer(), :rect => {number(), number(), number(), number()}, :value => String.t() | boolean(), :flags => non_neg_integer(), :font => String.t(), :size => number(), :border => annotation_border(), optional(:max_length) => pos_integer(), optional(:tooltip) => String.t(), optional(:options) => [String.t()], optional(:widgets) => [radio_widget()], optional(:action) => button_action(), optional(:label) => String.t(), optional(:created_outside_structure) => boolean()}
+type Tincture.PDF.form_field_type/0	form_field_type() :: :text | :checkbox | :choice | :radio | :push_button | :signature
+type Tincture.PDF.graphics_state_op/0	graphics_state_op() :: :save_state | :restore_state
+type Tincture.PDF.image/0	image() :: %{:format => :jpeg | :png, :data => binary(), :width => pos_integer(), :height => pos_integer(), :bits_per_component => pos_integer(), :color_space => image_color_space(), optional(:decode_parms) => map(), optional(:alpha_data) => binary(), optional(:alpha_decode_parms) => map()}
+type Tincture.PDF.image_color_space/0	image_color_space() :: :device_gray | :device_rgb | :device_cmyk
+type Tincture.PDF.image_op/0	image_op() :: {:image, number(), number(), number(), number(), pos_integer()}
+type Tincture.PDF.line_style_op/0	line_style_op() :: {:set_line_width, number()} | {:set_line_cap, 0 | 1 | 2} | {:set_line_join, 0 | 1 | 2} | {:set_dash, [number()], number()} | {:set_miter_limit, number()}
+type Tincture.PDF.line_to_op/0	line_to_op() :: {:line_to, number(), number()}
+type Tincture.PDF.link_target/0	link_target() :: {:url, String.t()} | {:page, pos_integer()} | {:file, String.t()} | {:file, String.t(), pos_integer()} | String.t()
+type Tincture.PDF.move_to_op/0	move_to_op() :: {:move_to, number(), number()}
+type Tincture.PDF.op/0	op() :: text_op() | text_rotated_op() | draw_op() | rect_op() | circle_op() | move_to_op() | line_to_op() | bezier_op() | stroke_op() | fill_op() | fill_even_odd_op() | clip_op() | clip_even_odd_op() | line_style_op() | graphics_state_op() | color_op() | image_op() | alpha_op() | shading_op() | begin_marked_content_op() | begin_artifact_op() | end_marked_content_op()
+type Tincture.PDF.page_size/0	page_size() :: :a4 | :letter | :legal | {number(), number()}
+type Tincture.PDF.paint/0	paint() :: :stroke | :fill | :fill_even_odd | :fill_and_stroke | :none
+type Tincture.PDF.radio_widget/0	radio_widget() :: %{export_value: String.t(), page_number: pos_integer(), rect: {number(), number(), number(), number()}}
+type Tincture.PDF.rect_op/0	rect_op() :: {:rectangle, number(), number(), number(), number(), paint()}
+type Tincture.PDF.rgb/0	rgb() :: {number(), number(), number()}
+type Tincture.PDF.shading/0	shading() :: %{type: :axial | :radial, coords: [number()], stops: [{number(), rgb()}], extend: {boolean(), boolean()}}
+type Tincture.PDF.shading_op/0	shading_op() :: {:shading, number(), number(), number(), number(), shading()}
+type Tincture.PDF.stroke_op/0	stroke_op() :: :stroke
+type Tincture.PDF.t/0	t() :: %Tincture.PDF{annotations: %{required(pos_integer()) => [annotation()]}, bookmarks: [bookmark()], current_font: font(), current_page: pos_integer(), embedded_fonts: %{optional(String.t()) => embedded_font()}, encryption: map() | nil, form_fields: [form_field()], images: %{required(pos_integer()) => image()}, language: String.t() | nil, mcid_counters: %{optional(pos_integer()) => non_neg_integer()}, metadata: %{optional(atom()) => String.t()}, next_annotation_id: pos_integer(), next_image_id: pos_integer(), operations: [op()], page_size: page_size(), pages: %{required(pos_integer()) => [op()]}, pdf_a: {2 | 3, :b | :u | :a} | nil, signature: map() | nil, structure_stack: [Tincture.PDF.Structure.t()], structure_tree: [Tincture.PDF.Structure.t()]}
+type Tincture.PDF.text_op/0	text_op() :: {:text_at, number(), number(), String.t(), font()}
+type Tincture.PDF.text_rotated_op/0	text_rotated_op() :: {:text_at_rotated, number(), number(), number(), String.t(), font()}
+type Tincture.PDF.ttf_metrics/0	ttf_metrics() :: map()
+type Tincture.Typography.Hyphen.locale/0	locale() :: :en_gb | :da_dk | :fi_fi | :nb_no | :sv_se
+type Tincture.Typography.Hyphen.option/0	option() :: {:left_min, pos_integer()} | {:right_min, pos_integer()}
+type Tincture.Typography.LayoutResult.t/0	t() :: %Tincture.Typography.LayoutResult{lines: [Tincture.Typography.Line.t()], overflow?: boolean(), spill_lines: [Tincture.Typography.Line.t()], spill_text: String.t()}
+type Tincture.Typography.Line.t/0	t() :: %Tincture.Typography.Line{text: String.t(), tokens: [Tincture.Typography.RichText.token()], width: float(), x: float(), y: float()}
+type Tincture.Typography.RichText.Break.t/0	t() :: %Tincture.Typography.RichText.Break{kind: :line}
+type Tincture.Typography.RichText.Run.t/0	t() :: %Tincture.Typography.RichText.Run{font: String.t(), size: number(), style: atom() | nil, text: String.t()}
+type Tincture.Typography.RichText.Space.t/0	t() :: %Tincture.Typography.RichText.Space{font: String.t(), measured?: boolean(), size: number(), style: atom() | nil, text: String.t(), width: number()}
+type Tincture.Typography.RichText.Word.t/0	t() :: %Tincture.Typography.RichText.Word{font: String.t(), measured?: boolean(), size: number(), style: atom() | nil, text: String.t(), width: number()}
+type Tincture.Typography.RichText.t/0	t() :: %Tincture.Typography.RichText{runs: [Tincture.Typography.RichText.Run.t()], tokens: [token()]}
+type Tincture.Typography.RichText.token/0	token() :: Tincture.Typography.RichText.Word.t() | Tincture.Typography.RichText.Space.t() | Tincture.Typography.RichText.Break.t()
+type Tincture.Typography.align/0	align() :: :left | :center | :right | :justified
+type Tincture.Typography.line_break_mode/0	line_break_mode() :: :greedy | :optimal
+type Tincture.Typography.optimal_cost_model/0	optimal_cost_model() :: :quadratic | :box_glue
+type Tincture.Typography.option/0	option() :: {:align, align()} | {:line_height, number()} | {:line_break, line_break_mode()} | {:optimal_cost_model, optimal_cost_model()} | {:justify_max_space_multiplier, number()} | {:justify_min_space_multiplier, number()} | {:widow_penalty, number()} | {:orphan_penalty, number()} | {:hyphen_penalty, number()} | {:fitness_class_penalty, number()} | {:consecutive_hyphen_penalty, number()}
+type Tincture.page_size/0	page_size() :: :a4 | :letter | :legal | {number(), number()}
+type Tincture.paint/0	paint() :: Tincture.PDF.paint()
+type Tincture.paragraph_option/0	paragraph_option() :: {:align, :left | :center | :right | :justified} | {:line_height, number()} | {:line_break, :greedy | :optimal} | {:optimal_cost_model, :quadratic | :box_glue} | {:justify_max_space_multiplier, number() | :infinity} | {:justify_min_space_multiplier, number()} | {:widow_penalty, number()} | {:orphan_penalty, number()} | {:hyphen_penalty, number()} | {:fitness_class_penalty, number()} | {:consecutive_hyphen_penalty, number()} | {:rotate, number()} | {:fallback_fonts, [String.t()]} | {:bidi, :off | :basic} | {:shaping, :off | :latin_ligatures | :gsub_ligatures} | {:kerning, :off | :gpos}
+type Tincture.rich_text/0	rich_text() :: Tincture.Typography.RichText.t()
