@@ -248,7 +248,7 @@ What remains:
     its marked content between two pages.
 
   All are fixed in 0.3.4, and each now has an assertion that runs in CI. The
-  last warns rather than refuses, and becomes an error in 0.4.0 (see below).
+  last warned through 0.3.x, and in 0.4.0 it raises (see below).
 
   What remains from the audit:
 
@@ -263,12 +263,13 @@ What remains:
   It has been run once, by hand. A PAC result describes the files it was run
   on; the release checklist keeps it from silently coming to describe others.
 - **A tag left open across a page change.** Calling `add_page/1` or
-  `set_page/2` while a content tag or an `artifact/2` block is open writes a
-  marked-content sequence that begins on one page and ends on another, which a
-  content stream cannot hold. Since 0.3.4 it warns, naming the open tag; it
-  becomes an error in 0.4.0. A figure closed on another page than it opened on
-  gets no `/BBox`, as ISO 32000-1 requires one only for a figure that appears
-  in its entirety on a single page.
+  `set_page/2` while a content tag or an `artifact/2` block is open would write
+  a marked-content sequence that begins on one page and ends on another, which
+  a content stream cannot hold. It warned from 0.3.4. In 0.4.0 it raises
+  `ArgumentError`, naming what is open, because marked content cannot span
+  content streams. A figure cannot span pages, since `:figure` is a content
+  tag: changing page while it is open raises. A figure that draws nothing
+  raises `ArgumentError` when it closes, unless it is given `:bbox`.
 - **More of what a library can see.** Figure bounding boxes and the placement
   of inline elements at block level are now written automatically, so neither
   is left to the caller. Three rules are checked as violations: a `:figure`
