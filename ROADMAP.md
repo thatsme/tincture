@@ -4,20 +4,24 @@ What Tincture would need to be a defensible choice for enterprise document
 generation, and roughly in what order.
 
 Nothing here is assumed. Where something is missing it was checked against the
-source; where something is claimed done it was checked against a validator.
+source. Where a conformance item is claimed done, the document that exercises
+it passes a validator in CI; where a feature is claimed done, it has tests.
+Which constructs the validated documents do not exercise is listed in the
+[README](README.md#what-the-validated-documents-actually-exercise).
 Partial support is said to be partial, because "we have forms" and "we have the
 forms you need" are different claims.
 
 ## At a glance
 
-**Done, and checked by an independent tool**
+**Done, and checked by an independent tool** (except telemetry, which is
+covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.4: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.4: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.5: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.5: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
-| Telemetry | ([9](#9-operability)) |
+| Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
 
 **Next, roughly in order**
 
@@ -66,10 +70,10 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. 1,426 tests, 89.7% coverage as measured in CI, Credo `--strict`
-clean with 70 pre-existing findings in `lib/` exempted inline and `test/` and
-`scripts/` exempt from the structural checks, clean Dialyzer, CI on four Elixir
-versions.
+dependencies. At 0.3.5: 1,429 tests, 89.7% coverage as measured in CI, Credo
+`--strict` clean with pre-existing findings in `lib/` exempted inline one by
+one and `test/` and `scripts/` exempt from the structural checks, clean
+Dialyzer, CI on four Elixir versions.
 
 That covers invoices, statements, reports, letters and contracts — documents a
 person reads, keeps, and has to be able to rely on. What follows is what it does
@@ -165,7 +169,7 @@ publicly, and it should stay that way — that parser is the seed of
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
-profile) in CI on every commit; at 0.3.4: 106 of 106 rules, 1698 of 1698
+profile) in CI on every commit; at 0.3.5: 106 of 106 rules, 1698 of 1698
 checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
 warnings — for this document and the four other PDF/UA examples.
@@ -176,8 +180,11 @@ Reproduce it with:
 
 Compliance belongs to a *document*, not a library: Tincture gives you the tools
 to produce a conforming file, and whether yours conforms depends on how you tag
-it. What the library guarantees is that correct usage is not blocked by a defect
-in the output — which is what validation established, by finding three.
+it. What validation establishes is narrower: for the constructs the validated
+documents emit, correct usage is not blocked by a defect in the output. It
+found three such defects. It says nothing about constructs those documents do
+not emit, and form fields are a known case where correct usage is blocked
+(below).
 
 `Tincture.tag/4` produces the structure tree, marked content around the
 operators that draw each element, the parent tree linking them, `/MarkInfo`,
@@ -204,8 +211,9 @@ rules are asking for.
   carries `/StructParent`, and `/ParentTree` resolves both. Every tagged
   document before 0.3.0 was missing this.
 - ~~**Link alternative text.**~~ **Done.** `:contents` on `link/7` and
-  `text_link/6`, required in a tagged document, with no default — a description
-  generated from the link text passes a checker and helps nobody.
+  `text_link/6`, required in a tagged document, with no default. veraPDF's rule
+  (PDF/UA-1 7.18.5-2) checks only that a description is present, so one
+  generated from the link text would pass it and help nobody.
 
 What remains:
 
@@ -216,7 +224,8 @@ What remains:
   had never been done.
 - ~~**`:note` has no `/ID`, and fails clause 7.9.**~~ **Done** in 0.3.1. The
   identifier is generated and resolves through a new `/IDTree` on the structure
-  tree root, which no veraPDF profile checks — an `/ID` with no tree is
+  tree root. No rule in any of veraPDF 1.30.2's profiles mentions `/IDTree`, so
+  no validator run checks it; the test suite does. An `/ID` with no tree is
   unusable rather than merely unverified.
 - **Form fields cannot be made PDF/UA conformant.** Clause 7.18.4 requires a
   widget annotation to be nested in a `Form` structure element, and there is no
@@ -270,7 +279,7 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit; at 0.3.4: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
+every commit; at 0.3.5: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
 (146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
 4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2255 of 2255 checks), since 2a is the accessible archival level and
@@ -297,12 +306,14 @@ What remains:
   `Tincture.PDF.Archival`. It remains a partial check by construction —
   Tincture sees the document it built, not the file a validator sees — so
   passing it means "nothing Tincture knows of is wrong", not "this is PDF/A".
-- **PDF/A-1.** Part 1 is stricter than part 2 and additionally requires a
-  `/CIDSet` for every subset font, which Tincture deliberately does not emit:
-  subsetting can fall back to the whole font while the name keeps its subset
-  tag, so an accurate one cannot be produced, and an inaccurate one fails
-  validation where an absent one does not. See the 0.1.0 entry in
-  [CHANGELOG.md](CHANGELOG.md). It also forbids transparency.
+- **PDF/A-1.** Part 1 is stricter than part 2. It requires an accurate
+  `/CIDSet` for every subset CIDFont (veraPDF 1.30.2, PDFA-1B 6.3.5-3), which
+  Tincture deliberately does not emit: subsetting can fall back to the whole
+  font while the name keeps its subset tag, so an accurate one cannot be
+  produced. Part 2 makes `/CIDSet` optional and rejects only an inaccurate one
+  (PDFA-2B 6.2.11.4.2-2), which is why omitting it is right there. See the
+  0.1.0 entry in [CHANGELOG.md](CHANGELOG.md). Part 1 also forbids
+  transparency.
 - **CMYK output intents.** The built-in intent is sRGB. Print production
   targeting a CMYK condition needs its own profile, which means accepting one
   from the caller.
@@ -447,11 +458,12 @@ currently holds everything at once.
   document carrying the link, so a set of files that ship together can refer
   to each other. Named destinations are reserved and unimplemented; the page
   index is a promise about a file Tincture never reads, which is the
-  limitation to know. Browser-embedded viewers do not follow these links, and
-  neither does macOS Preview, the default PDF viewer on macOS: on macOS 26.6.2
-  it shows a permission alert and does not open the target. A set of documents
-  that relies on these links needs a desktop reader that follows them;
-  SumatraPDF is the one observed.
+  limitation to know. Viewer behaviour was observed by hand, not checked in
+  CI: at 0.3.2, browser-embedded viewers did not follow these links, and at
+  0.3.3 neither did macOS Preview, the default PDF viewer on macOS, which on
+  macOS 26.6.2 showed a permission alert and did not open the target. A set of
+  documents that relies on these links needs a desktop reader that follows
+  them; SumatraPDF is the one observed.
 - **Memory profile.** No measured figure for a large document. Worth having
   before the streaming export in [8](#8-file-size-and-streaming), which cannot
   be sized without knowing what a thousand-page run currently holds.

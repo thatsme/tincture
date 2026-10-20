@@ -105,15 +105,14 @@ are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.3.4: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.3.5: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
 
 Of the other examples, `compliant.exs`, `archival.exs` and `remote_links.exs`
-are tagged and validated below. The rest are not tagged and claim no
-conformance; they parse cleanly but fail the UA rules about structure, as they
-should.
+are tagged and validated below. The rest are not tagged, claim no
+conformance, and are not validated.
 
 ## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
 
@@ -131,7 +130,7 @@ Every heading also gets a bookmark, so the outline matches the structure.
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.3.4: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.3.5: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
 its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
 which are best practice rather than PDF/UA-1 requirements.
@@ -163,7 +162,7 @@ ICC profile carries no creation date — so an archived file can be checked
 against a rebuild.
 
 **Validated.** Passes veraPDF 1.30.2 in CI on every commit at four
-flavours; at 0.3.4:
+flavours; at 0.3.5:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -223,7 +222,7 @@ action whose path the reader resolves against the document carrying the link,
 so the pair can be moved, zipped or handed over as a set and still resolve.
 
 Both halves are tagged, each with a bookmark per heading, and both pass
-veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.4:
+veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.5:
 `Main-report.pdf` 106 of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
 3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
 errors, 0 warnings on both. A report that is accessible pointing at an
@@ -237,12 +236,13 @@ Two things to know before relying on this, both shown in the script:
   every link into it is silently off by one. Named destinations would survive
   that; they are reserved and unimplemented.
 - **Some desktop readers follow these links; browser-embedded viewers
-  generally do not**, refusing local-file navigation as policy. Measured while
-  building it: SumatraPDF follows them, Edge renders the link and does nothing
-  on click, Firefox's viewer does not act on them. macOS Preview, the default
-  PDF viewer on macOS, shows a permission alert on click and does not open the
-  target (observed on macOS 26.6.2). Open the pair in a desktop reader that
-  follows cross-file links; SumatraPDF is the one observed.
+  generally do not**, refusing local-file navigation as policy. Observed by
+  hand, not checked in CI: at 0.3.2, SumatraPDF followed them, Edge rendered
+  the link and did nothing on click, and Firefox's viewer did not act on them;
+  at 0.3.3, macOS Preview, the default PDF viewer on macOS, showed a permission
+  alert on click and did not open the target (macOS 26.6.2). Open the pair in
+  a desktop reader that follows cross-file links; SumatraPDF is the one
+  observed.
 
 ## [`telemetry.exs`](telemetry.exs) → [`output/telemetry.pdf`](output/telemetry.pdf)
 

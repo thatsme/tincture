@@ -217,11 +217,11 @@ defmodule Tincture do
 
   **Viewer support is not universal.** Some desktop readers follow these links;
   browser-embedded viewers generally do not, because they refuse local-file
-  navigation as a matter of policy. Verified during development: SumatraPDF
-  follows them, Microsoft Edge renders the link but does nothing on click, and
-  Firefox's viewer does not act on them. macOS Preview, the default PDF viewer
-  on macOS, shows a permission alert on click and does not open the target
-  (observed on macOS 26.6.2). A set of documents that relies on these links
+  navigation as a matter of policy. Observed by hand, not checked in CI: at
+  0.3.2, SumatraPDF followed them, Microsoft Edge rendered the link but did
+  nothing on click, and Firefox's viewer did not act on them; at 0.3.3, macOS
+  Preview, the default PDF viewer on macOS, showed a permission alert on click
+  and did not open the target (macOS 26.6.2). A set of documents that relies on these links
   needs a desktop reader that follows them; SumatraPDF is the one observed.
 
   Coordinates are in PDF user space, with the origin at the bottom-left of the
@@ -316,9 +316,10 @@ defmodule Tincture do
   cannot see, so the description matters more here rather than less.
 
   `:contents` additionally accepts `:text`, which reuses the drawn text as the
-  alternate description. It is opt-in and deliberately not the default: a
-  description that mechanically repeats the link text satisfies a validator
-  while telling a screen reader user nothing, and `"click here"` is precisely
+  alternate description. It is opt-in and deliberately not the default:
+  veraPDF's rule checks only that a description is present (PDF/UA-1
+  7.18.5-2), so one that mechanically repeats the link text passes it while
+  telling a screen reader user nothing, and `"click here"` is precisely
   the case where it does harm. Use it where the text already says where the
   link goes.
 
@@ -587,8 +588,9 @@ defmodule Tincture do
   Encrypt the document with AES-256.
 
   Uses the standard security handler at revision 6 (`/V 5 /R 6`), the
-  encryption defined by PDF 2.0. Readers from Acrobat X (2010) onward support
-  it, as do macOS Preview, Chrome, Firefox, PDFBox, Ghostscript and qpdf.
+  encryption defined by PDF 2.0. The test suite decrypts the output with an
+  independent implementation of the specification's reader-side algorithms;
+  no third-party reader is run against it in CI.
 
   ## What this protects
 
@@ -599,8 +601,9 @@ defmodule Tincture do
 
   An **owner password on its own is not.** The document is encrypted under the
   empty user password, so any reader can open it; the permissions below are
-  advisory, and `qpdf --decrypt` strips them without knowing the password.
-  This is how the PDF format works, not a limitation of this implementation.
+  advisory, enforced only by a reader that chooses to, and a tool that ignores
+  them can rewrite the file without them, no password needed. This is how the
+  PDF format works, not a limitation of this implementation.
 
       # Anyone can open this; the restriction is a request, not a control.
       Tincture.encrypt(pdf, owner_password: "master", permissions: [:print])
@@ -1492,8 +1495,8 @@ defmodule Tincture do
   Rules, borders, background shading, page furniture — content a sighted reader
   parses as visual structure and a screen reader should skip entirely. In a
   tagged document every operator must be either tagged or marked as an
-  artifact; anything that is neither is read out as stray noise and fails
-  conformance.
+  artifact; anything that is neither is read out as stray noise, and breaks
+  PDF/UA-1 (veraPDF rule 7.1-3).
 
       pdf
       |> Tincture.artifact(fn pdf ->
@@ -1659,9 +1662,10 @@ defmodule Tincture do
 
   ## Options
 
-    * `:enforce` — whether to refuse a document that declares a PDF/A level and
-      breaks it. Defaults to `true`, and only ever applies to a document that
-      called `set_pdf_a/2`; nothing is checked otherwise.
+    * `:enforce` — whether to refuse a document that breaks a conformance it
+      claims: a PDF/A level declared with `set_pdf_a/2`, or the PDF/UA
+      structure a tagged document claims. Defaults to `true`. A document that
+      declares no level and is not tagged is not checked.
 
   A conformance claim is written into the file's metadata, so exporting a
   document that declares PDF/A and violates it produces a file that lies about
@@ -1675,7 +1679,8 @@ defmodule Tincture do
       Tincture.export(pdf)                   # refuses a false claim
       Tincture.export(pdf, enforce: false)   # exports it, and says so
 
-  See `pdf_a_violations/1` to inspect without exporting.
+  See `pdf_a_violations/1` and `pdf_ua_violations/1` to inspect without
+  exporting.
   """
   @spec export(PDF.t(), keyword()) :: binary()
   def export(pdf, opts \\ [])

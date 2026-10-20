@@ -7,9 +7,9 @@ defmodule Tincture.PDFAEnforcementTest do
   produces a file that lies about itself — and nothing discovers that until
   someone tries to rely on it.
 
-  Every rule enforced here was confirmed against veraPDF rather than read off a
-  specification, and the cases that are *allowed* matter as much as the ones
-  refused: rejecting a document a validator accepts is its own kind of wrong.
+  Every refusal names the ISO 19005-2 clause it enforces, and the cases that are
+  *allowed* matter as much as the ones refused: rejecting a document a
+  validator accepts is its own kind of wrong.
   """
   use ExUnit.Case, async: true
 
@@ -101,8 +101,9 @@ defmodule Tincture.PDFAEnforcementTest do
     end
 
     test "checkboxes are allowed, carrying their own appearances", %{font: font} do
-      # Confirmed against veraPDF: this document is compliant. Refusing it
-      # would be as wrong as accepting a broken one.
+      # Refusing it would be as wrong as accepting a broken one. No validated
+      # example carries a checkbox, so this asserts Tincture's rule, not
+      # veraPDF's verdict.
       pdf = Tincture.checkbox(archival(font), 50, 600, 14, "agree")
 
       assert rules(pdf) == []
@@ -140,7 +141,45 @@ defmodule Tincture.PDFAEnforcementTest do
     end
   end
 
+  describe "every refusal" do
+    test "names the clause it breaks", %{font: font} do
+      pdf =
+        archival(font, :a2a)
+        |> Tincture.set_font("Helvetica", 12)
+        |> Tincture.text_at(50, 600, "x")
+        |> Tincture.encrypt(user_password: "secret")
+        |> Tincture.text_field(50, 500, 200, 20, "name")
+        |> Tincture.signature_field(50, 450, 200, 40, "sig")
+        |> Tincture.push_button(50, 400, 80, 24, "b", label: "B", action: :reset)
+
+      assert Enum.sort(rules(pdf)) ==
+               Enum.sort([
+                 :unembedded_font,
+                 :encrypted,
+                 :value_rendered_field,
+                 :signature_field,
+                 :push_button,
+                 :untagged
+               ])
+
+      error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
+
+      for clause <- ["6.2.11.4.1", "6.1.3", "6.4.1", "6.3.3", "6.8"] do
+        assert error.message =~ "ISO 19005-2 clause #{clause})"
+      end
+    end
+  end
+
   describe "conformance levels" do
+    test "level A requires tagging at part 3 too", %{font: font} do
+      pdf = archival(font, :a3a)
+
+      assert :untagged in rules(pdf)
+
+      error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
+      assert error.message =~ "3A requires a tagged document"
+    end
+
     test "level A requires tagging", %{font: font} do
       pdf = archival(font, :a2a)
 

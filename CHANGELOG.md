@@ -29,6 +29,9 @@ corrects them.
   `export/2` refuses a document that breaks a PDF/A rule Tincture can see,
   unless given `enforce: false`, as `export/2` and `Tincture.PDF.Archival`
   already said. The docs now list what is refused.
+- **`export/2`'s `:enforce` option no longer says it applies only to PDF/A.**
+  It also governs the PDF/UA checks on a tagged document, which `export/2`
+  has refused since 0.3.0 when they fail.
 - **`signature_field/7` no longer says Tincture does not apply signatures.**
   `sign/3` has applied them since 0.2.0. The docs now point to it, and say that
   a signature field shows nothing in a static render and is refused in a
@@ -36,12 +39,47 @@ corrects them.
 - **`add_page/1` and `set_page/2` document the 0.3.4 warning.** Changing page
   while a content tag or an `artifact/2` block is open warns, and raises from
   0.4.0. Their docs did not say so.
+- **Every other statement that something is verified now names its evidence,
+  or no longer claims to be verified.** Each was checked against a CI step, a
+  test, or veraPDF 1.30.2's profiles:
+  - Viewer behaviour for links between documents (SumatraPDF, Edge, Firefox,
+    macOS Preview) is described as observed by hand at 0.3.2 and 0.3.3, not as
+    verified.
+  - The encryption docs no longer list readers that support the output; no
+    reader is run against it. They say what is checked: the test suite
+    decrypts the output with an independent implementation of the
+    specification's algorithms. They no longer name `qpdf --decrypt`, which
+    nothing runs.
+  - Statements about what veraPDF checks cite the rule: PDF/UA-1 7.1-3 for
+    untagged content, 7.18.5-1 and 7.18.5-2 for links, and 7.3-1 for figures.
+  - The ROADMAP said an absent `/CIDSet` passes PDF/A-1 validation. It does
+    not: PDF/A-1 requires one (PDFA-1B 6.3.5-3). Only PDF/A-2 makes it
+    optional.
+  - The README's test and coverage figures name the release they were measured
+    at. The count of Credo findings exempted inline, given as 70, is no longer
+    quoted.
+  - `Tincture.PDF.Archival` no longer says every rule was confirmed against
+    veraPDF, or that checkboxes and radio buttons are fine for PDF/A. Tincture
+    does not refuse them, but no validated document carries one.
+  - `Tincture.PDF.Sign` said altering any byte breaks a signature. Bytes inside
+    the `/Contents` string are excluded from what is signed.
+  - The ROADMAP no longer lists telemetry as checked by an independent tool, or
+    says that everything done was checked against a validator.
+  - `RELEASE.md` no longer says `mix check` is every gate CI runs; the
+    absolute-path check is listed beside it. It gives the right reason
+    `signed.pdf` changes on every run: a new key, not the signing time.
 
 ### Infrastructure
 
 - **CI verifies the signed example with openssl,** using
   `scripts/extract_signature.exs`, which shares no code with the signer, and
   requires a tampered copy to fail.
+- **CI checks that regenerated examples match the committed ones.** veraPDF
+  validates the documents the job regenerates, and the README says it
+  validates the committed ones; that is now checked rather than assumed.
+  `signed.pdf` is excepted, since the example mints a new key on every run.
+- **Two tests added:** a PDF/A-3A document that is not tagged is refused, and
+  every PDF/A refusal names the clause it breaks.
 
 ## [0.3.4] — 2026-10-19
 

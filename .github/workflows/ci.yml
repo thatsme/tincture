@@ -164,6 +164,20 @@ jobs:
       - name: Run examples with an embedded font
         run: mix examples
 
+      # veraPDF below validates the documents this job just regenerated. The
+      # README says it validates the committed ones, which is true only while
+      # the two are the same bytes, so that is checked rather than assumed.
+      # signed.pdf is the exception: the example mints a new key on every run.
+      - name: The regenerated examples match the committed ones
+        run: |
+          changed=$(git status --porcelain -- examples/output ':!examples/output/signed.pdf')
+          if [ -n "$changed" ]; then
+            echo "regenerated examples differ from the committed ones:"
+            echo "$changed"
+            exit 1
+          fi
+          echo "PASS  every regenerated example matches its committed bytes, signed.pdf excepted"
+
       # The signature is checked by a verifier that is not Tincture's: the
       # extraction script shares no code with Tincture.PDF.Sign or
       # Tincture.PDF.CMS, and openssl does the cryptography. -noverify skips

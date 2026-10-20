@@ -2,9 +2,10 @@ defmodule Tincture.PDF.Encrypt do
   @moduledoc """
   Standard security handler, revision 6 — AES-256.
 
-  Implements `/V 5 /R 6`, the encryption defined by PDF 2.0 (ISO 32000-2) and
-  supported by Acrobat X and later, macOS Preview, pdf.js, PDFium, PDFBox,
-  Ghostscript, qpdf and Poppler.
+  Implements `/V 5 /R 6`, the encryption defined by PDF 2.0 (ISO 32000-2). The
+  test suite decrypts the output with an independent implementation of the
+  specification's reader-side algorithms; no third-party reader is run against
+  it in CI.
 
   Earlier handlers are deliberately not implemented. Revisions 2 and 3 use RC4,
   which is broken. Revision 4 pairs AES-128 with an MD5-based key derivation.
@@ -18,8 +19,9 @@ defmodule Tincture.PDF.Encrypt do
 
   An **owner password** on its own is not. The document is encrypted under the
   empty user password, so any reader can open it; the permission flags are
-  advisory and enforced only by a viewer that chooses to. `qpdf --decrypt`
-  removes them without knowing the password. That is a property of the PDF
+  advisory and enforced only by a viewer that chooses to; a tool that ignores
+  them can rewrite the file without them, no password needed. That is a
+  property of the PDF
   format, not of this implementation, and callers should not be led to believe
   otherwise.
 

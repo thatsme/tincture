@@ -18,13 +18,17 @@ matches `@version` in `mix.exs` before uploading.
 Everything here has to pass locally before the tag is pushed. CI runs the same
 gates, but a failure discovered after tagging costs a version number.
 
-1. **Every gate CI runs, in the same order.**
+1. **The Lint and Test gates CI runs, in the same order.**
 
        mix check
+       elixir scripts/check_absolute_paths.exs --self-test
+       elixir scripts/check_absolute_paths.exs
 
    That alias is `format --check-formatted`, `compile --force
    --warnings-as-errors`, `credo --strict`, `dialyzer`, and `coveralls`. The
-   coverage floor lives in `coveralls.json`.
+   coverage floor lives in `coveralls.json`. The absolute-path check is a
+   script rather than a Mix task, so the alias does not run it. The Examples
+   job's gates are steps 2 and 3.
 
 2. **The examples, both ways.**
 
@@ -39,8 +43,9 @@ gates, but a failure discovered after tagging costs a version number.
    `examples/output/*.pdf` are committed and are reproducible: the examples
    embed a font vendored under `examples/fonts/`, so regenerating on any
    machine gives identical bytes and a diff there means something actually
-   changed. The one exception is `signed.pdf`, which differs on every run
-   because a signature carries the signing time.
+   changed. CI checks this on every commit. The one exception is
+   `signed.pdf`, which differs on every run because the example mints a new
+   key each time.
 
 3. **The validators, against the documents that exercise the features.**
 
