@@ -446,6 +446,7 @@ defmodule Tincture.PDF do
   @spec set_signature(t(), String.t(), keyword()) :: t()
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def set_signature(%__MODULE__{} = pdf, field_name, opts) when is_binary(field_name) do
+    refuse_signing_encrypted!(pdf, "Tincture.PDF.set_signature/3")
     field = Enum.find(pdf.form_fields, &(&1.name == field_name and &1.type == :signature))
 
     unless field do
@@ -484,6 +485,33 @@ defmodule Tincture.PDF do
     }
 
     %__MODULE__{pdf | signature: signature}
+  end
+
+  # A signed document cannot be encrypted, in either order. The encryptor
+  # encrypts the signature's reserved /Contents before the signature is
+  # computed, so export could never find the space it reserved. Each call that
+  # would combine the two refuses at once, naming itself.
+
+  @doc false
+  @spec refuse_signing_encrypted!(t(), String.t()) :: :ok
+  def refuse_signing_encrypted!(%__MODULE__{encryption: nil}, _caller), do: :ok
+
+  def refuse_signing_encrypted!(%__MODULE__{}, caller) do
+    raise ArgumentError,
+          "#{caller} was called on a document that is encrypted. Tincture cannot sign " <>
+            "an encrypted document: sign it without encryption, or encrypt it without " <>
+            "a signature."
+  end
+
+  @doc false
+  @spec refuse_encrypting_signed!(t(), String.t()) :: :ok
+  def refuse_encrypting_signed!(%__MODULE__{signature: nil}, _caller), do: :ok
+
+  def refuse_encrypting_signed!(%__MODULE__{}, caller) do
+    raise ArgumentError,
+          "#{caller} was called on a document that is signed. Tincture cannot encrypt " <>
+            "a signed document: encrypt it without a signature, or sign it without " <>
+            "encryption."
   end
 
   defp normalize_digest(digest) when digest in [:sha256, :sha384, :sha512], do: digest

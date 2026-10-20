@@ -671,10 +671,27 @@ defmodule Tincture do
 
   Calling this twice replaces the earlier settings; the document is encrypted
   once, at export.
+
+  A signed document cannot be encrypted. Calling this on a document that
+  `sign/3` has been called on raises `ArgumentError`, and so does calling
+  `sign/3` on an encrypted document.
   """
   @spec encrypt(PDF.t(), keyword()) :: PDF.t()
-  def encrypt(%PDF{} = pdf, opts \\ []) when is_list(opts) do
+  def encrypt(%PDF{} = pdf, opts) when is_list(opts) do
+    PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/2")
     %PDF{pdf | encryption: Tincture.PDF.Encrypt.new(opts)}
+  end
+
+  @doc """
+  Encrypt the document with the default options: `encrypt(pdf, [])`.
+
+  See `encrypt/2`. As there, calling this on a signed document raises
+  `ArgumentError`.
+  """
+  @spec encrypt(PDF.t()) :: PDF.t()
+  def encrypt(%PDF{} = pdf) do
+    PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/1")
+    %PDF{pdf | encryption: Tincture.PDF.Encrypt.new([])}
   end
 
   @doc """
@@ -1629,9 +1646,14 @@ defmodule Tincture do
   Signing one document twice, or signing after changing it, needs incremental
   updates, which Tincture also does not yet produce — so one signature per
   document.
+
+  An encrypted document cannot be signed. Calling this on a document that
+  `encrypt/2` has been called on raises `ArgumentError`, and so does calling
+  `encrypt/2` on a signed document.
   """
   @spec sign(PDF.t(), String.t(), keyword()) :: PDF.t()
   def sign(%PDF{} = pdf, field_name, opts) when is_binary(field_name) and is_list(opts) do
+    PDF.refuse_signing_encrypted!(pdf, "Tincture.sign/3")
     PDF.set_signature(pdf, field_name, opts)
   end
 
