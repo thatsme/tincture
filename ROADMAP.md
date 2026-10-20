@@ -71,7 +71,7 @@ PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
 dependencies. At 0.3.7: 1,491 tests; coverage: CI fails below 80%, and
-measured 90.0% in CI at 0.3.7, a figure that varies by a tenth between identical runs;
+measured 90.0% in CI at 0.3.7;
 Credo `--strict` clean with pre-existing findings in `lib/` exempted inline one
 by one and `test/` and `scripts/` exempt from the structural checks, clean
 Dialyzer, CI on four Elixir versions.
