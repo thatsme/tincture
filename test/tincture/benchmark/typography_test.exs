@@ -45,6 +45,11 @@ defmodule Tincture.Benchmark.TypographyTest do
     end
   end
 
+  # Each us_per_iter is a mean over 50 iterations after a warm-up of 50. The
+  # ratio measured about 100: 73 to 119 with nothing else running, up to 197
+  # beside a parallel test run, and 106 in CI. The limit of 300 therefore fails
+  # when an optimal breaker becomes about three times slower relative to
+  # greedy: a real regression, not noise on a shared runner.
   @tag :benchmark
   test "optimal scenarios stay within bounded slowdown vs greedy baseline" do
     report = Typography.run(@measured)
@@ -58,7 +63,7 @@ defmodule Tincture.Benchmark.TypographyTest do
     for scenario <- [:optimal_quadratic, :optimal_box_glue, :optimal_box_glue_penalties] do
       optimal_us = report.scenarios[scenario].us_per_iter
       IO.puts("#{scenario} / greedy: #{Float.round(optimal_us / greedy_us, 1)}")
-      assert optimal_us / greedy_us < 150.0
+      assert optimal_us / greedy_us < 300.0
     end
   end
 
