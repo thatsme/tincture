@@ -51,8 +51,13 @@ defmodule Tincture.Benchmark.TypographyTest do
 
     greedy_us = report.scenarios.greedy.us_per_iter
 
+    # Printed so that the Benchmark job's log records the margin, not only
+    # whether the threshold held.
+    IO.puts("greedy: #{Float.round(greedy_us, 1)} us/iter")
+
     for scenario <- [:optimal_quadratic, :optimal_box_glue, :optimal_box_glue_penalties] do
       optimal_us = report.scenarios[scenario].us_per_iter
+      IO.puts("#{scenario} / greedy: #{Float.round(optimal_us / greedy_us, 1)}")
       assert optimal_us / greedy_us < 150.0
     end
   end
