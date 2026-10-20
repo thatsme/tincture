@@ -195,7 +195,8 @@ Shows:
 Extract and check it yourself, from the repository root:
 
     elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
-    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der       -content tmp/sig/content.bin -noverify -out /dev/null
+    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der \
+      -content tmp/sig/content.bin -noverify -out /dev/null
 
 `-noverify` skips chain trust, which a self-signed certificate cannot pass; the
 signature and the content digest are still checked. CI runs the same commands

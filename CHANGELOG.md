@@ -36,6 +36,8 @@ corrects them.
   `sign/3` has applied them since 0.2.0. The docs now point to it, and say that
   a signature field shows nothing in a static render and is refused in a
   document that declares PDF/A.
+- **Digital signatures are no longer listed under 0.1.0.** They first shipped
+  in 0.2.0; the 0.1.0 entry now says so.
 - **`add_page/1` and `set_page/2` document the 0.3.4 warning.** Changing page
   while a content tag or an `artifact/2` block is open warns, and raises from
   0.4.0. Their docs did not say so.
@@ -71,15 +73,8 @@ corrects them.
 
 ### Infrastructure
 
-- **CI verifies the signed example with openssl,** using
-  `scripts/extract_signature.exs`, which shares no code with the signer, and
-  requires a tampered copy to fail.
-- **CI checks that regenerated examples match the committed ones.** veraPDF
-  validates the documents the job regenerates, and the README says it
-  validates the committed ones; that is now checked rather than assumed.
-  `signed.pdf` is excepted, since the example mints a new key on every run.
-- **Two tests added:** a PDF/A-3A document that is not tagged is refused, and
-  every PDF/A refusal names the clause it breaks.
+- **CI verifies `signed.pdf` with `openssl cms -verify`, and fails if the
+  committed example documents differ from the ones it validates.**
 
 ## [0.3.4] — 2026-10-19
 
@@ -592,9 +587,9 @@ the public API under this name is new and may still move before 1.0.
 
   This is not a conformance check and does not claim to be — Tincture sees the
   document it built, not the file a validator sees.
-- **Digital signatures.** `Tincture.sign/3` produces a detached PKCS#7
-  signature covering the whole file, verified against OpenSSL rather than only
-  against itself. `Tincture.PDF.CMS` builds the CMS `SignedData` structure in
+- **Digital signatures** (first shipped in 0.2.0; listed here in error until
+  0.3.5). `Tincture.sign/3` produces a detached PKCS#7 signature covering the
+  whole file, verified against OpenSSL rather than only against itself. `Tincture.PDF.CMS` builds the CMS `SignedData` structure in
   DER, since OTP ships no encoder for it; `:crypto` and `:public_key` are OTP
   applications, so there are still no third-party dependencies.
 

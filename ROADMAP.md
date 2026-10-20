@@ -70,7 +70,7 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. At 0.3.5: 1,429 tests, 89.7% coverage as measured in CI, Credo
+dependencies. At 0.3.5: 1,430 tests, 89.7% coverage as measured in CI, Credo
 `--strict` clean with pre-existing findings in `lib/` exempted inline one by
 one and `test/` and `scripts/` exempt from the structural checks, clean
 Dialyzer, CI on four Elixir versions.
@@ -334,7 +334,8 @@ Two checks, neither sharing code with the signer:
 The CI check runs:
 
     elixir scripts/extract_signature.exs examples/output/signed.pdf tmp/sig
-    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der       -content tmp/sig/content.bin -noverify -out /dev/null
+    openssl cms -verify -binary -inform DER -in tmp/sig/signature.der \
+      -content tmp/sig/content.bin -noverify -out /dev/null
 
 OTP ships no CMS encoder, so `Tincture.PDF.CMS` builds the `SignedData`
 structure in DER directly — still no third-party dependencies, since `:crypto`

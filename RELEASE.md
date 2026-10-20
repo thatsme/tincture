@@ -91,7 +91,11 @@ gates, but a failure discovered after tagging costs a version number.
 
 5. **The docs build clean.**
 
-       mix docs
+       mix docs --output tmp/docs-check
+
+   The output goes to `tmp/` so `doc/` is never written: on a machine where
+   `doc/` holds a checkout of the generated documentation, a plain `mix docs`
+   rewrites it.
 
 6. **The package builds, and contains what it should.**
 
