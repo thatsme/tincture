@@ -4,6 +4,7 @@ defmodule Tincture.PDF do
   """
 
   alias Tincture.Font
+  alias Tincture.Font.EmbeddingPermission
   alias Tincture.Font.TTF
   alias Tincture.PDF.Accessibility
   alias Tincture.PDF.FigureBounds
@@ -1104,8 +1105,8 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp warn_embedding_permissions_if_needed(metadata, subset, false, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
-      %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
-        case fs_type_restrictions(fs_type, subset) do
+      %{os2_fs_type: fs_type} = metrics when is_integer(fs_type) and fs_type >= 0 ->
+        case fs_type_restrictions(fs_type, Map.get(metrics, :os2_version), subset) do
           [] ->
             :ok
 
@@ -1147,8 +1148,8 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp enforce_embedding_permissions!(metadata, subset, true, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
-      %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
-        case fs_type_restrictions(fs_type, subset) do
+      %{os2_fs_type: fs_type} = metrics when is_integer(fs_type) and fs_type >= 0 ->
+        case fs_type_restrictions(fs_type, Map.get(metrics, :os2_version), subset) do
           [] ->
             :ok
 
@@ -1182,9 +1183,15 @@ defmodule Tincture.PDF do
     end
   end
 
-  defp fs_type_restrictions(fs_type, subset) when is_integer(fs_type) and is_atom(subset) do
+  # Restricted License is the permission the sub-field grants, read by
+  # EmbeddingPermission, not bit 1 alone: a version 0-2 font combining bits 1
+  # and 3 is Editable.
+  defp fs_type_restrictions(fs_type, os2_version, subset)
+       when is_integer(fs_type) and is_atom(subset) do
+    restricted? = EmbeddingPermission.permission(fs_type, os2_version) == :restricted
+
     []
-    |> maybe_add_fs_type_restriction(Bitwise.band(fs_type, 0x0002) != 0, :restricted)
+    |> maybe_add_fs_type_restriction(restricted?, :restricted)
     |> maybe_add_fs_type_restriction(Bitwise.band(fs_type, 0x0200) != 0, :bitmap_only)
     |> maybe_add_fs_type_restriction(
       subset != :none and Bitwise.band(fs_type, 0x0100) != 0,
