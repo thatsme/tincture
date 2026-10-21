@@ -39,6 +39,10 @@ defmodule Tincture.PublicApiTest do
   # clauses added for refusal messages, which replaced the default argument
   # of encrypt/2 and export/2 so that each message names the arity called.
   #
+  # Since v0.3.6, form fields may use embedded fonts (stage 5a of 0.4.0), a
+  # widening: Tincture.PDF's form_field/0 gained optional(:full_font) => true,
+  # set on a text or choice field given full_font: true.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #

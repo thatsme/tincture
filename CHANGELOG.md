@@ -49,6 +49,13 @@ them.
   Inside the callback only drawing is allowed, and it starts from a fixed
   state. The XObject cannot open a tag, so it may be placed inside any number
   of structure elements.
+- **Form fields may use embedded fonts.** `text_field/7` and
+  `choice_field/7` accept a font registered with `register_ttf_font/4` or
+  `register_otf_font/4`. A field a viewer lets someone type into is refused
+  unless its font is embedded whole, with the new `full_font: true` option or
+  a font registered with `subset: :none`, and unless the font's licence (OS/2
+  `fsType`) allows editable embedding. A font used by both page text and a
+  field is embedded once. Other field types keep the standard 14.
 
 ### Changed
 
@@ -56,6 +63,16 @@ them.
   `encrypt/2` refuse to be combined, naming the combination, at the call
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
+
+### Fixed
+
+- **A font's OS/2 `fsType` is read as the OpenType specification defines
+  it.** Registering a font flagged it as Restricted License whenever bit 1 of
+  `fsType` was set. Restricted License applies only when that permission is
+  the only one set; a font with an OS/2 table of version 0 to 2 may combine
+  permissions, and the least restrictive applies. Such a font, for example
+  one with `fsType` 10 (Editable), no longer warns, and is no longer refused
+  under `enforce_embedding_permissions: true`.
 
 ## [0.3.7] — 2026-10-20
 

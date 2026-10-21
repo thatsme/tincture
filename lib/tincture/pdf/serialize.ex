@@ -65,7 +65,8 @@ defmodule Tincture.PDF.Serialize do
       FontEmbed.build_embedded_font_objects_for_streams(
         pdf,
         PDF.stream_keys(pdf),
-        embedded_fonts_start_id
+        embedded_fonts_start_id,
+        field_font_plan(pdf)
       )
 
     {image_object_refs, image_objects, form_xobjects_start_id} =
@@ -172,7 +173,7 @@ defmodule Tincture.PDF.Serialize do
       catalog_object_body(
         outlines_ref,
         form_field_refs,
-        pdf.form_fields,
+        {pdf.form_fields, embedded_font_refs},
         struct_tree_ref,
         metadata_ref,
         output_intent_ref,
@@ -290,10 +291,12 @@ defmodule Tincture.PDF.Serialize do
   defp page_object_id(index), do: 3 + index * 2
   defp content_object_id(index), do: page_object_id(index) + 1
 
+  # `fields` is the form fields with the embedded fonts' object ids, which /DR
+  # references.
   defp catalog_object_body(
          outlines_ref,
          form_field_refs,
-         form_fields,
+         fields,
          struct_tree_ref,
          metadata_ref,
          output_intent_ref,
@@ -349,7 +352,7 @@ defmodule Tincture.PDF.Serialize do
       end
 
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
-      "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language}" <>
+      "#{acro_form_entry(form_field_refs, fields)}#{structure}#{language}" <>
       "#{metadata}#{viewer_preferences}#{output_intent} >>"
   end
 
@@ -784,7 +787,7 @@ defmodule Tincture.PDF.Serialize do
 
   defp acro_form_entry([], _form_fields), do: ""
 
-  defp acro_form_entry(form_field_refs, form_fields) do
+  defp acro_form_entry(form_field_refs, {form_fields, embedded_font_refs}) do
     fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
     # Button-like fields (checkbox, radio, push button) carry real appearance
@@ -818,21 +821,67 @@ defmodule Tincture.PDF.Serialize do
 
     " /AcroForm << /Fields [#{fields}]#{need_appearances}#{signature_flags}" <>
       " /DA #{Object.format_text(default_appearance_string(form_fields))}" <>
-      " /DR << /Font << #{acro_form_font_resources(form_fields)} >> >> >>"
+      " /DR << /Font << #{acro_form_font_resources(form_fields, embedded_font_refs)} >> >> >>"
   end
 
   # The document-level default appearance, used for any field that does not
   # override it.
   defp default_appearance_string(_form_fields), do: "/Helv 0 Tf 0 g"
 
-  defp acro_form_font_resources(form_fields) do
+  # A standard font is written inline, with WinAnsi. An embedded font is a
+  # reference to the very Type0 dictionary page text uses: one dictionary, one
+  # program.
+  defp acro_form_font_resources(form_fields, embedded_font_refs) do
     form_fields
     |> Enum.map(& &1.font)
     |> Enum.uniq()
     |> Enum.map_join(" ", fn font_name ->
-      "#{acro_form_font_alias(font_name)} << /Type /Font /Subtype /Type1 " <>
-        "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+      case Map.fetch(embedded_font_refs, font_name) do
+        {:ok, object_id} ->
+          "#{acro_form_font_alias(font_name)} #{object_id} 0 R"
+
+        :error ->
+          "#{acro_form_font_alias(font_name)} << /Type /Font /Subtype /Type1 " <>
+            "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+      end
     end)
+  end
+
+  # What font embedding has to know about the fields: the text each embedded
+  # field font must draw, given as operation lists keyed {:field, name} that
+  # are never written; that every such font is Type0, since /DA names it; and,
+  # for editable fields, that the font is whole and covers its whole cmap.
+  # A standard-14 field contributes nothing, so a form without embedded field
+  # fonts is exported exactly as before.
+  defp field_font_plan(%PDF{} = pdf) do
+    fields =
+      Enum.filter(pdf.form_fields, fn field ->
+        field.type in [:text, :choice] and Map.has_key?(pdf.embedded_fonts, field.font)
+      end)
+
+    editable = Enum.filter(fields, &PDF.editable_field?/1)
+
+    whole =
+      for field <- fields,
+          Map.get(field, :full_font) == true or PDF.editable_field?(field),
+          into: MapSet.new(),
+          do: field.font
+
+    [
+      extra_streams: Enum.map(fields, &field_font_stream/1),
+      type0: MapSet.new(fields, & &1.font),
+      whole: whole,
+      whole_cmap: MapSet.new(editable, & &1.font)
+    ]
+  end
+
+  # A non-editable field's possible text is known now: its value and, for a
+  # choice field, every option. An editable field's font covers its whole
+  # cmap anyway.
+  defp field_font_stream(field) do
+    texts = [field.value | Map.get(field, :options, [])]
+    font = {field.font, field.size}
+    {{:field, field.name}, Enum.map(texts, &{:text_at, 0, 0, &1, font})}
   end
 
   # /Helv is the conventional alias for Helvetica in an AcroForm resource

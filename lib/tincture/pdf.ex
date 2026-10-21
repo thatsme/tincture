@@ -4,6 +4,7 @@ defmodule Tincture.PDF do
   """
 
   alias Tincture.Font
+  alias Tincture.Font.EmbeddingPermission
   alias Tincture.Font.TTF
   alias Tincture.PDF.Accessibility
   alias Tincture.PDF.FigureBounds
@@ -158,6 +159,9 @@ defmodule Tincture.PDF do
             optional(:widgets) => [radio_widget()],
             optional(:action) => button_action(),
             optional(:label) => String.t(),
+            # Set on a text or choice field given full_font: true: its font
+            # is embedded whole, for the whole document.
+            optional(:full_font) => true,
             # Internal: whether the field was created with no structure
             # element open. Read only by the 0.3.6 warnings; never written.
             optional(:created_outside_structure) => boolean()
@@ -1104,8 +1108,8 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp warn_embedding_permissions_if_needed(metadata, subset, false, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
-      %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
-        case fs_type_restrictions(fs_type, subset) do
+      %{os2_fs_type: fs_type} = metrics when is_integer(fs_type) and fs_type >= 0 ->
+        case fs_type_restrictions(fs_type, Map.get(metrics, :os2_version), subset) do
           [] ->
             :ok
 
@@ -1147,8 +1151,8 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp enforce_embedding_permissions!(metadata, subset, true, format_label, path) do
     case Map.get(metadata, :ttf_metrics) do
-      %{os2_fs_type: fs_type} when is_integer(fs_type) and fs_type >= 0 ->
-        case fs_type_restrictions(fs_type, subset) do
+      %{os2_fs_type: fs_type} = metrics when is_integer(fs_type) and fs_type >= 0 ->
+        case fs_type_restrictions(fs_type, Map.get(metrics, :os2_version), subset) do
           [] ->
             :ok
 
@@ -1182,9 +1186,15 @@ defmodule Tincture.PDF do
     end
   end
 
-  defp fs_type_restrictions(fs_type, subset) when is_integer(fs_type) and is_atom(subset) do
+  # Restricted License is the permission the sub-field grants, read by
+  # EmbeddingPermission, not bit 1 alone: a version 0-2 font combining bits 1
+  # and 3 is Editable.
+  defp fs_type_restrictions(fs_type, os2_version, subset)
+       when is_integer(fs_type) and is_atom(subset) do
+    restricted? = EmbeddingPermission.permission(fs_type, os2_version) == :restricted
+
     []
-    |> maybe_add_fs_type_restriction(Bitwise.band(fs_type, 0x0002) != 0, :restricted)
+    |> maybe_add_fs_type_restriction(restricted?, :restricted)
     |> maybe_add_fs_type_restriction(Bitwise.band(fs_type, 0x0200) != 0, :bitmap_only)
     |> maybe_add_fs_type_restriction(
       subset != :none and Bitwise.band(fs_type, 0x0100) != 0,
@@ -1484,7 +1494,7 @@ defmodule Tincture.PDF do
       rect: {min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)},
       value: normalize_field_value(type, Keyword.get(opts, :value)),
       flags: field_flags(type, opts),
-      font: normalize_field_font(Keyword.get(opts, :font, "Helvetica")),
+      font: normalize_field_font(pdf, type, name, Keyword.get(opts, :font, "Helvetica")),
       size: normalize_field_size(Keyword.get(opts, :size, 0)),
       border: normalize_annotation_border(Keyword.get(opts, :border, :none))
     }
@@ -1496,8 +1506,10 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:options, normalize_choice_options(type, Keyword.get(opts, :options)))
       |> maybe_put_field(:action, normalize_action(type, Keyword.get(opts, :action)))
       |> maybe_put_field(:label, normalize_label(type, Keyword.get(opts, :label)))
+      |> maybe_put_field(:full_font, normalize_full_font(type, Keyword.get(opts, :full_font)))
       |> Map.put(:created_outside_structure, pdf.structure_stack == [])
 
+    refuse_unusable_field_font!(pdf, field)
     warn_unencodable_field_text(field)
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
@@ -1603,7 +1615,7 @@ defmodule Tincture.PDF do
         rect: first_widget.rect,
         value: selected,
         flags: flags,
-        font: normalize_field_font(Keyword.get(opts, :font, "Helvetica")),
+        font: normalize_field_font(pdf, :radio, name, Keyword.get(opts, :font, "Helvetica")),
         size: normalize_field_size(Keyword.get(opts, :size, 0)),
         border: normalize_annotation_border(Keyword.get(opts, :border, :none)),
         widgets: widgets
@@ -1707,22 +1719,147 @@ defmodule Tincture.PDF do
   # "0.0 Tf" - both are legal, but the integer form is what every other
   # generator emits and what a human reading the PDF expects.
   # A field's value is rendered by the viewer from its /DA string, which
-  # resolves against the AcroForm resource dictionary - and that can only carry
-  # the standard 14 fonts. An embedded font named here would emit a font
-  # dictionary no viewer can resolve, so the value would silently not render.
-  defp normalize_field_font(font_name) when is_binary(font_name) do
-    if Font.standard_font?(font_name) do
-      font_name
-    else
-      raise ArgumentError,
-            "form fields can only use the standard 14 fonts, got: #{inspect(font_name)}. " <>
-              "A field's value is drawn by the viewer from the AcroForm resource dictionary, " <>
-              "which cannot reference an embedded font. Static text is unaffected."
+  # resolves against the AcroForm resource dictionary. A text or choice field
+  # may name a registered font: /DR then references its embedded Type0
+  # dictionary. Every other field keeps the standard 14 - a push button's
+  # caption is drawn with standard metrics into an inline Type1 dictionary,
+  # which cannot name an embedded font.
+  defp normalize_field_font(%__MODULE__{} = pdf, type, name, font_name)
+       when is_binary(font_name) do
+    cond do
+      Font.standard_font?(font_name) ->
+        font_name
+
+      not Map.has_key?(pdf.embedded_fonts, font_name) ->
+        raise ArgumentError,
+              "form field font #{inspect(font_name)} is neither one of the standard 14 fonts " <>
+                "nor a font registered with register_ttf_font/4 or register_otf_font/4."
+
+      type in [:text, :choice] ->
+        font_name
+
+      true ->
+        raise ArgumentError,
+              "#{Accessibility.field_kind(type)} #{inspect(name)} uses the embedded font " <>
+                "#{inspect(font_name)}, but only text and choice fields can use an embedded " <>
+                "font; other fields use one of the standard 14 fonts."
     end
   end
 
-  defp normalize_field_font(other),
+  defp normalize_field_font(_pdf, _type, _name, other),
     do: raise(ArgumentError, "form field font must be a string, got: #{inspect(other)}")
+
+  # Stored only when true, and only where it means something.
+  defp normalize_full_font(type, true) when type in [:text, :choice], do: true
+  defp normalize_full_font(_type, value) when value in [nil, false, true], do: nil
+
+  defp normalize_full_font(_type, other),
+    do: raise(ArgumentError, "full_font must be a boolean, got: #{inspect(other)}")
+
+  # A field a viewer lets someone type into draws characters the document did
+  # not contain, with the embedded font named by /DA. So that font must be
+  # embedded whole, and its licence must allow editable embedding.
+  defp refuse_unusable_field_font!(%__MODULE__{} = pdf, %{font: font} = field) do
+    case Map.fetch(pdf.embedded_fonts, font) do
+      {:ok, embedded_font} ->
+        if editable_field?(field) do
+          refuse_subset_field_font!(field, embedded_font)
+          refuse_field_font_permission!(field, embedded_font)
+        end
+
+        :ok
+
+      :error ->
+        :ok
+    end
+  end
+
+  @doc false
+  @spec editable_field?(form_field()) :: boolean()
+  def editable_field?(%{type: :text, flags: flags}),
+    do: Bitwise.band(flags, @field_flag_read_only) == 0
+
+  def editable_field?(%{type: :choice, flags: flags}),
+    do:
+      Bitwise.band(flags, @field_flag_edit) != 0 and
+        Bitwise.band(flags, @field_flag_read_only) == 0
+
+  def editable_field?(_field), do: false
+
+  defp refuse_subset_field_font!(field, embedded_font) do
+    unless Map.get(field, :full_font) == true or Map.get(embedded_font, :subset) == :none do
+      raise ArgumentError,
+            "#{Accessibility.field_kind(field.type)} #{inspect(field.name)} uses the embedded " <>
+              "font #{inspect(field.font)}, which is subset to the glyphs this document draws. " <>
+              "A viewer cannot render characters someone types into the field if they are " <>
+              "missing from the subset. Pass full_font: true, or register the font with " <>
+              "subset: :none, to embed the whole font; or make the field " <>
+              read_only_advice(field.type) <> "."
+    end
+  end
+
+  # Not configurable: enforce_embedding_permissions governs drawn text, where
+  # the document is read-only. A field invites the edits the licence covers.
+  defp refuse_field_font_permission!(field, embedded_font) do
+    metrics = Map.get(embedded_font, :ttf_metrics, %{})
+
+    case Map.get(metrics, :os2_fs_type) do
+      fs_type when is_integer(fs_type) ->
+        version = Map.get(metrics, :os2_version)
+        permission = EmbeddingPermission.permission(fs_type, version)
+
+        case field_font_refusal(fs_type, version, permission) do
+          nil ->
+            :ok
+
+          reason ->
+            raise ArgumentError,
+                  "#{Accessibility.field_kind(field.type)} #{inspect(field.name)} uses the " <>
+                    "embedded font #{inspect(field.font)}, whose OS/2 fsType (#{fs_type}) " <>
+                    reason <>
+                    ". Filling a form field formats new text with the font, which needs " <>
+                    "Editable or Installable embedding. Use a font licensed for editable " <>
+                    "embedding, or make the field " <> read_only_advice(field.type) <> "."
+        end
+
+      _no_os2_table ->
+        :ok
+    end
+  end
+
+  defp field_font_refusal(fs_type, version, permission) do
+    cond do
+      Bitwise.band(fs_type, 0x0200) != 0 ->
+        "allows bitmap embedding only, with no outlines to draw typed text"
+
+      permission == :editable or permission == :installable ->
+        nil
+
+      malformed_permission?(fs_type, version) ->
+        "sets more than one embedding permission, which OS/2 version 3 and later forbid; " <>
+          "it is read as #{permission_label(permission)}"
+
+      true ->
+        permission_refusal(permission)
+    end
+  end
+
+  # From OS/2 version 3 the permission bits are mutually exclusive.
+  defp malformed_permission?(fs_type, version) do
+    several? = Enum.count([0x0002, 0x0004, 0x0008], &(Bitwise.band(fs_type, &1) != 0)) > 1
+    several? and not (is_integer(version) and version <= 2)
+  end
+
+  defp permission_refusal(:restricted),
+    do: "is Restricted License: the font must not be embedded without the owner's permission"
+
+  defp permission_refusal(:preview_and_print), do: "allows Preview & Print embedding only"
+
+  defp permission_label(:restricted), do: "Restricted License"
+  defp permission_label(:preview_and_print), do: "Preview & Print"
+
+  defp read_only_advice(:choice), do: "read_only: true or not editable"
+  defp read_only_advice(_type), do: "read_only: true"
 
   defp normalize_field_size(value) when is_integer(value) and value >= 0, do: value
 
