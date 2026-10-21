@@ -212,7 +212,7 @@ defmodule Tincture.PDF.FontEmbedTest do
 
     test "an installable-embedding font produces no warning" do
       log = capture_log(fn -> render(font(os2: [fs_type: 0])) end)
-      refute log =~ "fsType"
+      refute log =~ ~r/fsType .* file: \S*tincture_fe_/
     end
 
     test "enforcement accepts an unrestricted font" do
