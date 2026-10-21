@@ -83,6 +83,44 @@ defmodule Tincture.SignEncryptTest do
     end
   end
 
+  describe "a document given both by setting its fields directly" do
+    @export_message " was given a document that is both signed and encrypted. Tincture " <>
+                      "cannot sign an encrypted document: sign it without encryption, or " <>
+                      "encrypt it without a signature."
+
+    # Neither refusing call is used: the encryption settings are copied into a
+    # signed document's struct.
+    defp signed_and_encrypted(pki) do
+      encrypted = with_field() |> Tincture.encrypt(user_password: "p")
+      signed = with_field() |> Tincture.sign("signature", signing_opts(pki))
+      %{signed | encryption: encrypted.encryption}
+    end
+
+    test "export/2 raises, naming export/2", %{pki: pki} do
+      pdf = signed_and_encrypted(pki)
+
+      assert_refused("Tincture.export/2" <> @export_message, fn ->
+        Tincture.export(pdf, [])
+      end)
+    end
+
+    test "export/1 raises, naming export/1", %{pki: pki} do
+      pdf = signed_and_encrypted(pki)
+
+      assert_refused("Tincture.export/1" <> @export_message, fn ->
+        Tincture.export(pdf)
+      end)
+    end
+
+    test "export/2 raises with enforce: false too", %{pki: pki} do
+      pdf = signed_and_encrypted(pki)
+
+      assert_refused("Tincture.export/2" <> @export_message, fn ->
+        Tincture.export(pdf, enforce: false)
+      end)
+    end
+  end
+
   describe "either one alone" do
     test "a signed document still exports", %{pki: pki} do
       binary =

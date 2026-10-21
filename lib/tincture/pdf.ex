@@ -442,6 +442,8 @@ defmodule Tincture.PDF do
 
   The signature itself cannot be computed here: it covers the finished file,
   so it is applied during `Tincture.export/2`.
+
+  Calling this on an encrypted document raises `ArgumentError`.
   """
   @spec set_signature(t(), String.t(), keyword()) :: t()
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize

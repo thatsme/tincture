@@ -1752,11 +1752,28 @@ defmodule Tincture do
   and for each form field created outside every `tag/4` scope. The document
   still exports, unchanged. 0.4.0 refuses both, following `:enforce` like the
   other PDF/UA checks. See `text_field/7`.
+
+  ## Signed and encrypted
+
+  A document cannot be both signed and encrypted. `sign/3` and `encrypt/2`
+  each refuse the combination when called; a document that carries both
+  anyway, because its fields were set directly, raises `ArgumentError` here.
   """
   @spec export(PDF.t(), keyword()) :: binary()
-  def export(pdf, opts \\ [])
-
   def export(%PDF{} = pdf, opts) when is_list(opts) do
+    export(pdf, opts, "Tincture.export/2")
+  end
+
+  @doc """
+  Export a PDF struct to a binary with the default options: `export(pdf, [])`.
+
+  See `export/2`.
+  """
+  @spec export(PDF.t()) :: binary()
+  def export(%PDF{} = pdf), do: export(pdf, [], "Tincture.export/1")
+
+  defp export(%PDF{} = pdf, opts, caller) do
+    refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
 
     # Warnings for what 0.4.0 refuses in a tagged form; they do not change
@@ -1768,6 +1785,19 @@ defmodule Tincture do
     |> check_accessibility(enforce?)
     |> Serialize.export()
   end
+
+  # sign/3 and encrypt/2 refuse the combination, but the struct's fields can
+  # still be set directly. Without this, export would fail inside the signer,
+  # unable to find the reserved space the encryptor had encrypted.
+  defp refuse_signed_and_encrypted!(%PDF{signature: signature, encryption: encryption}, caller)
+       when signature != nil and encryption != nil do
+    raise ArgumentError,
+          "#{caller} was given a document that is both signed and encrypted. Tincture " <>
+            "cannot sign an encrypted document: sign it without encryption, or encrypt " <>
+            "it without a signature."
+  end
+
+  defp refuse_signed_and_encrypted!(%PDF{}, _caller), do: :ok
 
   defp check_archival(%PDF{} = pdf, enforce?) do
     case {enforce?, Archival.violations(pdf)} do
