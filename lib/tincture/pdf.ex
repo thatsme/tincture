@@ -227,7 +227,34 @@ defmodule Tincture.PDF do
   @spec page_operations(t(), pos_integer()) :: [op()]
   def page_operations(%__MODULE__{} = pdf, page_number)
       when is_integer(page_number) and page_number > 0 do
+    stream_operations(pdf, {:page, page_number})
+  end
+
+  # A content stream is named by a key. Only pages exist so far, and their
+  # streams are held in `pages`; a stream of another kind will get its own
+  # field when it arrives.
+
+  @doc false
+  @spec stream_operations(t(), {:page, pos_integer()}) :: [op()]
+  def stream_operations(%__MODULE__{} = pdf, {:page, page_number})
+      when is_integer(page_number) and page_number > 0 do
     Map.get(pdf.pages, page_number, [])
+  end
+
+  @doc false
+  @spec current_stream(t()) :: {:page, pos_integer()}
+  def current_stream(%__MODULE__{} = pdf), do: {:page, pdf.current_page}
+
+  # The one place operations are written into the document. `operations`
+  # mirrors the current stream's, so it is kept in step here.
+  defp append_to_stream(%__MODULE__{} = pdf, {:page, page_number} = key, ops) do
+    updated_ops = stream_operations(pdf, key) ++ ops
+    pages = Map.put(pdf.pages, page_number, updated_ops)
+
+    operations =
+      if key == current_stream(pdf), do: updated_ops, else: pdf.operations
+
+    %__MODULE__{pdf | pages: pages, operations: operations}
   end
 
   @doc false
@@ -241,8 +268,8 @@ defmodule Tincture.PDF do
       |> List.last()
       |> Kernel.+(1)
 
-    pages = Map.put(pdf.pages, next_page, [])
-    %__MODULE__{pdf | pages: pages, current_page: next_page, operations: []}
+    # The page is new, so appending nothing creates its stream empty.
+    append_to_stream(%__MODULE__{pdf | current_page: next_page}, {:page, next_page}, [])
   end
 
   @doc false
@@ -266,7 +293,7 @@ defmodule Tincture.PDF do
   defp refuse_open_marked_content(%__MODULE__{} = pdf, function) do
     depth =
       pdf
-      |> page_operations(pdf.current_page)
+      |> stream_operations(current_stream(pdf))
       |> Enum.reduce(0, fn
         {:begin_marked_content, _tag, _mcid}, depth -> depth + 1
         {:begin_artifact}, depth -> depth + 1
@@ -299,10 +326,7 @@ defmodule Tincture.PDF do
   @doc false
   @spec append_current_op(t(), op()) :: t()
   def append_current_op(%__MODULE__{} = pdf, op) do
-    current_ops = page_operations(pdf, pdf.current_page)
-    updated_ops = current_ops ++ [op]
-    pages = Map.put(pdf.pages, pdf.current_page, updated_ops)
-    %__MODULE__{pdf | pages: pages, operations: updated_ops}
+    append_to_stream(pdf, current_stream(pdf), [op])
   end
 
   @doc """

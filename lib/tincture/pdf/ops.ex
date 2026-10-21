@@ -137,7 +137,7 @@ defmodule Tincture.PDF.Ops do
   # anything, and the usual cause is a shape that already painted itself
   # with its default :stroke. It is refused, with a message naming the fix.
   defp paint_open_path(%PDF{} = pdf, op, function, paint) do
-    if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
+    if path_open?(PDF.stream_operations(pdf, PDF.current_stream(pdf))) do
       PDF.append_current_op(pdf, op)
     else
       raise ArgumentError,
