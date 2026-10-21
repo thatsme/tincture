@@ -40,16 +40,39 @@ defmodule Tincture.PDF.FontEmbed do
   # Font discovery and subsetting run over every content stream to be
   # written, so a font is embedded once for the whole document, with every
   # glyph any stream draws.
+  #
+  # Form fields add to that, through `opts`:
+  #
+  #   * `:extra_streams` - `{key, operations}` lists that are not written but
+  #     whose text the fonts must draw, such as a field's value and options;
+  #   * `:type0` - fonts written as Type0 / Identity-H whatever their text,
+  #     because a field's /DA names them;
+  #   * `:whole` - fonts embedded whole, without subsetting;
+  #   * `:whole_cmap` - fonts whose /W, CIDToGIDMap and ToUnicode cover every
+  #     character of their cmap, because someone may type any of them.
   @doc false
-  def build_embedded_font_objects_for_streams(pdf, stream_keys, start_object_id) do
-    streams = Enum.map(stream_keys, &{&1, PDF.stream_operations(pdf, &1)})
+  def build_embedded_font_objects_for_streams(pdf, stream_keys, start_object_id, opts \\ []) do
+    whole_cmap = Keyword.get(opts, :whole_cmap, MapSet.new())
+
+    streams =
+      Enum.map(stream_keys, &{&1, PDF.stream_operations(pdf, &1)}) ++
+        Keyword.get(opts, :extra_streams, []) ++
+        whole_cmap_streams(pdf, whole_cmap)
+
+    pdf = embed_whole(pdf, Keyword.get(opts, :whole, MapSet.new()))
 
     used_char_codes_by_font = used_char_codes_by_font(streams)
     used_cids_by_font = used_cids_by_font(streams)
     scalar_codepoints_by_font = scalar_codepoints_by_font(streams)
     variation_sequences_by_font = variation_sequences_by_font(streams)
     to_unicode_mappings_by_font = to_unicode_mappings_by_font(streams)
-    unicode_text_by_font = unicode_text_by_font(streams)
+
+    unicode_text_by_font =
+      Enum.reduce(
+        Keyword.get(opts, :type0, MapSet.new()),
+        unicode_text_by_font(streams),
+        &Map.put(&2, &1, true)
+      )
 
     embedded_font_names =
       streams
@@ -111,6 +134,42 @@ defmodule Tincture.PDF.FontEmbed do
       )
 
     {refs, objects, text_modes, next_object_id}
+  end
+
+  # One text operation per character of the font's cmap, so every collector
+  # below counts it exactly as it counts drawn text. One per character, not
+  # one string: adjacent characters in a string would read as variation
+  # sequences.
+  defp whole_cmap_streams(pdf, font_names) do
+    for font_name <- Enum.sort(font_names),
+        %{ttf_metrics: %{cmap_by_code: cmap}} <- [Map.get(pdf.embedded_fonts, font_name)],
+        is_map(cmap) do
+      operations =
+        cmap
+        |> Map.keys()
+        |> Enum.filter(&scalar_value?/1)
+        |> Enum.sort()
+        |> Enum.map(&{:text_at, 0, 0, <<&1::utf8>>, {font_name, 0}})
+
+      {{:whole_cmap, font_name}, operations}
+    end
+  end
+
+  defp scalar_value?(code),
+    do: is_integer(code) and code >= 32 and code <= 0x10FFFF and code not in 0xD800..0xDFFF
+
+  # Embedded whole for this export only: the registered subset mode in the
+  # document is left as the caller set it.
+  defp embed_whole(%PDF{} = pdf, font_names) do
+    fonts =
+      Enum.reduce(font_names, pdf.embedded_fonts, fn font_name, fonts ->
+        case Map.fetch(fonts, font_name) do
+          {:ok, font} -> Map.put(fonts, font_name, %{font | subset: :none})
+          :error -> fonts
+        end
+      end)
+
+    %{pdf | embedded_fonts: fonts}
   end
 
   @doc false

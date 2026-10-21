@@ -415,7 +415,14 @@ defmodule Tincture do
     * `:size` — font size. Defaults to `0`, meaning auto-size: the viewer
       fits the text to the box, which is usually what you want for a field
       whose height you chose.
-    * `:font` — defaults to `"Helvetica"`.
+    * `:font` — one of the standard 14, or a font registered with
+      `register_ttf_font/4` or `register_otf_font/4`. Defaults to
+      `"Helvetica"`. See "Embedded fonts" below.
+    * `:full_font` — embed the field's font whole, for the whole document,
+      so that a viewer can draw any character someone types. Required for an
+      editable field with an embedded font, unless the font was registered
+      with `subset: :none`. Ignored with a standard-14 font, which is never
+      embedded.
     * `:multiline` — allow line breaks. Defaults to `false`.
     * `:password` — mask the value as it is typed. Defaults to `false`.
     * `:max_length` — maximum characters accepted.
@@ -436,15 +443,31 @@ defmodule Tincture do
 
   ## Characters a standard font can draw
 
-  A field's font is one of the standard 14, written with WinAnsi encoding, so
-  its value can only use characters WinAnsi encodes: Latin text such as
-  `"Größe"`, but not `"Ελλάδα"`. A value with any other character warns when
-  the field is created, and 0.4.0 raises, because 0.4.0 draws the value into
-  the field's appearance itself. A line break is fine in the value of a
-  `multiline: true` field, whose appearance breaks the line there; in a
-  single-line value it warns like any other character. The alternative, a
-  TrueType or OpenType font registered for the field,
-  arrives in 0.4.0. Until then, keep the value WinAnsi-encodable.
+  A standard-14 font is written with WinAnsi encoding, so a field using one
+  can only hold characters WinAnsi encodes: Latin text such as `"Größe"`, but
+  not `"Ελλάδα"`. A value with any other character warns when the field is
+  created, and 0.4.0 raises, because 0.4.0 draws the value into the field's
+  appearance itself. A line break is fine in the value of a `multiline: true`
+  field, whose appearance breaks the line there; in a single-line value it
+  warns like any other character. For other characters, use an embedded font.
+
+  ## Embedded fonts
+
+  A field may use a registered TrueType or OpenType font. It is written as a
+  `Type0` font with Identity-H encoding, so any character the font has can be
+  drawn. If page text uses the same font, both share one font dictionary and
+  one font program.
+
+  A field is editable unless it is `read_only: true`. Someone may type any
+  character into an editable field, so its font must be embedded whole:
+  pass `full_font: true`, or register the font with `subset: :none`.
+  Otherwise the call raises `ArgumentError`. A whole font covers every
+  character in it, and page text in the same font then carries the whole
+  program too. The font's licence must also allow editable embedding: an
+  editable field raises `ArgumentError` if the font's OS/2 `fsType` allows
+  only Restricted License, Preview & Print or bitmap embedding, whatever
+  `enforce_embedding_permissions:` was given at registration. A read-only
+  field's font is subset to its value, like page text.
 
   ## Examples
 
@@ -608,12 +631,19 @@ defmodule Tincture do
     * `:editable` — allow a value outside the list. Defaults to `false`.
     * `:sort` — present the options sorted. Defaults to `false`.
     * `:read_only`, `:required`, `:no_export`, `:tooltip`, `:border`,
-      `:page`, `:font`, `:size` — as for `text_field/7`.
+      `:page`, `:font`, `:full_font`, `:size` — as for `text_field/7`.
 
   In a tagged document, a choice field needs a `:tooltip` and must be created
-  inside a `tag/4` scope, as for `text_field/7`. Its `:value` and every one of
-  its `:options` may only use characters WinAnsi encodes, as a text field's
-  value (`text_field/7`), and a line break in any of them warns.
+  inside a `tag/4` scope, as for `text_field/7`. With a standard-14 font, its
+  `:value` and every one of its `:options` may only use characters WinAnsi
+  encodes, as a text field's value (`text_field/7`), and a line break in any
+  of them warns.
+
+  A choice field may use an embedded font, as a text field may. It is
+  editable when given `editable: true` and not `read_only: true`, and then its
+  font must be embedded whole and licensed for editable embedding, as
+  `text_field/7` describes. Otherwise its font is subset to its value and
+  every one of its `:options`.
 
   ## Examples
 
