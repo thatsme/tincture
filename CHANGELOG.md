@@ -30,6 +30,13 @@ Every one of the first four has warned since 0.3.4, so code that runs
 without these warnings is unaffected by them, and the fifth follows from
 them.
 
+### Changed
+
+- **Signing an encrypted document raises a clear error.** `sign/3` and
+  `encrypt/2` refuse to be combined, naming the combination, at the call
+  that creates it. Before, `export/2` failed with an internal message. The
+  combination never produced a file in any release.
+
 ## [0.3.7] — 2026-10-20
 
 **Encrypted documents stored some strings wrongly.** In a document encrypted

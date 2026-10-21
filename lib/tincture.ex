@@ -671,10 +671,27 @@ defmodule Tincture do
 
   Calling this twice replaces the earlier settings; the document is encrypted
   once, at export.
+
+  A signed document cannot be encrypted. Calling this on a document that
+  `sign/3` has been called on raises `ArgumentError`, and so does calling
+  `sign/3` on an encrypted document.
   """
   @spec encrypt(PDF.t(), keyword()) :: PDF.t()
-  def encrypt(%PDF{} = pdf, opts \\ []) when is_list(opts) do
+  def encrypt(%PDF{} = pdf, opts) when is_list(opts) do
+    PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/2")
     %PDF{pdf | encryption: Tincture.PDF.Encrypt.new(opts)}
+  end
+
+  @doc """
+  Encrypt the document with the default options: `encrypt(pdf, [])`.
+
+  See `encrypt/2`. As there, calling this on a signed document raises
+  `ArgumentError`.
+  """
+  @spec encrypt(PDF.t()) :: PDF.t()
+  def encrypt(%PDF{} = pdf) do
+    PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/1")
+    %PDF{pdf | encryption: Tincture.PDF.Encrypt.new([])}
   end
 
   @doc """
@@ -1629,9 +1646,14 @@ defmodule Tincture do
   Signing one document twice, or signing after changing it, needs incremental
   updates, which Tincture also does not yet produce — so one signature per
   document.
+
+  An encrypted document cannot be signed. Calling this on a document that
+  `encrypt/2` has been called on raises `ArgumentError`, and so does calling
+  `encrypt/2` on a signed document.
   """
   @spec sign(PDF.t(), String.t(), keyword()) :: PDF.t()
   def sign(%PDF{} = pdf, field_name, opts) when is_binary(field_name) and is_list(opts) do
+    PDF.refuse_signing_encrypted!(pdf, "Tincture.sign/3")
     PDF.set_signature(pdf, field_name, opts)
   end
 
@@ -1730,11 +1752,28 @@ defmodule Tincture do
   and for each form field created outside every `tag/4` scope. The document
   still exports, unchanged. 0.4.0 refuses both, following `:enforce` like the
   other PDF/UA checks. See `text_field/7`.
+
+  ## Signed and encrypted
+
+  A document cannot be both signed and encrypted. `sign/3` and `encrypt/2`
+  each refuse the combination when called; a document that carries both
+  anyway, because its fields were set directly, raises `ArgumentError` here.
   """
   @spec export(PDF.t(), keyword()) :: binary()
-  def export(pdf, opts \\ [])
-
   def export(%PDF{} = pdf, opts) when is_list(opts) do
+    export(pdf, opts, "Tincture.export/2")
+  end
+
+  @doc """
+  Export a PDF struct to a binary with the default options: `export(pdf, [])`.
+
+  See `export/2`.
+  """
+  @spec export(PDF.t()) :: binary()
+  def export(%PDF{} = pdf), do: export(pdf, [], "Tincture.export/1")
+
+  defp export(%PDF{} = pdf, opts, caller) do
+    refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
 
     # Warnings for what 0.4.0 refuses in a tagged form; they do not change
@@ -1746,6 +1785,19 @@ defmodule Tincture do
     |> check_accessibility(enforce?)
     |> Serialize.export()
   end
+
+  # sign/3 and encrypt/2 refuse the combination, but the struct's fields can
+  # still be set directly. Without this, export would fail inside the signer,
+  # unable to find the reserved space the encryptor had encrypted.
+  defp refuse_signed_and_encrypted!(%PDF{signature: signature, encryption: encryption}, caller)
+       when signature != nil and encryption != nil do
+    raise ArgumentError,
+          "#{caller} was given a document that is both signed and encrypted. Tincture " <>
+            "cannot sign an encrypted document: sign it without encryption, or encrypt " <>
+            "it without a signature."
+  end
+
+  defp refuse_signed_and_encrypted!(%PDF{}, _caller), do: :ok
 
   defp check_archival(%PDF{} = pdf, enforce?) do
     case {enforce?, Archival.violations(pdf)} do
