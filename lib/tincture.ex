@@ -120,11 +120,13 @@ defmodule Tincture do
   """
   @spec page_size(PDF.t(), page_size()) :: PDF.t()
   def page_size(%PDF{} = pdf, size) when size in [:a4, :letter, :legal] do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.page_size/2")
     %PDF{pdf | page_size: size}
   end
 
   def page_size(%PDF{} = pdf, {width, height})
       when is_number(width) and is_number(height) and width > 0 and height > 0 do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.page_size/2")
     %PDF{pdf | page_size: {width, height}}
   end
 
@@ -277,6 +279,7 @@ defmodule Tincture do
   @spec link(PDF.t(), number(), number(), number(), number(), PDF.link_target()) ::
           PDF.t()
   def link(%PDF{} = pdf, x, y, width, height, target) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.link/6")
     link(pdf, x, y, width, height, target, [])
   end
 
@@ -298,6 +301,7 @@ defmodule Tincture do
   def link(%PDF{} = pdf, x, y, width, height, target, opts)
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_list(opts) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.link/7")
     PDF.add_link(pdf, {x, y, x + width, y + height}, target, opts)
   end
 
@@ -344,6 +348,7 @@ defmodule Tincture do
   @spec text_link(PDF.t(), number(), number(), String.t(), PDF.link_target()) ::
           PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/5")
     text_link(pdf, x, y, text, target, [])
   end
 
@@ -364,6 +369,7 @@ defmodule Tincture do
   # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/6")
     # `contents: :text` reuses the drawn text as the alternate description.
     # Opt-in rather than the default: an alternate description that mechanically
     # repeats the link text passes a validator and tells a screen reader user
@@ -678,6 +684,7 @@ defmodule Tincture do
   """
   @spec encrypt(PDF.t(), keyword()) :: PDF.t()
   def encrypt(%PDF{} = pdf, opts) when is_list(opts) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.encrypt/2")
     PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/2")
     %PDF{pdf | encryption: Tincture.PDF.Encrypt.new(opts)}
   end
@@ -690,6 +697,7 @@ defmodule Tincture do
   """
   @spec encrypt(PDF.t()) :: PDF.t()
   def encrypt(%PDF{} = pdf) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.encrypt/1")
     PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/1")
     %PDF{pdf | encryption: Tincture.PDF.Encrypt.new([])}
   end
@@ -1584,6 +1592,125 @@ defmodule Tincture do
   end
 
   @doc """
+  Define a form XObject: content drawn once and placed any number of times.
+
+  `fun` receives the document and draws the XObject's content with the usual
+  functions. Nothing is drawn on the page; place the XObject with
+  `place_form_xobject/5`. It is written once, as one object, however many
+  times it is placed, and on however many pages.
+
+      pdf
+      |> Tincture.form_xobject(:stamp, 200, 40, fn pdf ->
+        pdf
+        |> Tincture.set_font("Helvetica", 10)
+        |> Tincture.text_at(4, 14, "APPROVED")
+        |> Tincture.rectangle(0.5, 0.5, 199, 39, :stroke)
+      end)
+      |> Tincture.place_form_xobject(:stamp, 72, 600)
+      |> Tincture.place_form_xobject(:stamp, 72, 300, scale: 0.5)
+
+  ## Name and size
+
+  The name is an atom or a non-empty string; `:stamp` and `"stamp"` are the
+  same name. Defining a name twice raises `ArgumentError`. The XObject's
+  coordinate space is `width` by `height`, with its origin at the bottom left,
+  as on a page, and nothing outside it is drawn.
+
+  ## Inside the callback
+
+  Drawing starts afresh: the XObject's content does not depend on anything
+  drawn or set on the page before the call, and the font starts as Helvetica
+  12, whatever font the page had set. When the callback returns, the page's
+  font is restored, and drawing continues on the page exactly as if the call
+  had not been made.
+
+  Only drawing is allowed inside the callback: shapes and paths, colours and
+  other graphics state, text, images, `set_font/3`, and registering fonts.
+  Everything else raises `ArgumentError`, because a form XObject is a content
+  stream with no page, structure or annotations of its own: adding or
+  changing pages, `tag/4` and `artifact/2`, links, form fields, signing,
+  bookmarks, document settings such as `set_metadata/2` or `encrypt/2`,
+  `export/2` and `save/3`, and defining or placing another form XObject. In a
+  tagged document that includes `Tincture.Layout.Box` and
+  `Tincture.Layout.Table`, which tag what they draw.
+
+  The callback must leave every `save_state/1` restored and no path open;
+  otherwise it raises `ArgumentError`.
+
+  ## What a placement inherits
+
+  A form XObject is drawn with whatever graphics state is in effect where it
+  is placed, except for what it sets itself. Its position and scale come from
+  the placement, and the page's clipping applies to it. An XObject that sets
+  no colour draws in the colour current where it is placed, and one that sets
+  no line width strokes with the line width current there. Nothing it sets
+  carries over to the page after it.
+
+  ## In a tagged document
+
+  A placement is content like any other drawing. For PDF/UA it belongs inside
+  a content tag or an `artifact/2` block, as an image does; Tincture does not
+  check this, and a validator does. Since the callback cannot open a tag, an
+  XObject carries no structure of its own and may be placed inside any number
+  of structure elements.
+  """
+  @spec form_xobject(PDF.t(), atom() | String.t(), number(), number(), (PDF.t() -> PDF.t())) ::
+          PDF.t()
+  def form_xobject(%PDF{} = pdf, name, width, height, fun)
+      when is_number(width) and width > 0 and is_number(height) and height > 0 and
+             is_function(fun, 1) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.form_xobject/5")
+    {begun, caller_font} = PDF.begin_form_xobject(pdf, name, width, height)
+
+    case fun.(begun) do
+      %PDF{} = drawn ->
+        PDF.end_form_xobject(drawn, caller_font)
+
+      other ->
+        raise ArgumentError,
+              "the function passed to form_xobject/5 must return a %Tincture.PDF{}, " <>
+                "got: #{inspect(other)}"
+    end
+  end
+
+  @doc """
+  Place a form XObject on the current page, with its origin at X/Y and at its
+  own size.
+
+  See `place_form_xobject/5`.
+  """
+  @spec place_form_xobject(PDF.t(), atom() | String.t(), number(), number()) :: PDF.t()
+  def place_form_xobject(%PDF{} = pdf, name, x, y) when is_number(x) and is_number(y) do
+    PDF.place_form_xobject(pdf, name, x, y, [], "Tincture.place_form_xobject/4")
+  end
+
+  @doc """
+  Place a form XObject defined with `form_xobject/5` on the current page, with
+  its origin at X/Y.
+
+  ## Options
+
+    * `:scale` — a positive number scaling both directions. Defaults to 1.
+    * `:width` — the width to draw it at. Alone, it scales both directions
+      alike, keeping the XObject's proportions.
+    * `:height` — the height to draw it at. Alone, it scales both directions
+      alike.
+
+  Given `:width` and `:height` together, the XObject is stretched to both, as
+  an image is. `:scale` cannot be combined with either.
+
+  The name must already be defined. A placement cannot be made while a path
+  is being built: paint the path first. Inside a `tag/4` scope, the placement
+  belongs to that structure element.
+  """
+  @spec place_form_xobject(PDF.t(), atom() | String.t(), number(), number(), keyword()) ::
+          PDF.t()
+  def place_form_xobject(%PDF{} = pdf, name, x, y, opts)
+      when is_number(x) and is_number(y) and is_list(opts) do
+    PDF.place_form_xobject(pdf, name, x, y, opts, "Tincture.place_form_xobject/5")
+  end
+
+  @doc """
   Set the document's natural language, as a BCP 47 tag such as `"en-GB"`.
 
   Without it a screen reader has to guess which language to pronounce the text
@@ -1653,6 +1780,7 @@ defmodule Tincture do
   """
   @spec sign(PDF.t(), String.t(), keyword()) :: PDF.t()
   def sign(%PDF{} = pdf, field_name, opts) when is_binary(field_name) and is_list(opts) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.sign/3")
     PDF.refuse_signing_encrypted!(pdf, "Tincture.sign/3")
     PDF.set_signature(pdf, field_name, opts)
   end
@@ -1773,6 +1901,7 @@ defmodule Tincture do
   def export(%PDF{} = pdf), do: export(pdf, [], "Tincture.export/1")
 
   defp export(%PDF{} = pdf, opts, caller) do
+    PDF.refuse_in_form_xobject!(pdf, caller)
     refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
 
@@ -1880,6 +2009,8 @@ defmodule Tincture do
   """
   @spec save(PDF.t(), Path.t(), keyword()) :: :ok | {:error, term()}
   def save(%PDF{} = pdf, path, opts \\ []) when is_binary(path) and is_list(opts) do
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.save/3")
+
     with :ok <- File.mkdir_p(Path.dirname(path)) do
       File.write(path, export(pdf, opts))
     end

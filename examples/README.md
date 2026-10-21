@@ -261,3 +261,17 @@ document         5.67ms  106.5kB
 Shows the three spans — document, page and font — and how to read them. See
 `Tincture.Telemetry`. `:telemetry` is an optional dependency; without it the
 event calls compile away and the script says so.
+
+## [`stamp.exs`](stamp.exs) → [`output/stamp.pdf`](output/stamp.pdf)
+
+A purchase order with an approval stamp, drawn once with `form_xobject/5` and
+placed four times with `place_form_xobject/5`: at full size, at half scale,
+fitted to a width, and again on the second page. The file holds the stamp as
+one object; each placement is a few bytes of positioning that refer to it.
+
+The stamp sets its own colour, line width and transparency inside its
+definition. A form XObject draws with whatever graphics state is in effect
+where it is placed, except what it sets itself, so a stamp that set no colour
+would take the colour of the page around it.
+
+It makes no conformance claim: the document is untagged.

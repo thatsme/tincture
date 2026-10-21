@@ -28,6 +28,17 @@ defmodule Tincture.PublicApiTest do
   # :no_content | :spans_pages. Neither value can occur once W2 and W3 raise
   # (stage 1 of 0.4.0).
   #
+  # Since v0.3.6, form XObjects (stage 4 of 0.4.0), both widenings:
+  # Tincture.PDF's t/0 gained current_stream and form_xobjects, the drawing
+  # target inside a form_xobject/5 callback and the defined XObjects; op/0
+  # gained form_xobject_op(), a placement. The new types form_xobject/0,
+  # form_xobject_op/0 and xobject_name/0, and the specs of form_xobject/5 and
+  # place_form_xobject/4,5, are recorded with them.
+  #
+  # Since v0.3.6, the specs of encrypt/1 and export/1, new entries: explicit
+  # clauses added for refusal messages, which replaced the default argument
+  # of encrypt/2 and export/2 so that each message names the arity called.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #
@@ -55,6 +66,7 @@ defmodule Tincture.PublicApiTest do
     {Tincture, :export, 2},
     {Tincture, :fill, 1},
     {Tincture, :fill_even_odd, 1},
+    {Tincture, :form_xobject, 5},
     {Tincture, :image_jpeg, 6},
     {Tincture, :image_png, 6},
     {Tincture, :line, 5},
@@ -69,6 +81,8 @@ defmodule Tincture.PublicApiTest do
     {Tincture, :page_size, 2},
     {Tincture, :pdf_a_violations, 1},
     {Tincture, :pdf_ua_violations, 1},
+    {Tincture, :place_form_xobject, 4},
+    {Tincture, :place_form_xobject, 5},
     {Tincture, :push_button, 6},
     {Tincture, :push_button, 7},
     {Tincture, :radial_gradient, 6},

@@ -68,8 +68,22 @@ defmodule Tincture.PDF.Serialize do
         embedded_fonts_start_id
       )
 
-    {image_object_refs, image_objects, outlines_start_id} =
+    {image_object_refs, image_objects, form_xobjects_start_id} =
       build_image_objects(pdf.images, images_start_id)
+
+    stream_refs = %{
+      embedded_font_refs: embedded_font_refs,
+      embedded_font_text_modes: embedded_font_text_modes,
+      image_object_refs: image_object_refs,
+      form_xobject_refs: %{}
+    }
+
+    # Form XObjects follow the images, which their resources may name. With
+    # none, every later object keeps its number.
+    {form_xobject_refs, form_xobject_objects, outlines_start_id} =
+      build_form_xobject_objects(pdf, stream_refs, form_xobjects_start_id)
+
+    stream_refs = %{stream_refs | form_xobject_refs: form_xobject_refs}
 
     {outlines_ref, outline_objects} =
       build_outline_objects(pdf.bookmarks, page_object_refs, outlines_start_id)
@@ -118,12 +132,6 @@ defmodule Tincture.PDF.Serialize do
       |> Enum.map_join(" ", fn {_page_number, idx} ->
         "#{page_object_id(idx)} 0 R"
       end)
-
-    stream_refs = %{
-      embedded_font_refs: embedded_font_refs,
-      embedded_font_text_modes: embedded_font_text_modes,
-      image_object_refs: image_object_refs
-    }
 
     page_objects =
       page_numbers
@@ -174,6 +182,7 @@ defmodule Tincture.PDF.Serialize do
       | page_objects ++
           embedded_font_objects ++
           image_objects ++
+          form_xobject_objects ++
           outline_objects ++
           signature_objects ++
           form_field_objects ++
@@ -199,35 +208,23 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  # One content stream, named by its key: the resource dictionary entry for
-  # whatever holds it, and the stream object's body. Its resources are
-  # collected from its own operations. Only page streams exist so far.
+  # One page's content stream: the resource dictionary entry for the page,
+  # and the stream object's body. Its resources are collected from its own
+  # operations.
   defp stream_object(%PDF{} = pdf, {:page, page_number} = key, refs) do
     operations = PDF.stream_operations(pdf, key)
-    {font_aliases, font_resources} = font_resources(operations, refs.embedded_font_refs)
-    xobject_resources = xobject_resources(operations, refs.image_object_refs)
-    {gs_aliases, gs_resources} = ext_gstate_resources(operations)
-    {shading_aliases, shading_entries} = shading_resources(operations)
+    {aliases, entries} = stream_resources(operations, refs)
 
     page_metadata = %{page_number: page_number, operation_count: length(operations)}
 
     {content_stream, content_length} =
       Telemetry.span([:tincture, :page], page_metadata, fn ->
-        stream =
-          content_stream(
-            operations,
-            font_aliases,
-            refs.embedded_font_text_modes,
-            gs_aliases,
-            shading_aliases
-          )
-
+        stream = content_stream(operations, aliases, refs)
         length = IO.iodata_length(stream)
         {{stream, length}, %{byte_size: length}}
       end)
 
-    resources =
-      resource_dictionary(font_resources, xobject_resources, gs_resources, shading_entries)
+    resources = resource_dictionary(entries)
 
     # The EOL before `endstream` is a delimiter rather than stream data, so
     # a stream whose own last byte is a newline needs one of each - or
@@ -239,6 +236,49 @@ defmodule Tincture.PDF.Serialize do
     ]
 
     {resources, content_body}
+  end
+
+  # The resources a stream's operations need, collected by the same functions
+  # for a page and for a form XObject: the aliases its operators use, and the
+  # resource dictionary entries that define them.
+  defp stream_resources(operations, refs) do
+    {font_aliases, font_resources} = font_resources(operations, refs.embedded_font_refs)
+
+    xobject_resources =
+      xobject_resources(operations, refs.image_object_refs, refs.form_xobject_refs)
+
+    {gs_aliases, gs_resources} = ext_gstate_resources(operations)
+    {shading_aliases, shading_entries} = shading_resources(operations)
+
+    aliases = %{fonts: font_aliases, states: gs_aliases, shadings: shading_aliases}
+    {aliases, {font_resources, xobject_resources, gs_resources, shading_entries}}
+  end
+
+  # Every defined form XObject is written, placed or not, as every registered
+  # image is: in definition order, one object each. A placement names it as
+  # `/FmN`, N being its definition order, the way `/ImN` carries the image id.
+  defp build_form_xobject_objects(%PDF{} = pdf, refs, start_object_id) do
+    names = PDF.form_xobject_names(pdf)
+
+    xobject_refs =
+      names
+      |> Enum.with_index(start_object_id)
+      |> Map.new(fn {name, object_id} ->
+        {name, {Map.fetch!(pdf.form_xobjects, name).id, object_id}}
+      end)
+
+    objects = Enum.map(names, &form_xobject_object(pdf, &1, refs))
+    {xobject_refs, objects, start_object_id + length(names)}
+  end
+
+  # Written by `form_xobject/4`, the writer the button appearances use, with
+  # its content and resources produced from operations as a page's are. No
+  # telemetry span is emitted for it.
+  defp form_xobject_object(%PDF{} = pdf, name, refs) do
+    xobject = Map.fetch!(pdf.form_xobjects, name)
+    {aliases, entries} = stream_resources(xobject.operations, refs)
+    content = content_stream(xobject.operations, aliases, refs)
+    form_xobject(xobject.width, xobject.height, content, resource_entries(entries))
   end
 
   defp build_signature_objects(%PDF{signature: nil}, _start_id), do: {nil, []}
@@ -996,17 +1036,42 @@ defmodule Tincture.PDF.Serialize do
 
   @doc false
   @spec xobject_resources([PDF.op()], %{optional(pos_integer()) => map()}) :: String.t()
-  def xobject_resources(operations, image_object_ids) do
-    operations
-    |> Enum.flat_map(fn
-      {:image, _x, _y, _width, _height, image_id} -> [image_id]
-      _ -> []
-    end)
-    |> Enum.uniq()
-    |> Enum.map_join(" ", fn image_id ->
-      object_id = image_object_ids |> Map.fetch!(image_id) |> Map.fetch!(:main)
-      "/Im#{image_id} #{object_id} 0 R"
-    end)
+  def xobject_resources(operations, image_object_ids),
+    do: xobject_resources(operations, image_object_ids, %{})
+
+  # Images first, then form XObjects, each in first-use order.
+  @doc false
+  @spec xobject_resources(
+          [PDF.op()],
+          %{optional(pos_integer()) => map()},
+          %{optional(PDF.xobject_name()) => {pos_integer(), pos_integer()}}
+        ) :: String.t()
+  def xobject_resources(operations, image_object_ids, form_xobject_refs) do
+    images =
+      operations
+      |> Enum.flat_map(fn
+        {:image, _x, _y, _width, _height, image_id} -> [image_id]
+        _ -> []
+      end)
+      |> Enum.uniq()
+      |> Enum.map(fn image_id ->
+        object_id = image_object_ids |> Map.fetch!(image_id) |> Map.fetch!(:main)
+        "/Im#{image_id} #{object_id} 0 R"
+      end)
+
+    forms =
+      operations
+      |> Enum.flat_map(fn
+        {:form_xobject, name, _x, _y, _scale_x, _scale_y} -> [name]
+        _ -> []
+      end)
+      |> Enum.uniq()
+      |> Enum.map(fn name ->
+        {number, object_id} = Map.fetch!(form_xobject_refs, name)
+        "/Fm#{number} #{object_id} 0 R"
+      end)
+
+    Enum.join(images ++ forms, " ")
   end
 
   # Annotation dictionaries are emitted directly inside the page's /Annots
@@ -1537,18 +1602,23 @@ defmodule Tincture.PDF.Serialize do
   defp new_window_entry(%{new_window: false}), do: " /NewWindow false"
   defp new_window_entry(_annotation), do: ""
 
-  defp resource_dictionary(font_resources, xobject_resources, gs_resources, shading_resources) do
-    parts =
-      []
-      |> maybe_add_resource("/Font << #{font_resources} >>", font_resources)
-      |> maybe_add_resource("/XObject << #{xobject_resources} >>", xobject_resources)
-      |> maybe_add_resource("/ExtGState << #{gs_resources} >>", gs_resources)
-      |> maybe_add_resource("/Shading << #{shading_resources} >>", shading_resources)
-
-    case parts do
-      [] -> ""
-      _ -> " /Resources << #{Enum.join(parts, " ")} >>"
+  # A page writes `/Resources` only when it has some; a form XObject always
+  # writes it, from the same entries.
+  defp resource_dictionary(entries) do
+    case resource_entries(entries) do
+      "" -> ""
+      inner -> " /Resources <<#{inner} >>"
     end
+  end
+
+  # The entries of a resource dictionary, each preceded by a space.
+  defp resource_entries({font_resources, xobject_resources, gs_resources, shading_resources}) do
+    []
+    |> maybe_add_resource("/Font << #{font_resources} >>", font_resources)
+    |> maybe_add_resource("/XObject << #{xobject_resources} >>", xobject_resources)
+    |> maybe_add_resource("/ExtGState << #{gs_resources} >>", gs_resources)
+    |> maybe_add_resource("/Shading << #{shading_resources} >>", shading_resources)
+    |> Enum.map_join(&(" " <> &1))
   end
 
   # Graphics states and shadings are written directly into the page's resource
@@ -1731,13 +1801,10 @@ defmodule Tincture.PDF.Serialize do
   defp image_color_space_name(:device_rgb), do: "/DeviceRGB"
   defp image_color_space_name(:device_cmyk), do: "/DeviceCMYK"
 
-  defp content_stream(
-         operations,
-         font_aliases,
-         embedded_font_text_modes,
-         gs_aliases,
-         shading_aliases
-       ) do
+  defp content_stream(operations, aliases, refs) do
+    %{fonts: font_aliases, states: gs_aliases, shadings: shading_aliases} = aliases
+    embedded_font_text_modes = refs.embedded_font_text_modes
+
     Enum.map_join(operations, "", fn
       {:begin_marked_content, tag, mcid} ->
         "/#{tag} <</MCID #{mcid}>> BDC\n"
@@ -1838,6 +1905,14 @@ defmodule Tincture.PDF.Serialize do
       {:shading, x, y, width, height, shading} ->
         "q\n#{Object.num(x)} #{Object.num(y)} #{Object.num(width)} #{Object.num(height)} re\n" <>
           "W\nn\n/#{Map.fetch!(shading_aliases, shading)} sh\nQ\n"
+
+      # The placement is the CTM; the XObject has no /Matrix. Do saves and
+      # restores the graphics state itself, and the q/Q here scopes the cm.
+      {:form_xobject, name, x, y, scale_x, scale_y} ->
+        {number, _object_id} = Map.fetch!(refs.form_xobject_refs, name)
+
+        "q\n#{Object.num(scale_x)} 0 0 #{Object.num(scale_y)} #{Object.num(x)} #{Object.num(y)} cm\n" <>
+          "/Fm#{number} Do\nQ\n"
     end)
   end
 

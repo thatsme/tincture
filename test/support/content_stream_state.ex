@@ -20,7 +20,9 @@ defmodule Tincture.Test.ContentStreamState do
   Marked content is balanced per stream: a sequence begun with `BDC` or `BMC`
   ends with `EMC` in the same stream (§14.6). An `EMC` with nothing open, or a
   stream that ends with a sequence open, is a violation - the shape a tag left
-  open across a page break produces.
+  open across a page break produces. `q` and `Q` are balanced per stream the
+  same way (§8.4.2), counting only those accepted in their state: a `Q` with
+  nothing saved, or a stream ending with a state saved, is a violation.
 
   Operators outside Figure 9 - the `BX`/`EX` compatibility section, the Type 3
   glyph operators `d0`/`d1`, or a misspelling - are reported as violations
@@ -105,7 +107,7 @@ defmodule Tincture.Test.ContentStreamState do
       base: Keyword.get(opts, :base_offset, 0)
     }
 
-    walk(data, 0, 0, {:page, 0}, [], [], context)
+    walk(data, 0, 0, {:page, {0, 0}}, [], [], context)
   end
 
   @doc """
@@ -119,9 +121,12 @@ defmodule Tincture.Test.ContentStreamState do
 
   ## The state machine
 
-  # `marked` counts the marked-content sequences open in this stream. A
-  # sequence has to end in the stream it began in (ISO 32000-1 §14.6), so an
-  # EMC with none open, or a stream ending with one open, is a violation too.
+  # `marked` counts, as `{sequences, saved}`, the marked-content sequences and
+  # the saved graphics states open in this stream. A sequence has to end in
+  # the stream it began in (ISO 32000-1 §14.6), and q and Q "shall be balanced
+  # within a given content stream" (§8.4.2). So an EMC with none open, a Q
+  # with nothing saved, or a stream ending with either open, is a violation
+  # too.
   defp walk(data, pos, depth, {state, marked}, recent, violations, context) do
     case PDFObjects.next_token(data, pos) do
       :eof ->
@@ -144,27 +149,45 @@ defmodule Tincture.Test.ContentStreamState do
             walk(data, next, depth, {state, marked}, push(recent, "BI"), violations, context)
 
           operator ->
-            {state, violations} = step(state, operator, start, recent, violations, context)
+            {next_state, next_violations} =
+              step(state, operator, start, recent, violations, context)
+
+            # An operator refused in its state is skipped by a reader, so a q
+            # or Q there saves or restores nothing and is not counted.
+            counted? = next_violations == violations or operator not in ["q", "Q"]
+            {state, violations} = {next_state, next_violations}
 
             {marked, violations} =
-              balance(operator, marked, {state, start, recent, context}, violations)
+              if counted?,
+                do: balance(operator, marked, {state, start, recent, context}, violations),
+                else: {marked, violations}
 
             walk(data, next, depth, {state, marked}, push(recent, operator), violations, context)
         end
     end
   end
 
-  defp balance(operator, marked, _at, violations) when operator in ["BDC", "BMC"],
-    do: {marked + 1, violations}
+  defp balance(operator, {marked, saved}, _at, violations) when operator in ["BDC", "BMC"],
+    do: {{marked + 1, saved}, violations}
 
-  defp balance("EMC", 0, {state, start, recent, context}, violations),
+  defp balance("EMC", {0, saved}, {state, start, recent, context}, violations),
     do:
-      {0, [violation(context, start, "EMC (no marked content open)", state, recent) | violations]}
+      {{0, saved},
+       [violation(context, start, "EMC (no marked content open)", state, recent) | violations]}
 
-  defp balance("EMC", marked, _at, violations), do: {marked - 1, violations}
+  defp balance("EMC", {marked, saved}, _at, violations), do: {{marked - 1, saved}, violations}
+
+  defp balance("q", {marked, saved}, _at, violations), do: {{marked, saved + 1}, violations}
+
+  defp balance("Q", {marked, 0}, {state, start, recent, context}, violations),
+    do:
+      {{marked, 0},
+       [violation(context, start, "Q (no graphics state saved)", state, recent) | violations]}
+
+  defp balance("Q", {marked, saved}, _at, violations), do: {{marked, saved - 1}, violations}
   defp balance(_operator, marked, _at, violations), do: {marked, violations}
 
-  defp end_of_stream(state, marked, offset, recent, context) do
+  defp end_of_stream(state, {marked, saved}, offset, recent, context) do
     unclosed_object =
       if state == :page,
         do: [],
@@ -183,7 +206,20 @@ defmodule Tincture.Test.ContentStreamState do
           )
         ]
 
-    unclosed_object ++ unclosed_marked
+    unclosed_saved =
+      if saved == 0,
+        do: [],
+        else: [
+          violation(
+            context,
+            offset,
+            "<end of stream, #{saved} graphics state(s) saved and not restored>",
+            state,
+            recent
+          )
+        ]
+
+    unclosed_object ++ unclosed_marked ++ unclosed_saved
   end
 
   # Operands are skipped; only a keyword at nesting depth 0 is an operator.
