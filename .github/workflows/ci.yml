@@ -330,6 +330,12 @@ jobs:
           path: verapdf-reports/
           if-no-files-found: error
 
+      # The README, ROADMAP and examples/README quote rule and check counts.
+      # Each one, listed in scripts/doc_claims.tsv, must match this run's
+      # reports, so a count that changes fails here until the docs say so.
+      - name: Check the counts the docs quote
+        run: elixir scripts/check_doc_claims.exs verapdf-reports
+
       # PDF/A forbids unembedded fonts, so archival.exs cannot conform on this
       # path and exports with `enforce: false` instead. That it still runs is
       # the point: a missing font must not crash an example.
