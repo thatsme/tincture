@@ -241,6 +241,11 @@ defmodule Tincture.PDF do
     Map.get(pdf.pages, page_number, [])
   end
 
+  # The keys of the streams to be written, in the order they are written.
+  @doc false
+  @spec stream_keys(t()) :: [{:page, pos_integer()}]
+  def stream_keys(%__MODULE__{} = pdf), do: Enum.map(page_numbers(pdf), &{:page, &1})
+
   @doc false
   @spec current_stream(t()) :: {:page, pos_integer()}
   def current_stream(%__MODULE__{} = pdf), do: {:page, pdf.current_page}

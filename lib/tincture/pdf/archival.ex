@@ -78,9 +78,9 @@ defmodule Tincture.PDF.Archival do
   defp unembedded_fonts(%PDF{} = pdf) do
     used =
       pdf
-      |> PDF.page_numbers()
-      |> Enum.flat_map(fn page_number ->
-        pdf |> PDF.page_operations(page_number) |> FontEmbed.font_names_from_operations()
+      |> PDF.stream_keys()
+      |> Enum.flat_map(fn key ->
+        pdf |> PDF.stream_operations(key) |> FontEmbed.font_names_from_operations()
       end)
       |> Enum.uniq()
 

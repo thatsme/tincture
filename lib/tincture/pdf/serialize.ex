@@ -62,7 +62,11 @@ defmodule Tincture.PDF.Serialize do
       |> Map.new(fn {page_number, idx} -> {page_number, page_object_id(idx)} end)
 
     {embedded_font_refs, embedded_font_objects, embedded_font_text_modes, images_start_id} =
-      FontEmbed.build_embedded_font_objects(pdf, page_numbers, embedded_fonts_start_id)
+      FontEmbed.build_embedded_font_objects_for_streams(
+        pdf,
+        PDF.stream_keys(pdf),
+        embedded_fonts_start_id
+      )
 
     {image_object_refs, image_objects, outlines_start_id} =
       build_image_objects(pdf.images, images_start_id)
