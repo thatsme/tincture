@@ -412,9 +412,14 @@ laying out and clipping the value at export time.
 Also missing: JavaScript actions for client-side validation, and per-field
 appearance customisation (`/MK` border and background colours).
 
-Field values can only use the standard 14 fonts, because `/DA` resolves against
-the AcroForm resource dictionary. Referencing an embedded font there is
-possible in principle and is not implemented.
+Text and choice fields may use a TrueType or OpenType font registered with
+`register_ttf_font/4` or `register_otf_font/4`. It is written as a `Type0` font
+with Identity-H encoding, and page text in the same font shares one font
+dictionary and one font program. A field someone can type into needs the whole
+font embedded, with `full_font: true` or a font registered with
+`subset: :none`, and a font whose licence (OS/2 `fsType`) allows editable
+embedding. Push buttons, checkboxes, radio buttons and signature fields use
+the standard 14 fonts.
 
 ## 7. Complex scripts
 

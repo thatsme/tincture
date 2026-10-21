@@ -73,9 +73,11 @@ Shows:
   viewers — invisible when printed, thumbnailed or rasterised server-side.
 - **Actions**: submit, reset and open-URL.
 - Static text in embedded fonts alongside field values in standard ones. A
-  field's value is drawn by the viewer from the AcroForm resource dictionary,
-  which cannot reference an embedded font, so form fields are restricted to the
-  standard 14 and say so if you try otherwise.
+  text or choice field may also use a registered TrueType or OpenType font; a
+  field someone can type into then needs the whole font embedded, with
+  `full_font: true` or a font registered with `subset: :none`, and a font
+  whose licence allows editable embedding. The other field types use the
+  standard 14.
 
 ## [`accessible.exs`](accessible.exs) → [`output/accessible.pdf`](output/accessible.pdf)
 
