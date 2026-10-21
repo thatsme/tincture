@@ -75,7 +75,7 @@ defmodule Tincture.OpenPathTest do
       end)
 
     assert warning == ""
-    assert content(pdf) == "10 20 30 40 re\nn\nf\n"
+    assert content(pdf) == "10 20 30 40 re\nf\n"
   end
 
   test "a line or circle drawn with paint: :none leaves the path open too" do
@@ -89,8 +89,8 @@ defmodule Tincture.OpenPathTest do
       end)
 
     assert warning == ""
-    assert content(pdf) =~ ~r/10 10 l\nn\nS\n/
-    assert content(pdf) =~ ~r/ c\nn\nf\n\z/
+    assert content(pdf) =~ ~r/10 10 l\nS\n/
+    assert content(pdf) =~ ~r/ c\nf\n\z/
   end
 
   test "text and colour between path and paint do not close it" do

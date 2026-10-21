@@ -234,6 +234,7 @@ defmodule Tincture.PDF do
   @spec add_page(t()) :: t()
   def add_page(%__MODULE__{} = pdf) do
     warn_open_marked_content(pdf, "add_page/1")
+    Tincture.PDF.Ops.warn_unpainted_path(pdf, "Tincture.add_page/1")
 
     next_page =
       pdf
@@ -251,7 +252,11 @@ defmodule Tincture.PDF do
       when is_integer(page_number) and page_number > 0 do
     case Map.fetch(pdf.pages, page_number) do
       {:ok, ops} ->
-        if page_number != pdf.current_page, do: warn_open_marked_content(pdf, "set_page/2")
+        if page_number != pdf.current_page do
+          warn_open_marked_content(pdf, "set_page/2")
+          Tincture.PDF.Ops.warn_unpainted_path(pdf, "Tincture.set_page/2")
+        end
+
         %__MODULE__{pdf | current_page: page_number, operations: ops}
 
       :error ->

@@ -156,7 +156,8 @@ defmodule Tincture.PDF.Ops do
   # The path is open after move_to, line_to, bezier, or a shape drawn with
   # paint: :none, and closed by any painting or clipping operator - including
   # the one a shape writes for itself. Everything else leaves it as it was.
-  defp path_open?(ops) do
+  @spec path_open?([PDF.op()]) :: boolean()
+  def path_open?(ops) do
     {open?} =
       ops
       |> Enum.reverse()
@@ -171,6 +172,44 @@ defmodule Tincture.PDF.Ops do
       end)
 
     open?
+  end
+
+  # A path object may hold only path construction until it is painted (ISO
+  # 32000-1, Figure 9). Text, an image, a gradient, a q or Q, or marked
+  # content written while a path is open lands inside it. Colour and line
+  # settings do not: they are written before the path (PathState). 0.4.0
+  # raises; until then the call warns, and is written as before.
+  @doc false
+  @spec warn_open_path(PDF.t(), String.t(), String.t()) :: :ok
+  def warn_open_path(%PDF{} = pdf, caller, what) do
+    if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
+      IO.warn(
+        "#{caller} was called while a path is open, so #{what} would be written inside " <>
+          "the path, where PDF does not allow it. A path holds only path construction " <>
+          "until stroke/1, fill/1 or clip/1 paints it, or a shape's own paint argument " <>
+          "does: paint the path first, or draw this before starting it. This will raise " <>
+          "in 0.4.0."
+      )
+    end
+
+    :ok
+  end
+
+  # A page left, or a document exported, with a path nothing painted: the
+  # content stream would end inside the path object, so it is ended with `n`
+  # (PathState), and the call warns. 0.4.0 raises.
+  @doc false
+  @spec warn_unpainted_path(PDF.t(), String.t()) :: :ok
+  def warn_unpainted_path(%PDF{} = pdf, caller) do
+    if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
+      IO.warn(
+        "#{caller} was called while a path is open on page #{pdf.current_page} that nothing " <>
+          "has painted. A path draws nothing until stroke/1, fill/1 or clip/1 paints it, so " <>
+          "it is ended unpainted. Paint it, or remove it. This will raise in 0.4.0."
+      )
+    end
+
+    :ok
   end
 
   @spec set_line_width(PDF.t(), number()) :: PDF.t()
