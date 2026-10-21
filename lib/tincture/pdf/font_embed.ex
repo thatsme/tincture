@@ -28,22 +28,32 @@ defmodule Tincture.PDF.FontEmbed do
 
   @sfnt_checksum_magic 0xB1B0AFBA
 
+  # Released with page numbers as its second argument, and still callable by
+  # anyone who relied on that, so it keeps them: the pages are translated
+  # into the stream keys they name.
   @doc false
   def build_embedded_font_objects(pdf, page_numbers, start_object_id) do
-    used_char_codes_by_font = used_char_codes_by_font(pdf, page_numbers)
-    used_cids_by_font = used_cids_by_font(pdf, page_numbers)
-    scalar_codepoints_by_font = scalar_codepoints_by_font(pdf, page_numbers)
-    variation_sequences_by_font = variation_sequences_by_font(pdf, page_numbers)
-    to_unicode_mappings_by_font = to_unicode_mappings_by_font(pdf, page_numbers)
-    unicode_text_by_font = unicode_text_by_font(pdf, page_numbers)
+    stream_keys = Enum.map(page_numbers, &{:page, &1})
+    build_embedded_font_objects_for_streams(pdf, stream_keys, start_object_id)
+  end
+
+  # Font discovery and subsetting run over every content stream to be
+  # written, so a font is embedded once for the whole document, with every
+  # glyph any stream draws.
+  @doc false
+  def build_embedded_font_objects_for_streams(pdf, stream_keys, start_object_id) do
+    streams = Enum.map(stream_keys, &{&1, PDF.stream_operations(pdf, &1)})
+
+    used_char_codes_by_font = used_char_codes_by_font(streams)
+    used_cids_by_font = used_cids_by_font(streams)
+    scalar_codepoints_by_font = scalar_codepoints_by_font(streams)
+    variation_sequences_by_font = variation_sequences_by_font(streams)
+    to_unicode_mappings_by_font = to_unicode_mappings_by_font(streams)
+    unicode_text_by_font = unicode_text_by_font(streams)
 
     embedded_font_names =
-      page_numbers
-      |> Enum.flat_map(fn page_number ->
-        pdf
-        |> PDF.page_operations(page_number)
-        |> font_names_from_operations()
-      end)
+      streams
+      |> Enum.flat_map(fn {_key, operations} -> font_names_from_operations(operations) end)
       |> Enum.uniq()
       |> Enum.filter(fn font_name -> Map.has_key?(pdf.embedded_fonts, font_name) end)
 
@@ -114,9 +124,14 @@ defmodule Tincture.PDF.FontEmbed do
     |> Enum.uniq()
   end
 
-  defp used_char_codes_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  # The *_by_font collectors take a list of {stream_key, operations} and walk
+  # every stream in it. They are public, undocumented, so that each can be
+  # tested on a hand-built stream list.
+
+  @doc false
+  def used_char_codes_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_used_char_codes(acc, font_name, text)
@@ -151,9 +166,10 @@ defmodule Tincture.PDF.FontEmbed do
     end
   end
 
-  defp unicode_text_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  @doc false
+  def unicode_text_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_unicode_text_usage(acc, font_name, text)
@@ -174,9 +190,10 @@ defmodule Tincture.PDF.FontEmbed do
     end
   end
 
-  defp used_cids_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  @doc false
+  def used_cids_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_used_cids(acc, font_name, text)
@@ -198,9 +215,10 @@ defmodule Tincture.PDF.FontEmbed do
     end)
   end
 
-  defp scalar_codepoints_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  @doc false
+  def scalar_codepoints_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_scalar_codepoints(acc, font_name, text)
@@ -214,9 +232,10 @@ defmodule Tincture.PDF.FontEmbed do
     |> Enum.into(%{}, fn {font_name, set} -> {font_name, set |> Enum.sort()} end)
   end
 
-  defp variation_sequences_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  @doc false
+  def variation_sequences_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_variation_sequences(acc, font_name, text)
@@ -264,9 +283,10 @@ defmodule Tincture.PDF.FontEmbed do
     end)
   end
 
-  defp to_unicode_mappings_by_font(pdf, page_numbers) do
-    page_numbers
-    |> Enum.flat_map(fn page_number -> PDF.page_operations(pdf, page_number) end)
+  @doc false
+  def to_unicode_mappings_by_font(streams) do
+    streams
+    |> Enum.flat_map(fn {_key, operations} -> operations end)
     |> Enum.reduce(%{}, fn
       {:text_at, _x, _y, text, {font_name, _size}}, acc ->
         merge_to_unicode_mappings(acc, font_name, text)
