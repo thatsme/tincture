@@ -35,6 +35,10 @@ defmodule Tincture.PublicApiTest do
   # form_xobject_op/0 and xobject_name/0, and the specs of form_xobject/5 and
   # place_form_xobject/4,5, are recorded with them.
   #
+  # Since v0.3.6, the specs of encrypt/1 and export/1, new entries: explicit
+  # clauses added for refusal messages, which replaced the default argument
+  # of encrypt/2 and export/2 so that each message names the arity called.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #
