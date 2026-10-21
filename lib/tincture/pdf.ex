@@ -66,6 +66,21 @@ defmodule Tincture.PDF do
             optional(:alpha_decode_parms) => map()
           }
   @type image_op :: {:image, number(), number(), number(), number(), pos_integer()}
+  @typedoc "A form XObject's name: the atom or string it was defined with, as a string."
+  @type xobject_name :: String.t()
+  @typedoc """
+  A form XObject: its size, which is its `/BBox`, and its operations. `id` is
+  the definition order, which names it `/FmN` and orders its object.
+  """
+  @type form_xobject :: %{
+          id: pos_integer(),
+          width: number(),
+          height: number(),
+          operations: [op()]
+        }
+  @typedoc "A placement: the XObject's name, its origin, and its horizontal and vertical scale."
+  @type form_xobject_op ::
+          {:form_xobject, xobject_name(), number(), number(), number(), number()}
   @type alpha_op :: {:set_alpha, number(), number()}
   @typedoc """
   A gradient, and the rectangle it fills.
@@ -170,6 +185,7 @@ defmodule Tincture.PDF do
           | begin_marked_content_op()
           | begin_artifact_op()
           | end_marked_content_op()
+          | form_xobject_op()
 
   @type t :: %__MODULE__{
           page_size: page_size(),
@@ -191,7 +207,9 @@ defmodule Tincture.PDF do
           form_fields: [form_field()],
           encryption: map() | nil,
           metadata: %{optional(atom()) => String.t()},
-          operations: [op()]
+          operations: [op()],
+          form_xobjects: %{optional(xobject_name()) => form_xobject()},
+          current_stream: {:xobject, xobject_name()} | nil
         }
 
   defstruct page_size: :a4,
@@ -213,7 +231,12 @@ defmodule Tincture.PDF do
             form_fields: [],
             encryption: nil,
             metadata: %{},
-            operations: []
+            operations: [],
+            # Form XObjects by name. `current_stream` overrides the current
+            # page as the drawing target only inside a form_xobject/5
+            # callback; outside one it is nil.
+            form_xobjects: %{},
+            current_stream: nil
 
   @doc false
   @spec page_numbers(t()) :: [pos_integer()]
@@ -230,25 +253,46 @@ defmodule Tincture.PDF do
     stream_operations(pdf, {:page, page_number})
   end
 
-  # A content stream is named by a key. Only pages exist so far, and their
-  # streams are held in `pages`; a stream of another kind will get its own
-  # field when it arrives.
+  # A content stream is named by a key: `{:page, n}`, held in `pages`, or
+  # `{:xobject, name}`, held in `form_xobjects`.
+
+  @typep stream_key :: {:page, pos_integer()} | {:xobject, xobject_name()}
 
   @doc false
-  @spec stream_operations(t(), {:page, pos_integer()}) :: [op()]
+  @spec stream_operations(t(), stream_key()) :: [op()]
   def stream_operations(%__MODULE__{} = pdf, {:page, page_number})
       when is_integer(page_number) and page_number > 0 do
     Map.get(pdf.pages, page_number, [])
   end
 
-  # The keys of the streams to be written, in the order they are written.
+  def stream_operations(%__MODULE__{} = pdf, {:xobject, name}) when is_binary(name) do
+    case Map.fetch(pdf.form_xobjects, name) do
+      {:ok, xobject} -> xobject.operations
+      :error -> []
+    end
+  end
+
+  # The keys of the streams to be written, in the order they are written:
+  # the pages in page order, then the form XObjects in definition order.
   @doc false
-  @spec stream_keys(t()) :: [{:page, pos_integer()}]
-  def stream_keys(%__MODULE__{} = pdf), do: Enum.map(page_numbers(pdf), &{:page, &1})
+  @spec stream_keys(t()) :: [stream_key()]
+  def stream_keys(%__MODULE__{} = pdf) do
+    Enum.map(page_numbers(pdf), &{:page, &1}) ++
+      Enum.map(form_xobject_names(pdf), &{:xobject, &1})
+  end
 
   @doc false
-  @spec current_stream(t()) :: {:page, pos_integer()}
-  def current_stream(%__MODULE__{} = pdf), do: {:page, pdf.current_page}
+  @spec form_xobject_names(t()) :: [xobject_name()]
+  def form_xobject_names(%__MODULE__{} = pdf) do
+    pdf.form_xobjects
+    |> Enum.sort_by(fn {_name, xobject} -> xobject.id end)
+    |> Enum.map(fn {name, _xobject} -> name end)
+  end
+
+  @doc false
+  @spec current_stream(t()) :: stream_key()
+  def current_stream(%__MODULE__{current_stream: nil} = pdf), do: {:page, pdf.current_page}
+  def current_stream(%__MODULE__{current_stream: {:xobject, _name} = key}), do: key
 
   # The one place operations are written into the document. `operations`
   # mirrors the current stream's, so it is kept in step here.
@@ -262,9 +306,26 @@ defmodule Tincture.PDF do
     %__MODULE__{pdf | pages: pages, operations: operations}
   end
 
+  defp append_to_stream(%__MODULE__{} = pdf, {:xobject, name} = key, ops) do
+    updated_ops = stream_operations(pdf, key) ++ ops
+    xobjects = Map.update!(pdf.form_xobjects, name, &%{&1 | operations: updated_ops})
+
+    operations =
+      if key == current_stream(pdf), do: updated_ops, else: pdf.operations
+
+    %__MODULE__{pdf | form_xobjects: xobjects, operations: operations}
+  end
+
+  # The other writer of `operations`: when the current stream changes, the
+  # mirror follows it.
+  defp sync_operations_mirror(%__MODULE__{} = pdf) do
+    %__MODULE__{pdf | operations: stream_operations(pdf, current_stream(pdf))}
+  end
+
   @doc false
   @spec add_page(t()) :: t()
   def add_page(%__MODULE__{} = pdf) do
+    refuse_in_form_xobject!(pdf, "Tincture.add_page/1")
     refuse_open_marked_content(pdf, "add_page/1")
 
     next_page =
@@ -281,10 +342,12 @@ defmodule Tincture.PDF do
   @spec set_page(t(), pos_integer()) :: t()
   def set_page(%__MODULE__{} = pdf, page_number)
       when is_integer(page_number) and page_number > 0 do
+    refuse_in_form_xobject!(pdf, "Tincture.set_page/2")
+
     case Map.fetch(pdf.pages, page_number) do
-      {:ok, ops} ->
+      {:ok, _ops} ->
         if page_number != pdf.current_page, do: refuse_open_marked_content(pdf, "set_page/2")
-        %__MODULE__{pdf | current_page: page_number, operations: ops}
+        sync_operations_mirror(%__MODULE__{pdf | current_page: page_number})
 
       :error ->
         raise ArgumentError, "unknown page: #{page_number}"
@@ -334,6 +397,233 @@ defmodule Tincture.PDF do
     append_to_stream(pdf, current_stream(pdf), [op])
   end
 
+  ## Form XObjects
+
+  # Inside a form_xobject/5 callback only what the XObject's content needs is
+  # allowed: drawing, state, text, images and fonts. Everything else - pages,
+  # structure, annotations, fields, bookmarks, document settings, output, and
+  # another definition or placement - is refused, by the function the public
+  # call reaches, so the layout modules are covered too.
+
+  @doc false
+  @spec refuse_in_form_xobject!(t(), String.t()) :: :ok
+  def refuse_in_form_xobject!(%__MODULE__{current_stream: nil}, _caller), do: :ok
+
+  def refuse_in_form_xobject!(%__MODULE__{current_stream: {:xobject, name}}, caller) do
+    function = caller |> String.split(".") |> List.last()
+
+    raise ArgumentError,
+          "#{caller} was called inside the form_xobject/5 callback defining " <>
+            "#{inspect(name)}. A form XObject is a content stream with no page, structure " <>
+            "or annotations of its own, so only drawing, text, images and fonts are " <>
+            "allowed inside it. Call #{function} outside the callback."
+  end
+
+  defp field_function(:text), do: "Tincture.text_field/7"
+  defp field_function(:checkbox), do: "Tincture.checkbox/6"
+  defp field_function(:choice), do: "Tincture.choice_field/7"
+  defp field_function(:push_button), do: "Tincture.push_button/7"
+  defp field_function(:signature), do: "Tincture.signature_field/7"
+
+  # The callback draws into a stream of its own and starts from a fixed state:
+  # no operations, and the default font, whatever the page had set. So the
+  # XObject's bytes do not depend on what the page did before the call. The
+  # caller's font is handed back to restore on return.
+  @doc false
+  @spec begin_form_xobject(t(), atom() | String.t(), number(), number()) :: {t(), font()}
+  def begin_form_xobject(%__MODULE__{} = pdf, name, width, height) do
+    name = normalize_xobject_name!(name, "Tincture.form_xobject/5")
+
+    if Map.has_key?(pdf.form_xobjects, name) do
+      raise ArgumentError,
+            "Tincture.form_xobject/5 was given #{inspect(name)}, which is already defined. " <>
+              "Each form XObject needs its own name."
+    end
+
+    xobject = %{
+      id: map_size(pdf.form_xobjects) + 1,
+      width: width,
+      height: height,
+      operations: []
+    }
+
+    caller_font = pdf.current_font
+    default_font = %__MODULE__{}.current_font
+
+    begun =
+      sync_operations_mirror(%__MODULE__{
+        pdf
+        | form_xobjects: Map.put(pdf.form_xobjects, name, xobject),
+          current_stream: {:xobject, name},
+          current_font: default_font
+      })
+
+    {begun, caller_font}
+  end
+
+  # Back to the page: the drawing target, the caller's font and the mirror.
+  # An XObject is a content stream of its own, so its saves and restores must
+  # balance (ISO 32000-1 §8.4.2), and a path left open would never be painted.
+  @doc false
+  @spec end_form_xobject(t(), font()) :: t()
+  def end_form_xobject(%__MODULE__{current_stream: {:xobject, name} = key} = pdf, caller_font) do
+    operations = stream_operations(pdf, key)
+    refuse_unbalanced_states(operations, name)
+
+    if Tincture.PDF.Ops.path_open?(operations) do
+      raise ArgumentError,
+            "the Tincture.form_xobject/5 callback defining #{inspect(name)} left a path " <>
+              "open. A path that is never painted draws nothing: paint it, or pass a " <>
+              "shape its own paint argument, before the callback returns."
+    end
+
+    sync_operations_mirror(%__MODULE__{pdf | current_stream: nil, current_font: caller_font})
+  end
+
+  defp refuse_unbalanced_states(operations, name) do
+    depth =
+      Enum.reduce(operations, 0, fn
+        :save_state, depth ->
+          depth + 1
+
+        :restore_state, 0 ->
+          raise ArgumentError,
+                "the Tincture.form_xobject/5 callback defining #{inspect(name)} called " <>
+                  "restore_state/1 with no save_state/1 open. A form XObject is a content " <>
+                  "stream of its own, and its saves and restores must balance within it."
+
+        :restore_state, depth ->
+          depth - 1
+
+        _op, depth ->
+          depth
+      end)
+
+    if depth > 0 do
+      raise ArgumentError,
+            "the Tincture.form_xobject/5 callback defining #{inspect(name)} left #{depth} " <>
+              "save_state/1 without a restore_state/1. A form XObject is a content stream " <>
+              "of its own, and its saves and restores must balance within it."
+    end
+
+    :ok
+  end
+
+  @placement_options [:scale, :width, :height]
+
+  # A placement is one operation, written as `q sx 0 0 sy x y cm /FmN Do Q`.
+  @doc false
+  @spec place_form_xobject(t(), atom() | String.t(), number(), number(), keyword(), String.t()) ::
+          t()
+  def place_form_xobject(%__MODULE__{} = pdf, name, x, y, opts, caller) do
+    refuse_in_form_xobject!(pdf, caller)
+    name = normalize_xobject_name!(name, caller)
+
+    xobject =
+      case Map.fetch(pdf.form_xobjects, name) do
+        {:ok, xobject} -> xobject
+        :error -> refuse_unknown_xobject(pdf, name, caller)
+      end
+
+    {scale_x, scale_y} = placement_scale(xobject, opts, caller)
+
+    if Tincture.PDF.Ops.path_open?(stream_operations(pdf, current_stream(pdf))) do
+      raise ArgumentError,
+            "#{caller} was called with a path open. A placement draws with its own q … Q, " <>
+              "which cannot appear while a path is being built. Paint or close the path first."
+    end
+
+    append_current_op(pdf, {:form_xobject, name, x, y, scale_x, scale_y})
+  end
+
+  @spec refuse_unknown_xobject(t(), xobject_name(), String.t()) :: no_return()
+  defp refuse_unknown_xobject(pdf, name, caller) do
+    known =
+      case form_xobject_names(pdf) do
+        [] -> ""
+        names -> " Defined form XObjects: #{Enum.map_join(names, ", ", &inspect/1)}."
+      end
+
+    raise ArgumentError,
+          "#{caller} was given #{inspect(name)}, which is not a defined form XObject. " <>
+            "Define it with form_xobject/5 before placing it." <> known
+  end
+
+  # One dimension scales uniformly, to keep the aspect ratio; both stretch, as
+  # an image does. :scale with a dimension is refused rather than ignored.
+  defp placement_scale(xobject, opts, caller) do
+    validate_placement_options(opts, caller)
+
+    {scale_x, scale_y} =
+      scales(
+        xobject,
+        Keyword.get(opts, :scale),
+        Keyword.get(opts, :width),
+        Keyword.get(opts, :height),
+        caller
+      )
+
+    {integral(scale_x), integral(scale_y)}
+  end
+
+  defp validate_placement_options(opts, caller) do
+    unless Keyword.keyword?(opts) do
+      raise ArgumentError,
+            "#{caller} was given options that are not a keyword list: #{inspect(opts)}"
+    end
+
+    Enum.each(opts, fn
+      {key, value} when key in @placement_options and is_number(value) and value > 0 ->
+        :ok
+
+      {key, value} when key in @placement_options ->
+        raise ArgumentError,
+              "#{caller} was given #{key}: #{inspect(value)}. :scale, :width and :height " <>
+                "must be positive numbers."
+
+      {key, _value} ->
+        raise ArgumentError,
+              "#{caller} was given an unknown option #{inspect(key)}. Known options: " <>
+                ":scale, :width, :height."
+    end)
+  end
+
+  defp scales(_xobject, nil, nil, nil, _caller), do: {1, 1}
+  defp scales(_xobject, scale, nil, nil, _caller), do: {scale, scale}
+
+  defp scales(xobject, nil, width, nil, _caller),
+    do: {width / xobject.width, width / xobject.width}
+
+  defp scales(xobject, nil, nil, height, _caller),
+    do: {height / xobject.height, height / xobject.height}
+
+  defp scales(xobject, nil, width, height, _caller),
+    do: {width / xobject.width, height / xobject.height}
+
+  defp scales(_xobject, _scale, width, _height, caller) do
+    dimension = if width, do: ":width", else: ":height"
+
+    raise ArgumentError,
+          "#{caller} was given both :scale and #{dimension}. Give :scale, or :width " <>
+            "and/or :height, not both."
+  end
+
+  # A scale equal to an integer is written as that integer: `1`, not `1.0`.
+  defp integral(value) when is_float(value) and value == trunc(value), do: trunc(value)
+  defp integral(value), do: value
+
+  defp normalize_xobject_name!(name, _caller) when is_binary(name) and name != "", do: name
+
+  defp normalize_xobject_name!(name, _caller)
+       when is_atom(name) and name not in [nil, true, false],
+       do: Atom.to_string(name)
+
+  defp normalize_xobject_name!(other, caller) do
+    raise ArgumentError,
+          "#{caller} was given #{inspect(other)} as a form XObject name. A name is an atom " <>
+            "or a non-empty string."
+  end
+
   @doc """
   Open a structure element, bracketing whatever is drawn until it is closed.
 
@@ -342,6 +632,7 @@ defmodule Tincture.PDF do
   """
   @spec begin_structure(t(), Structure.tag(), keyword()) :: t()
   def begin_structure(%__MODULE__{} = pdf, tag, opts \\ []) do
+    refuse_in_form_xobject!(pdf, "Tincture.tag/4")
     name = Structure.tag_name(tag)
 
     {pdf, mcid} =
@@ -386,6 +677,7 @@ defmodule Tincture.PDF do
   """
   @spec begin_artifact(t()) :: t()
   def begin_artifact(%__MODULE__{} = pdf) do
+    refuse_in_form_xobject!(pdf, "Tincture.artifact/2")
     append_current_op(pdf, {:begin_artifact})
   end
 
@@ -394,6 +686,7 @@ defmodule Tincture.PDF do
   """
   @spec end_artifact(t()) :: t()
   def end_artifact(%__MODULE__{} = pdf) do
+    refuse_in_form_xobject!(pdf, "Tincture.PDF.end_artifact/1")
     append_current_op(pdf, {:end_marked_content})
   end
 
@@ -401,11 +694,13 @@ defmodule Tincture.PDF do
   Close the innermost open structure element.
   """
   @spec end_structure(t()) :: t()
-  def end_structure(%__MODULE__{structure_stack: []}) do
+  def end_structure(%__MODULE__{structure_stack: []} = pdf) do
+    refuse_in_form_xobject!(pdf, "Tincture.PDF.end_structure/1")
     raise ArgumentError, "no structure element is open"
   end
 
   def end_structure(%__MODULE__{structure_stack: [element | rest]} = pdf) do
+    refuse_in_form_xobject!(pdf, "Tincture.PDF.end_structure/1")
     element = resolve_figure_bbox(element, pdf)
 
     pdf =
@@ -436,11 +731,14 @@ defmodule Tincture.PDF do
   """
   @spec set_language(t(), String.t()) :: t()
   def set_language(%__MODULE__{} = pdf, language) when is_binary(language) and language != "" do
+    refuse_in_form_xobject!(pdf, "Tincture.set_language/2")
     %__MODULE__{pdf | language: language}
   end
 
-  def set_language(%__MODULE__{}, other),
-    do: raise(ArgumentError, "language must be a non-empty string, got: #{inspect(other)}")
+  def set_language(%__MODULE__{} = pdf, other) do
+    refuse_in_form_xobject!(pdf, "Tincture.set_language/2")
+    raise ArgumentError, "language must be a non-empty string, got: #{inspect(other)}"
+  end
 
   @doc """
   Declare a PDF/A conformance level, adding what archival validity requires.
@@ -450,6 +748,7 @@ defmodule Tincture.PDF do
   """
   @spec set_pdf_a(t(), atom()) :: t()
   def set_pdf_a(%__MODULE__{} = pdf, level) do
+    refuse_in_form_xobject!(pdf, "Tincture.set_pdf_a/2")
     %__MODULE__{pdf | pdf_a: normalize_pdf_a_level(level)}
   end
 
@@ -477,6 +776,7 @@ defmodule Tincture.PDF do
   @spec set_signature(t(), String.t(), keyword()) :: t()
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def set_signature(%__MODULE__{} = pdf, field_name, opts) when is_binary(field_name) do
+    refuse_in_form_xobject!(pdf, "Tincture.PDF.set_signature/3")
     refuse_signing_encrypted!(pdf, "Tincture.PDF.set_signature/3")
     field = Enum.find(pdf.form_fields, &(&1.name == field_name and &1.type == :signature))
 
@@ -579,7 +879,14 @@ defmodule Tincture.PDF do
   defp resolve_figure_bbox(%{tag: :figure, mcid: mcid} = element, %__MODULE__{} = pdf) do
     measure = fn font_name, size, text -> TextExtent.extent(pdf, font_name, size, text) end
 
-    case FigureBounds.compute(page_operations(pdf, element.page_number), mcid, measure) do
+    size_of = fn name ->
+      xobject = Map.fetch!(pdf.form_xobjects, name)
+      {xobject.width, xobject.height}
+    end
+
+    operations = stream_operations(pdf, {:page, element.page_number})
+
+    case FigureBounds.compute(operations, mcid, measure, size_of) do
       {:ok, bbox} ->
         Map.put(element, :bbox, bbox)
 
@@ -903,6 +1210,8 @@ defmodule Tincture.PDF do
   def add_bookmark(%__MODULE__{} = pdf, title, page_number)
       when is_binary(title) and byte_size(title) > 0 and is_integer(page_number) and
              page_number > 0 do
+    refuse_in_form_xobject!(pdf, "Tincture.add_bookmark/3")
+
     if Map.has_key?(pdf.pages, page_number) do
       bookmark = %{title: title, page_number: page_number}
       %__MODULE__{pdf | bookmarks: pdf.bookmarks ++ [bookmark]}
@@ -923,6 +1232,7 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def add_link(%__MODULE__{} = pdf, {x1, y1, x2, y2}, target, opts \\ [])
       when is_number(x1) and is_number(y1) and is_number(x2) and is_number(y2) and is_list(opts) do
+    refuse_in_form_xobject!(pdf, "Tincture.PDF.add_link/4")
     id = pdf.next_annotation_id
 
     annotation = %{
@@ -1147,6 +1457,8 @@ defmodule Tincture.PDF do
   def add_form_field(%__MODULE__{} = pdf, type, name, {x1, y1, x2, y2}, opts)
       when type in [:text, :checkbox, :choice, :push_button, :signature] and is_binary(name) and
              is_list(opts) do
+    refuse_in_form_xobject!(pdf, field_function(type))
+
     if name == "" do
       raise ArgumentError, "form field name must not be empty"
     end
@@ -1247,6 +1559,8 @@ defmodule Tincture.PDF do
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def add_radio_group(%__MODULE__{} = pdf, name, buttons, opts)
       when is_binary(name) and is_list(buttons) and is_list(opts) do
+    refuse_in_form_xobject!(pdf, "Tincture.radio_group/4")
+
     if name == "" do
       raise ArgumentError, "form field name must not be empty"
     end
@@ -1525,6 +1839,8 @@ defmodule Tincture.PDF do
   @spec set_metadata(t(), map() | keyword()) :: t()
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def set_metadata(%__MODULE__{} = pdf, metadata) when is_map(metadata) or is_list(metadata) do
+    refuse_in_form_xobject!(pdf, "Tincture.set_metadata/2")
+
     normalized =
       metadata
       |> Enum.into(%{})

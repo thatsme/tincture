@@ -89,7 +89,8 @@ defmodule Tincture.MixProject do
         "run examples/archival.exs",
         "run examples/signed.exs",
         "run examples/telemetry.exs",
-        "run examples/remote_links.exs"
+        "run examples/remote_links.exs",
+        "run examples/stamp.exs"
       ],
       check: [
         "format --check-formatted",

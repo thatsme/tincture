@@ -151,7 +151,9 @@ defmodule Tincture.PDF.Ops do
   # The path is open after move_to, line_to, bezier, or a shape drawn with
   # paint: :none, and closed by any painting or clipping operator - including
   # the one a shape writes for itself. Everything else leaves it as it was.
-  defp path_open?(ops) do
+  # Also read by form XObjects, at the end of a callback and at a placement.
+  @spec path_open?([PDF.op()]) :: boolean()
+  def path_open?(ops) do
     {open?} =
       ops
       |> Enum.reverse()

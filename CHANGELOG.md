@@ -30,6 +30,26 @@ Every one of the first four has warned since 0.3.4, so code that runs
 without these warnings is unaffected by them, and the fifth follows from
 them.
 
+### Added
+
+- **Form XObjects: content drawn once and placed many times.**
+  `form_xobject/5` draws the content in a callback, and
+  `place_form_xobject/4` and `/5` put it on the current page, at a scale or
+  fitted to a width or height:
+
+  ```elixir
+  pdf
+  |> Tincture.form_xobject(:stamp, 200, 40, fn pdf ->
+    pdf |> Tincture.text_at(4, 14, "APPROVED") |> Tincture.rectangle(0.5, 0.5, 199, 39, :stroke)
+  end)
+  |> Tincture.place_form_xobject(:stamp, 72, 600, scale: 0.5)
+  ```
+
+  The file holds the content as one object however many times it is placed.
+  Inside the callback only drawing is allowed, and it starts from a fixed
+  state. The XObject cannot open a tag, so it may be placed inside any number
+  of structure elements.
+
 ### Changed
 
 - **Signing an encrypted document raises a clear error.** `sign/3` and

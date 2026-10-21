@@ -7,10 +7,10 @@ defmodule Tincture.PDF.FigureBounds do
   #
   # It is computed by replaying a page's operations, so it sees exactly what
   # the serialiser will draw. Tincture has no operation that changes the
-  # current transformation matrix - the one `cm` it writes is an image's own
-  # placement, inside its own q/Q - so default user space is the space every
-  # coordinate is already in, and only the line width has to be tracked
-  # through q/Q.
+  # current transformation matrix - the only `cm`s it writes place an image
+  # or a form XObject, each inside its own q/Q - so default user space is the
+  # space every coordinate is already in, and only the line width has to be
+  # tracked through q/Q.
   #
   # The result is conservative rather than tight. A Bezier contributes the
   # hull of its control points, and stroked geometry is inflated by half the
@@ -29,6 +29,9 @@ defmodule Tincture.PDF.FigureBounds do
   @typedoc "Measures text: `(font_name, size, text) -> {width, ascent, descent}`."
   @type measure :: (String.t(), number(), String.t() -> {number(), number(), number()})
 
+  @typedoc "Gives a form XObject's size, its `/BBox`: `(name) -> {width, height}`."
+  @type size_of :: (String.t() -> {number(), number()})
+
   # PDF's initial line width (ISO 32000-1 Table 52).
   @default_line_width 1.0
 
@@ -37,16 +40,18 @@ defmodule Tincture.PDF.FigureBounds do
 
   `ops` runs from the start of the page to the point where the figure closes,
   so the marked content is open at the end of the list. `measure` gives the
-  extent of a run of text, which needs the document's fonts.
+  extent of a run of text, which needs the document's fonts, and `size_of`
+  the size of a placed form XObject.
   """
-  @spec compute([PDF.op()], non_neg_integer(), measure()) :: result()
-  def compute(ops, mcid, measure) do
+  @spec compute([PDF.op()], non_neg_integer(), measure(), size_of()) :: result()
+  def compute(ops, mcid, measure, size_of) do
     initial = %{
       widths: [@default_line_width],
       path: [],
       depth: nil,
       box: nil,
-      measure: measure
+      measure: measure,
+      size_of: size_of
     }
 
     case Enum.reduce(ops, initial, &step(&1, &2, mcid)) do
@@ -112,6 +117,13 @@ defmodule Tincture.PDF.FigureBounds do
 
   defp step({:shading, x, y, width, height, _shading}, state, _mcid),
     do: include(state, [{x, y}, {x + width, y + height}], 0)
+
+  # A placed form XObject contributes its /BBox mapped by the placement
+  # matrix: the region Do clips it to, whatever it draws inside.
+  defp step({:form_xobject, name, x, y, scale_x, scale_y}, state, _mcid) do
+    {width, height} = state.size_of.(name)
+    include(state, [{x, y}, {x + width * scale_x, y + height * scale_y}], 0)
+  end
 
   defp step({:text_at, x, y, text, font}, state, _mcid),
     do: include_text(state, x, y, 0, text, font)
