@@ -115,35 +115,17 @@ defmodule Tincture.PDF.Serialize do
         "#{page_object_id(idx)} 0 R"
       end)
 
+    stream_refs = %{
+      embedded_font_refs: embedded_font_refs,
+      embedded_font_text_modes: embedded_font_text_modes,
+      image_object_refs: image_object_refs
+    }
+
     page_objects =
       page_numbers
       |> Enum.with_index()
       |> Enum.flat_map(fn {page_number, idx} ->
-        operations = PDF.page_operations(pdf, page_number)
-        {font_aliases, font_resources} = font_resources(operations, embedded_font_refs)
-        xobject_resources = xobject_resources(operations, image_object_refs)
-        {gs_aliases, gs_resources} = ext_gstate_resources(operations)
-        {shading_aliases, shading_entries} = shading_resources(operations)
-
-        page_metadata = %{page_number: page_number, operation_count: length(operations)}
-
-        {content_stream, content_length} =
-          Telemetry.span([:tincture, :page], page_metadata, fn ->
-            stream =
-              content_stream(
-                operations,
-                font_aliases,
-                embedded_font_text_modes,
-                gs_aliases,
-                shading_aliases
-              )
-
-            length = IO.iodata_length(stream)
-            {{stream, length}, %{byte_size: length}}
-          end)
-
-        resources =
-          resource_dictionary(font_resources, xobject_resources, gs_resources, shading_entries)
+        {resources, content_body} = stream_object(pdf, {:page, page_number}, stream_refs)
 
         annots =
           annotations_entry(
@@ -170,15 +152,6 @@ defmodule Tincture.PDF.Serialize do
 
         page_body =
           "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 #{Object.num(page_width)} #{Object.num(page_height)}]#{resources} /Contents #{content_object_id(idx)} 0 R#{annots}#{struct_parents}#{tabs} >>"
-
-        # The EOL before `endstream` is a delimiter rather than stream data, so
-        # a stream whose own last byte is a newline needs one of each - or
-        # /Length overstates the content by one (ISO 19005-2 clause 6.1.7.1).
-        content_body = [
-          "<< /Length #{content_length} >>\nstream\n",
-          content_stream,
-          "\nendstream"
-        ]
 
         [page_body, content_body]
       end)
@@ -220,6 +193,48 @@ defmodule Tincture.PDF.Serialize do
       nil -> binary
       signature -> Sign.apply_signature(binary, signature)
     end
+  end
+
+  # One content stream, named by its key: the resource dictionary entry for
+  # whatever holds it, and the stream object's body. Its resources are
+  # collected from its own operations. Only page streams exist so far.
+  defp stream_object(%PDF{} = pdf, {:page, page_number} = key, refs) do
+    operations = PDF.stream_operations(pdf, key)
+    {font_aliases, font_resources} = font_resources(operations, refs.embedded_font_refs)
+    xobject_resources = xobject_resources(operations, refs.image_object_refs)
+    {gs_aliases, gs_resources} = ext_gstate_resources(operations)
+    {shading_aliases, shading_entries} = shading_resources(operations)
+
+    page_metadata = %{page_number: page_number, operation_count: length(operations)}
+
+    {content_stream, content_length} =
+      Telemetry.span([:tincture, :page], page_metadata, fn ->
+        stream =
+          content_stream(
+            operations,
+            font_aliases,
+            refs.embedded_font_text_modes,
+            gs_aliases,
+            shading_aliases
+          )
+
+        length = IO.iodata_length(stream)
+        {{stream, length}, %{byte_size: length}}
+      end)
+
+    resources =
+      resource_dictionary(font_resources, xobject_resources, gs_resources, shading_entries)
+
+    # The EOL before `endstream` is a delimiter rather than stream data, so
+    # a stream whose own last byte is a newline needs one of each - or
+    # /Length overstates the content by one (ISO 19005-2 clause 6.1.7.1).
+    content_body = [
+      "<< /Length #{content_length} >>\nstream\n",
+      content_stream,
+      "\nendstream"
+    ]
+
+    {resources, content_body}
   end
 
   defp build_signature_objects(%PDF{signature: nil}, _start_id), do: {nil, []}
@@ -942,7 +957,14 @@ defmodule Tincture.PDF.Serialize do
   defp maybe_encrypt_object(body, _id, _encrypt_ref, context),
     do: Encrypt.encrypt_object(body, context)
 
-  defp font_resources(operations, embedded_font_refs) do
+  # The resource collectors each take one content stream's operations, and
+  # give the resources that stream needs. They are public, undocumented, so
+  # that each can be tested on a hand-built operations list.
+
+  @doc false
+  @spec font_resources([PDF.op()], %{optional(String.t()) => pos_integer()}) ::
+          {%{optional(String.t()) => String.t()}, String.t()}
+  def font_resources(operations, embedded_font_refs) do
     fonts = FontEmbed.font_names_from_operations(operations)
 
     aliases =
@@ -968,7 +990,9 @@ defmodule Tincture.PDF.Serialize do
     {aliases, resources}
   end
 
-  defp xobject_resources(operations, image_object_ids) do
+  @doc false
+  @spec xobject_resources([PDF.op()], %{optional(pos_integer()) => map()}) :: String.t()
+  def xobject_resources(operations, image_object_ids) do
     operations
     |> Enum.flat_map(fn
       {:image, _x, _y, _width, _height, image_id} -> [image_id]
@@ -1528,7 +1552,9 @@ defmodule Tincture.PDF.Serialize do
   # neither carries a stream - so nothing requires an object number, and not
   # allocating one means adding a gradient does not renumber every object after
   # it, and leaves the bytes of a document that uses neither untouched.
-  defp ext_gstate_resources(operations) do
+  @doc false
+  @spec ext_gstate_resources([PDF.op()]) :: {%{optional(tuple()) => String.t()}, String.t()}
+  def ext_gstate_resources(operations) do
     states =
       operations
       |> Enum.flat_map(fn
@@ -1551,7 +1577,9 @@ defmodule Tincture.PDF.Serialize do
     {aliases, resources}
   end
 
-  defp shading_resources(operations) do
+  @doc false
+  @spec shading_resources([PDF.op()]) :: {%{optional(map()) => String.t()}, String.t()}
+  def shading_resources(operations) do
     shadings =
       operations
       |> Enum.flat_map(fn
