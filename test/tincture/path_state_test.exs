@@ -12,11 +12,15 @@ defmodule Tincture.PathStateTest do
     * text, an image, a gradient, a saved or restored graphics state, or
       marked content, while a path is open, raises (W5);
     * leaving the page or exporting with a path nothing painted raises (W6);
+    * a content tag or artifact closing over a path started inside it raises
+      (W7);
     * the serialiser still ends any path left open with `n`, before such an
       operator or at the end of the stream, for operations that bypass the
       public functions.
   """
-  use ExUnit.Case, async: true
+  # Not async: these tests capture stderr, which is shared by the whole VM, and
+  # a test running alongside that writes to it would land in the capture.
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO, only: [with_io: 2]
 
@@ -57,6 +61,14 @@ defmodule Tincture.PathStateTest do
       "A path draws nothing until stroke/1, fill/1 or clip/1 paints it. Paint it, or " <>
       "remove it."
   end
+
+  defp w7(closed, block) do
+    "#{closed} with a path still open, so its end would be written inside the path, where " <>
+      "PDF does not allow it. Paint the path with stroke/1, fill/1 or clip/1 before the " <>
+      "#{block} closes."
+  end
+
+  defp line_inside(pdf), do: pdf |> Tincture.move_to(10, 10) |> Tincture.line_to(50, 50)
 
   defp png do
     chunk = fn type, data ->
@@ -379,6 +391,67 @@ defmodule Tincture.PathStateTest do
     end
   end
 
+  describe "W7: a tag or artifact closing over a path started inside it" do
+    # 0.3.8 wrote this as BDC m l EMC S, with the EMC inside the path. Under
+    # the serialiser's guarantee it would be BDC m l n EMC S, and the stroke
+    # would paint nothing. It is refused at the tag's close, before either.
+    test "a path opened inside tag(:p) and painted after it raises at the tag's close" do
+      assert refused(fn ->
+               Tincture.new() |> Tincture.tag(:p, &line_inside/1) |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
+    end
+
+    test "the same inside artifact/2" do
+      assert refused(fn ->
+               Tincture.new() |> Tincture.artifact(&line_inside/1) |> Tincture.stroke()
+             end) == w7("Tincture.artifact/2 closed", "artifact")
+    end
+
+    test "nested tags raise at the inner close" do
+      assert refused(fn ->
+               Tincture.new()
+               |> Tincture.tag(:p, &Tincture.tag(&1, :span, fn pdf -> line_inside(pdf) end))
+               |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:span, ...)", "tag")
+    end
+
+    test "a second path started after the first was painted inside the tag raises" do
+      assert refused(fn ->
+               Tincture.new()
+               |> Tincture.tag(:p, &(&1 |> line_inside() |> Tincture.stroke() |> line_inside()))
+               |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
+    end
+
+    test "a path open before the tag opened is W5's, refused at the open, and not W7's" do
+      pdf = open_path()
+
+      assert refused(fn -> Tincture.tag(pdf, :p, fn pdf -> pdf end) end) ==
+               w5("Tincture.tag/4", "the marked content")
+    end
+
+    test "a path opened and painted inside the tag is not refused" do
+      {_pdf, stderr} =
+        quiet(fn ->
+          Tincture.new()
+          |> Tincture.tag(:p, &(&1 |> line_inside() |> Tincture.stroke()))
+          |> Tincture.artifact(&(&1 |> line_inside() |> Tincture.fill()))
+        end)
+
+      assert stderr == ""
+    end
+
+    test "a grouping element closing over a path is not refused, and writes no EMC" do
+      {pdf, stderr} =
+        quiet(fn ->
+          Tincture.new() |> Tincture.tag(:section, &line_inside/1) |> Tincture.stroke()
+        end)
+
+      assert stderr == ""
+      assert content(pdf) == "10 10 m\n50 50 l\nS\n"
+    end
+  end
+
   describe "PS1: the matrix, a shape with a paint" do
     test "joins the open path, valid as before" do
       pdf = open_path() |> Tincture.rectangle(0, 0, 5, 5, :fill)
@@ -422,7 +495,8 @@ defmodule Tincture.PathStateTest do
       for {op, bytes} <- [
             {{:text_at, 0, 0, "x", font}, "BT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\n"},
             {:save_state, "q\n"},
-            {{:begin_artifact}, "/Artifact BMC\n"}
+            {{:begin_artifact}, "/Artifact BMC\n"},
+            {{:end_marked_content}, "EMC\n"}
           ] do
         pdf = appended([{:move_to, 10, 10}, {:line_to, 50, 50}, op])
         assert serialised(pdf) =~ "10 10 m\n50 50 l\nn\n" <> bytes

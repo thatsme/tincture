@@ -28,11 +28,10 @@ defmodule Tincture.PDF.PathState do
   #
   # So a stream never ends inside a path object, and never holds a text,
   # image, shading, q or Q, marked-content or XObject operator inside one.
-  # The public functions raise before a path can be left open at those
-  # points, except at the EMC closing a tag/4 or artifact/2 callback that
-  # left one open. This is the output guarantee for that, and for what
-  # bypasses the public functions: Tincture.PDF.append_current_op/2, which
-  # is published for internal use.
+  # The public functions raise before a path can be left open at any of
+  # those points, the EMC closing a tag/4 or artifact/2 callback included.
+  # This is the output guarantee for what bypasses them:
+  # Tincture.PDF.append_current_op/2, which is published for internal use.
 
   @setters [
     :set_fill_color,

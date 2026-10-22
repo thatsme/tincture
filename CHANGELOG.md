@@ -28,14 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Leaving a path unpainted raises,** at `add_page/1`, at `set_page/2` to
   another page, and at `export/1,2`, whatever `:enforce` says. *Migration:*
   paint it, or remove it.
+- **Closing a content tag or an artifact while a path started inside it is
+  still open raises.** Its end would be written inside the path, where PDF
+  does not allow it. *Migration:* paint the path before the tag or artifact
+  closes.
 - **`Tincture.PDF.Structure`'s element type no longer has `:bbox_unknown`**
   (values `:no_content`, `:spans_pages`). Neither can occur now that a figure
   drawing nothing raises, and a page change inside a content tag, a figure
   included, raises. *Migration:* remove any match on them.
 
-The first four have warned since 0.3.4 and the next two since 0.3.8, so code
-that runs without those warnings is unaffected by them, and the last follows
-from them.
+The first four have warned since 0.3.4, the next two since 0.3.8 and the
+seventh since 0.3.9, so code that runs without those warnings is unaffected
+by them, and the last follows from them.
 
 ### Added
 
@@ -70,6 +74,20 @@ from them.
   `encrypt/2` refuse to be combined, naming the combination, at the call
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
+
+## [0.3.9] — 2026-10-22
+
+No output changes, and one new warning: a tag or artifact that closes while a
+path started inside it is still open.
+
+### Deprecated
+
+This warns now and raises in 0.4.0:
+
+- **Closing a tag that marks content, or an artifact, while a path started
+  inside it is still open.** Its end is written inside the path, where PDF
+  does not allow it. *Migration:* paint the path before the tag or artifact
+  closes.
 
 ## [0.3.8] — 2026-10-22
 
@@ -944,7 +962,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/thatsme/tincture/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/thatsme/tincture/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/thatsme/tincture/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/thatsme/tincture/compare/v0.3.5...v0.3.6

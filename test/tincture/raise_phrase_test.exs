@@ -1,9 +1,9 @@
 defmodule Tincture.RaisePhraseTest do
   @moduledoc """
   "This will raise in 0.4.0" marks a warning that 0.4.0 turns into an error.
-  Stage 1 converted W1-W4 and stage 1c W5 and W6, so the phrase is left only
-  in the three 0.3.6 form warnings, J1, J2 and J4. Later stages convert those,
-  and lower the count here, until it is zero.
+  Stage 1 converted W1-W4 and stage 1c W5, W6 and W7, so the phrase is left
+  only in the three 0.3.6 form warnings, J1, J2 and J4. Later stages convert
+  those, and lower the count here, until it is zero.
 
   The phrase can be split across a `<>` (J2's is), so the source is not
   grepped line by line. Each file in lib/ is parsed, every chain of literal
