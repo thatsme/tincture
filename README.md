@@ -31,9 +31,9 @@ measured on.
 [veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
 these documents as the examples regenerate them; the same job fails if any of
 them differs from its committed bytes. Each passes on every commit; the counts
-are as measured at 0.3.8:
+are as measured at 0.3.9:
 
-| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.8 |
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.9 |
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
@@ -133,7 +133,7 @@ shrink.
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-At 0.3.8: 1,523 tests · coverage: CI fails below 80%; 90.2% in CI at 0.3.8
+At 0.3.9: 1,529 tests · coverage: CI fails below 80%; 90.3% in CI at 0.3.9
 · Credo `--strict` clean,
 with pre-existing findings in `lib/` exempted inline one by one and `test/` and
 `scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir
