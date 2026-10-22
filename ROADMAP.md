@@ -70,7 +70,7 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. At 0.3.9: 1,529 tests; coverage: CI fails below 80%, and
+dependencies. At 0.3.9: 1,531 tests; coverage: CI fails below 80%, and
 measured 90.3% in CI at 0.3.9;
 Credo `--strict` clean with pre-existing findings in `lib/` exempted inline one
 by one and `test/` and `scripts/` exempt from the structural checks, clean
