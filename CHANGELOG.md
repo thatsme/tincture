@@ -21,14 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An unusable `:bbox` raises.** *Migration:* pass four numbers within the
   page, ordered, and only on `:figure`; or omit it and let the box be
   computed.
+- **Drawing text, an image or a gradient, saving or restoring graphics state,
+  or opening a content tag or an artifact, while a path is open raises.** It
+  would be written inside the path, where PDF does not allow it. *Migration:*
+  paint the path first, or draw the content before starting it.
+- **Leaving a path unpainted raises,** at `add_page/1`, at `set_page/2` to
+  another page, and at `export/1,2`, whatever `:enforce` says. *Migration:*
+  paint it, or remove it.
 - **`Tincture.PDF.Structure`'s element type no longer has `:bbox_unknown`**
   (values `:no_content`, `:spans_pages`). Neither can occur now that a figure
   drawing nothing raises, and a page change inside a content tag, a figure
   included, raises. *Migration:* remove any match on them.
 
-Every one of the first four has warned since 0.3.4, so code that runs
-without these warnings is unaffected by them, and the fifth follows from
-them.
+The first four have warned since 0.3.4 and the next two since 0.3.8, so code
+that runs without those warnings is unaffected by them, and the last follows
+from them.
 
 ### Added
 

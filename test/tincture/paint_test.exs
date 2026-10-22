@@ -43,9 +43,10 @@ defmodule Tincture.PaintTest do
       stream =
         Tincture.new()
         |> Tincture.rectangle(0, 0, 10, 10, :none)
+        |> Tincture.fill()
         |> content()
 
-      assert stream =~ "re\nn"
+      assert stream == "0 0 10 10 re\nf"
     end
 
     test "the regression: a filled rectangle actually fills" do

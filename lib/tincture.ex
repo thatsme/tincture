@@ -151,8 +151,8 @@ defmodule Tincture do
   across pages.
 
   Paint any path first, too. Calling this while a path is open on the current
-  page, one nothing has painted, warns: the path is ended unpainted, and from
-  0.4.0 this raises.
+  page, one nothing has painted, raises `ArgumentError`, because the page's
+  content stream would end inside the path.
   """
   @spec add_page(PDF.t()) :: PDF.t()
   def add_page(%PDF{} = pdf) do
@@ -165,9 +165,8 @@ defmodule Tincture do
   Close any content tag or `artifact/2` block first, as for `add_page/1`.
   Switching to another page while one is open on the current page raises
   `ArgumentError`, because marked content cannot span content streams.
-  Switching to the page already current does not. Switching to another page
-  while a path open on the current page has not been painted warns, and from
-  0.4.0 raises; switching to the page already current does not.
+  Switching to the page already current does not. The same holds for a path
+  open on the current page that nothing has painted.
   """
   @spec set_page(PDF.t(), pos_integer()) :: PDF.t()
   def set_page(%PDF{} = pdf, page_number) when is_integer(page_number) and page_number > 0 do
@@ -336,7 +335,7 @@ defmodule Tincture do
   the case where it does harm. Use it where the text already says where the
   link goes.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `text_at/4`.
 
       # The text is the description.
@@ -359,7 +358,7 @@ defmodule Tincture do
           PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target) do
     PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/5")
-    Ops.warn_open_path(pdf, "Tincture.text_link/5", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_link/5", "the text")
     draw_text_link(pdf, x, y, text, target, [])
   end
 
@@ -380,7 +379,7 @@ defmodule Tincture do
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
     PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/6")
-    Ops.warn_open_path(pdf, "Tincture.text_link/6", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_link/6", "the text")
     draw_text_link(pdf, x, y, text, target, opts)
   end
 
@@ -829,25 +828,25 @@ defmodule Tincture do
 
   Calling this while a path is open, after `move_to/3`, `line_to/3`,
   `bezier/7` or a shape drawn with `paint: :none` and before the path is
-  painted, warns: the text would be written inside the path, where PDF does
-  not allow it. From 0.4.0 it raises.
+  painted, raises `ArgumentError`: the text would be written inside the path,
+  where PDF does not allow it.
   """
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text) do
-    Ops.warn_open_path(pdf, "Tincture.text_at/4", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at/4", "the text")
     Ops.text_at(pdf, x, y, text)
   end
 
   @doc """
   Place text at X/Y coordinates, splitting glyph runs across fallback fonts when needed.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `text_at/4`.
   """
   @spec text_at_with_fallback(PDF.t(), number(), number(), String.t(), [String.t()]) :: PDF.t()
   def text_at_with_fallback(%PDF{} = pdf, x, y, text, fallback_fonts \\ [])
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) do
-    Ops.warn_open_path(pdf, "Tincture.text_at_with_fallback/5", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at_with_fallback/5", "the text")
     draw_fallback_text(pdf, x, y, text, fallback_fonts, [])
   end
 
@@ -879,7 +878,7 @@ defmodule Tincture do
   def text_at_with_fallback(%PDF{} = pdf, x, y, text, fallback_fonts, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) and
              is_list(opts) do
-    Ops.warn_open_path(pdf, "Tincture.text_at_with_fallback/6", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at_with_fallback/6", "the text")
     draw_fallback_text(pdf, x, y, text, fallback_fonts, opts)
   end
 
@@ -909,7 +908,7 @@ defmodule Tincture do
   @doc """
   Place rotated text at X/Y, splitting glyph runs across fallback fonts when needed.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `text_at/4`.
   """
   @spec text_at_rotated_with_fallback(
@@ -930,7 +929,7 @@ defmodule Tincture do
       )
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) do
-    Ops.warn_open_path(pdf, "Tincture.text_at_rotated_with_fallback/6", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at_rotated_with_fallback/6", "the text")
     draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, [])
   end
 
@@ -960,7 +959,7 @@ defmodule Tincture do
       )
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) and is_list(opts) do
-    Ops.warn_open_path(pdf, "Tincture.text_at_rotated_with_fallback/7", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at_rotated_with_fallback/7", "the text")
     draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, opts)
   end
 
@@ -1110,12 +1109,12 @@ defmodule Tincture do
   @doc """
   Place text at X/Y coordinates rotated by the given angle in degrees.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `text_at/4`.
   """
   @spec text_at_rotated(PDF.t(), number(), number(), number(), String.t()) :: PDF.t()
   def text_at_rotated(%PDF{} = pdf, x, y, angle_degrees, text) do
-    Ops.warn_open_path(pdf, "Tincture.text_at_rotated/5", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_at_rotated/5", "the text")
     Ops.text_at_rotated(pdf, x, y, angle_degrees, text)
   end
 
@@ -1366,7 +1365,7 @@ defmodule Tincture do
         {1.0, {0.20, 0.55, 0.45}}
       ], direction: :horizontal)
 
-  Calling this while a path is open warns, and from 0.4.0 raises: the
+  Calling this while a path is open raises `ArgumentError`: the
   gradient would be written inside the path, where PDF does not allow it.
   """
   @spec linear_gradient(
@@ -1379,7 +1378,7 @@ defmodule Tincture do
           keyword()
         ) :: PDF.t()
   def linear_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
-    Ops.warn_open_path(pdf, "Tincture.linear_gradient/7", "the gradient")
+    Ops.refuse_open_path(pdf, "Tincture.linear_gradient/7", "the gradient")
 
     coords =
       case Keyword.get(opts, :direction, :vertical) do
@@ -1421,7 +1420,7 @@ defmodule Tincture do
         {1.0, {0.85, 0.35, 0.10}}
       ])
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `linear_gradient/7`.
   """
   @spec radial_gradient(
@@ -1434,7 +1433,7 @@ defmodule Tincture do
           keyword()
         ) :: PDF.t()
   def radial_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
-    Ops.warn_open_path(pdf, "Tincture.radial_gradient/7", "the gradient")
+    Ops.refuse_open_path(pdf, "Tincture.radial_gradient/7", "the gradient")
     {cx, cy} = Keyword.get(opts, :center, {x + width / 2, y + height / 2})
     outer = Keyword.get(opts, :radius, max(width, height) / 2)
     inner = Keyword.get(opts, :inner_radius, 0)
@@ -1523,49 +1522,49 @@ defmodule Tincture do
   @doc """
   Save graphics state.
 
-  Calling this while a path is open warns, and from 0.4.0 raises: `q` cannot
+  Calling this while a path is open raises `ArgumentError`: `q` cannot
   be written inside a path, which holds only path construction until it is
   painted. Paint the path first.
   """
   @spec save_state(PDF.t()) :: PDF.t()
   def save_state(%PDF{} = pdf) do
-    Ops.warn_open_path(pdf, "Tincture.save_state/1", "the saved graphics state")
+    Ops.refuse_open_path(pdf, "Tincture.save_state/1", "the saved graphics state")
     Ops.save_state(pdf)
   end
 
   @doc """
   Restore graphics state.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `save_state/1`.
   """
   @spec restore_state(PDF.t()) :: PDF.t()
   def restore_state(%PDF{} = pdf) do
-    Ops.warn_open_path(pdf, "Tincture.restore_state/1", "the restored graphics state")
+    Ops.refuse_open_path(pdf, "Tincture.restore_state/1", "the restored graphics state")
     Ops.restore_state(pdf)
   end
 
   @doc """
   Draw a JPEG image at X/Y with the given width and height.
 
-  Calling this while a path is open warns, and from 0.4.0 raises: the image
+  Calling this while a path is open raises `ArgumentError`: the image
   would be written inside the path, where PDF does not allow it.
   """
   @spec image_jpeg(PDF.t(), number(), number(), number(), number(), Path.t()) :: PDF.t()
   def image_jpeg(%PDF{} = pdf, x, y, width, height, path) do
-    Ops.warn_open_path(pdf, "Tincture.image_jpeg/6", "the image")
+    Ops.refuse_open_path(pdf, "Tincture.image_jpeg/6", "the image")
     Ops.image_jpeg(pdf, x, y, width, height, path)
   end
 
   @doc """
   Draw a PNG image at X/Y with the given width and height.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `image_jpeg/6`.
   """
   @spec image_png(PDF.t(), number(), number(), number(), number(), Path.t()) :: PDF.t()
   def image_png(%PDF{} = pdf, x, y, width, height, path) do
-    Ops.warn_open_path(pdf, "Tincture.image_png/6", "the image")
+    Ops.refuse_open_path(pdf, "Tincture.image_png/6", "the image")
     Ops.image_png(pdf, x, y, width, height, path)
   end
 
@@ -1656,18 +1655,22 @@ defmodule Tincture do
   fonts, colour contrast, and metadata — that a library cannot enforce on your
   behalf. Tag your documents and then verify them.
 
-  Opening a content tag while a path is open warns, and from 0.4.0 raises: its
+  Opening a content tag while a path is open raises `ArgumentError`: its
   marked content would begin inside the path, where PDF does not allow it. A
-  grouping tag such as `:section` writes no marked content and does not warn.
+  grouping tag such as `:section` writes no marked content and is not refused.
   """
   @spec tag(PDF.t(), atom(), keyword(), (PDF.t() -> PDF.t())) :: PDF.t()
   def tag(pdf, tag, opts \\ [], fun)
 
   def tag(%PDF{} = pdf, tag, opts, fun)
       when is_atom(tag) and is_list(opts) and is_function(fun, 1) do
-    # Only a content tag writes marked content (BDC) into the stream.
+    # Refused inside a form XObject before anything else, so a call made
+    # there is refused for that. Only a content tag writes marked content
+    # (BDC) into the stream.
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.tag/4")
+
     if Structure.content?(tag),
-      do: Ops.warn_open_path(pdf, "Tincture.tag/4", "the marked content")
+      do: Ops.refuse_open_path(pdf, "Tincture.tag/4", "the marked content")
 
     pdf
     |> PDF.begin_structure(tag, opts)
@@ -1701,12 +1704,13 @@ defmodule Tincture do
   `Tincture.Layout.Table.render/6` does this for its own borders when it is
   tagging.
 
-  Calling this while a path is open warns, and from 0.4.0 raises: its marked
+  Calling this while a path is open raises `ArgumentError`: its marked
   content would begin inside the path, where PDF does not allow it.
   """
   @spec artifact(PDF.t(), (PDF.t() -> PDF.t())) :: PDF.t()
   def artifact(%PDF{} = pdf, fun) when is_function(fun, 1) do
-    Ops.warn_open_path(pdf, "Tincture.artifact/2", "the marked content")
+    PDF.refuse_in_form_xobject!(pdf, "Tincture.artifact/2")
+    Ops.refuse_open_path(pdf, "Tincture.artifact/2", "the marked content")
 
     pdf
     |> PDF.begin_artifact()
@@ -2020,9 +2024,9 @@ defmodule Tincture do
 
   ## A path left open
 
-  A path open on the current page that nothing has painted is ended unpainted,
-  and export warns, whatever `:enforce` says: it is invalid content, not a
-  conformance claim. From 0.4.0 it raises.
+  A path open on the current page that nothing has painted raises
+  `ArgumentError`, whatever `:enforce` says: it is invalid content, not a
+  conformance claim.
   """
   @spec export(PDF.t(), keyword()) :: binary()
   def export(%PDF{} = pdf, opts) when is_list(opts) do
@@ -2046,10 +2050,10 @@ defmodule Tincture do
     # what is exported.
     Accessibility.warn_form_deprecations(pdf)
 
-    # A path nothing painted on the current page is ended with `n`; a page
-    # left with one warned when it was left. No enforce: escape - it is
-    # invalid content, not a conformance claim.
-    Ops.warn_unpainted_path(pdf, "Tincture.export/2")
+    # A path nothing painted on the current page is refused; a page left with
+    # one was refused when it was left. No enforce: escape - it is invalid
+    # content, not a conformance claim.
+    Ops.refuse_unpainted_path(pdf, caller)
 
     pdf
     |> check_archival(enforce?)
@@ -2161,7 +2165,7 @@ defmodule Tincture do
   @doc """
   Render a laid-out paragraph of rich text at X/Y origin using typography layout.
 
-  Calling this while a path is open warns, and from 0.4.0 raises, as for
+  Calling this while a path is open raises `ArgumentError`, as for
   `text_at/4`.
   """
   @spec text_paragraph(PDF.t(), number(), number(), rich_text(), number(), [paragraph_option()]) ::
@@ -2170,7 +2174,7 @@ defmodule Tincture do
   def text_paragraph(%PDF{} = pdf, x, y, %RichText{} = rich_text, max_width, opts \\ [])
       when is_number(x) and is_number(y) and is_number(max_width) and max_width > 0 and
              is_list(opts) do
-    Ops.warn_open_path(pdf, "Tincture.text_paragraph/6", "the text")
+    Ops.refuse_open_path(pdf, "Tincture.text_paragraph/6", "the text")
     rotate = Keyword.get(opts, :rotate)
     fallback_fonts = Keyword.get(opts, :fallback_fonts, [])
     bidi = Keyword.get(opts, :bidi, :off)
