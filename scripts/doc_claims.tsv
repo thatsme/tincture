@@ -1,0 +1,39 @@
+# Every veraPDF count the docs quote, checked against the reports of the
+# same CI run by scripts/check_doc_claims.exs.
+#
+# One claim per line, four tab-separated fields:
+#
+#   file         the document, relative to the repository root
+#   occurrences  how many times the rendered text must appear in it
+#   reports      the report names, comma-separated, as the Examples job
+#                writes them (verapdf-reports/<name>.xml); every one must
+#                render the template to the same text
+#   template     the quoted text, with {rules} for "P of T" rules and
+#                {checks} for "P of T" checks, where T counts failures too
+#
+# The document is compared with runs of whitespace collapsed to one space,
+# so a claim that wraps across lines is written on one line here. A new
+# claim in the docs is one new line here.
+README.md	1	compliant-ua1	| `compliant.pdf` | {rules} rules, {checks} checks |
+README.md	1	accessible-ua1	| `accessible.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival-ua1	| `archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	linked_Main-report-ua1	| `linked/Main-report.pdf` | {rules} rules, {checks} checks |
+README.md	1	linked_Attached_documents_Appendix-A-ua1	| `linked/Attached documents/Appendix-A.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival-2b	| `archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival-2u	| `archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival-2a	| `archival.pdf` | {rules} rules, {checks} checks |
+ROADMAP.md	1	compliant-ua1,accessible-ua1,archival-ua1,linked_Main-report-ua1,linked_Attached_documents_Appendix-A-ua1	{rules} rules on each of five documents
+ROADMAP.md	1	archival-2a	up to {rules} rules
+ROADMAP.md	1	accessible-ua1	{rules} rules, {checks} checks. PAC
+ROADMAP.md	1	archival-2b	PDF/A-2b ({rules} rules, {checks} checks)
+ROADMAP.md	1	archival-2u	PDF/A-2u ({rules} rules, {checks} checks)
+ROADMAP.md	1	archival-2a	**PDF/A-2a** ({rules} rules, {checks} checks)
+ROADMAP.md	1	archival-ua1	PDF/UA-1 profile at the same time ({rules} rules, {checks} checks)
+examples/README.md	1	accessible-ua1	{rules} rules, {checks} checks. PAC
+examples/README.md	1	compliant-ua1	{rules} rules, {checks} checks. PAC
+examples/README.md	1	archival-2b	| PDF/A-2b | {rules} | {checks} |
+examples/README.md	1	archival-2u	| PDF/A-2u | {rules} | {checks} |
+examples/README.md	1	archival-2a	| PDF/A-2a | {rules} | {checks} |
+examples/README.md	1	archival-ua1	| PDF/UA-1 | {rules} | {checks} |
+examples/README.md	1	linked_Main-report-ua1	`Main-report.pdf` {rules} rules, {checks} checks;
+examples/README.md	1	linked_Attached_documents_Appendix-A-ua1	`Appendix-A.pdf` {rules} rules, {checks} checks.
