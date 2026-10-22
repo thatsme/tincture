@@ -14,7 +14,9 @@ defmodule Tincture.EncryptTest do
   mistake shared by both would show up as a mismatch rather than cancelling
   out.
   """
-  use ExUnit.Case, async: true
+  # Not async: a test here captures stderr, which is shared by the whole VM,
+  # so it would take warnings from tests running alongside.
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO, only: [with_io: 2]
 

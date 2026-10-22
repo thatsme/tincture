@@ -6,7 +6,9 @@ defmodule Tincture.SignEncryptTest do
   that would combine the two now refuses at once, naming itself and the
   combination.
   """
-  use ExUnit.Case, async: true
+  # Not async: a test here captures stderr, which is shared by the whole VM,
+  # so it would take warnings from tests running alongside.
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO, only: [with_io: 2]
 

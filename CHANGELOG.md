@@ -64,6 +64,20 @@ them.
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
 
+## [0.3.9] — 2026-10-22
+
+No output changes, and one new warning: a tag or artifact that closes while a
+path started inside it is still open.
+
+### Deprecated
+
+This warns now and raises in 0.4.0:
+
+- **Closing a tag that marks content, or an artifact, while a path started
+  inside it is still open.** Its end is written inside the path, where PDF
+  does not allow it. *Migration:* paint the path before the tag or artifact
+  closes.
+
 ## [0.3.8] — 2026-10-22
 
 A shape drawn with `paint: :none` now leaves its path open, as its
@@ -937,7 +951,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/thatsme/tincture/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/thatsme/tincture/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/thatsme/tincture/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/thatsme/tincture/compare/v0.3.5...v0.3.6

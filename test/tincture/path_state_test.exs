@@ -12,9 +12,13 @@ defmodule Tincture.PathStateTest do
     * text, an image, a gradient, a saved or restored graphics state, or
       marked content, while a path is open, warns (W5): 0.4.0 raises;
     * a path nothing painted is ended with `n`, and leaving the page or
-      exporting with one warns (W6): 0.4.0 raises.
+      exporting with one warns (W6): 0.4.0 raises;
+    * a content tag or artifact closing over a path started inside it warns
+      (W7), with the bytes unchanged: 0.4.0 raises.
   """
-  use ExUnit.Case, async: true
+  # Not async: these tests capture stderr, which is shared by the whole VM, and
+  # a test running alongside that writes to it would land in the capture.
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO, only: [with_io: 2]
 
@@ -47,6 +51,16 @@ defmodule Tincture.PathStateTest do
       "A path draws nothing until stroke/1, fill/1 or clip/1 paints it, so it is ended " <>
       "unpainted. Paint it, or remove it. This will raise in 0.4.0."
   end
+
+  defp w7(closed, block) do
+    "#{closed} with a path still open, so its end would be written inside the path, where " <>
+      "PDF does not allow it. Paint the path with stroke/1, fill/1 or clip/1 before the " <>
+      "#{block} closes. This will raise in 0.4.0."
+  end
+
+  defp w7_count(stderr), do: length(String.split(stderr, "with a path still open")) - 1
+
+  defp line_inside(pdf), do: pdf |> Tincture.move_to(10, 10) |> Tincture.line_to(50, 50)
 
   defp png do
     chunk = fn type, data ->
@@ -365,6 +379,68 @@ defmodule Tincture.PathStateTest do
     test "export warns, whatever enforce: says" do
       {_binary, stderr} = quiet(fn -> Tincture.export(open_path(), enforce: false) end)
       assert stderr =~ w6("Tincture.export/2", 1)
+    end
+  end
+
+  describe "W7: a tag or artifact closing over a path started inside it" do
+    test "a path opened inside tag(:p) and painted after it warns once, bytes unchanged" do
+      {pdf, stderr} =
+        quiet(fn -> Tincture.new() |> Tincture.tag(:p, &line_inside/1) |> Tincture.stroke() end)
+
+      assert stderr =~ w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
+      assert w7_count(stderr) == 1
+      assert content(pdf) == "/P <</MCID 0>> BDC\n10 10 m\n50 50 l\nEMC\nS\n"
+    end
+
+    test "the same inside artifact/2" do
+      {pdf, stderr} =
+        quiet(fn -> Tincture.new() |> Tincture.artifact(&line_inside/1) |> Tincture.stroke() end)
+
+      assert stderr =~ w7("Tincture.artifact/2 closed", "artifact")
+      assert w7_count(stderr) == 1
+      assert content(pdf) == "/Artifact BMC\n10 10 m\n50 50 l\nEMC\nS\n"
+    end
+
+    test "nested tags warn once, at the inner close" do
+      {_pdf, stderr} =
+        quiet(fn ->
+          Tincture.new()
+          |> Tincture.tag(:p, &Tincture.tag(&1, :span, fn pdf -> line_inside(pdf) end))
+          |> Tincture.stroke()
+        end)
+
+      assert stderr =~ w7("Tincture.tag/4 closed tag(:span, ...)", "tag")
+      assert w7_count(stderr) == 1
+    end
+
+    test "a path open before the tag opened is W5's, at the open, and not W7's" do
+      {_pdf, stderr} =
+        quiet(fn -> open_path() |> Tincture.tag(:p, fn pdf -> pdf end) |> Tincture.stroke() end)
+
+      assert stderr =~ w5("Tincture.tag/4", "the marked content")
+      assert length(String.split(stderr, "was called while a path is open")) == 2
+      assert w7_count(stderr) == 0
+    end
+
+    test "a path opened and painted inside the tag does not warn" do
+      {_pdf, stderr} =
+        quiet(fn ->
+          Tincture.new()
+          |> Tincture.tag(:p, &(&1 |> line_inside() |> Tincture.stroke()))
+          |> Tincture.artifact(&(&1 |> line_inside() |> Tincture.fill()))
+        end)
+
+      assert stderr == ""
+    end
+
+    test "a grouping element closing over a path does not warn, and writes no EMC" do
+      {pdf, stderr} =
+        quiet(fn ->
+          Tincture.new() |> Tincture.tag(:section, &line_inside/1) |> Tincture.stroke()
+        end)
+
+      assert stderr == ""
+      assert content(pdf) == "10 10 m\n50 50 l\nS\n"
     end
   end
 
