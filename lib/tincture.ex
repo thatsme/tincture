@@ -1598,7 +1598,9 @@ defmodule Tincture do
   behalf. Tag your documents and then verify them.
 
   Opening a content tag while a path is open warns, and from 0.4.0 raises: its
-  marked content would begin inside the path, where PDF does not allow it. A
+  marked content would begin inside the path, where PDF does not allow it. So
+  does closing one while a path started inside `fun` is still open: its marked
+  content would end inside the path. Paint the path before the tag closes. A
   grouping tag such as `:section` writes no marked content and does not warn.
   """
   @spec tag(PDF.t(), atom(), keyword(), (PDF.t() -> PDF.t())) :: PDF.t()
@@ -1615,6 +1617,9 @@ defmodule Tincture do
     |> fun.()
     |> case do
       %PDF{} = tagged ->
+        if Structure.content?(tag),
+          do: Ops.warn_closed_over_path(tagged, "Tincture.tag/4 closed tag(:#{tag}, ...)", "tag")
+
         PDF.end_structure(tagged)
 
       other ->
@@ -1643,7 +1648,10 @@ defmodule Tincture do
   tagging.
 
   Calling this while a path is open warns, and from 0.4.0 raises: its marked
-  content would begin inside the path, where PDF does not allow it.
+  content would begin inside the path, where PDF does not allow it. So does
+  returning from `fun` while a path started inside it is still open: its
+  marked content would end inside the path. Paint the path before the artifact
+  closes.
   """
   @spec artifact(PDF.t(), (PDF.t() -> PDF.t())) :: PDF.t()
   def artifact(%PDF{} = pdf, fun) when is_function(fun, 1) do
@@ -1654,6 +1662,7 @@ defmodule Tincture do
     |> fun.()
     |> case do
       %PDF{} = marked ->
+        Ops.warn_closed_over_path(marked, "Tincture.artifact/2 closed", "artifact")
         PDF.end_artifact(marked)
 
       other ->

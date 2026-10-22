@@ -161,18 +161,72 @@ defmodule Tincture.PDF.Ops do
     {open?} =
       ops
       |> Enum.reverse()
-      |> Enum.find_value({false}, fn
-        {path_op, _x, _y} when path_op in [:move_to, :line_to] -> {true}
-        {:bezier, _x1, _y1, _x2, _y2, _x3, _y3} -> {true}
-        {:line, _x1, _y1, _x2, _y2, paint} -> {paint == :none}
-        {:rectangle, _x, _y, _w, _h, paint} -> {paint == :none}
-        {:circle, _cx, _cy, _r, paint} -> {paint == :none}
-        op when op in [:stroke, :fill, :fill_even_odd, :clip, :clip_even_odd] -> {false}
-        _other -> nil
+      |> Enum.find_value({false}, fn op ->
+        case path_kind(op) do
+          :construction -> {true}
+          :paint -> {false}
+          nil -> nil
+        end
       end)
 
     open?
   end
+
+  defp path_kind({path_op, _x, _y}) when path_op in [:move_to, :line_to], do: :construction
+  defp path_kind({:bezier, _x1, _y1, _x2, _y2, _x3, _y3}), do: :construction
+  defp path_kind({:line, _x1, _y1, _x2, _y2, paint}), do: shape_kind(paint)
+  defp path_kind({:rectangle, _x, _y, _w, _h, paint}), do: shape_kind(paint)
+  defp path_kind({:circle, _cx, _cy, _r, paint}), do: shape_kind(paint)
+
+  defp path_kind(op) when op in [:stroke, :fill, :fill_even_odd, :clip, :clip_even_odd],
+    do: :paint
+
+  defp path_kind(_op), do: nil
+
+  defp shape_kind(:none), do: :construction
+  defp shape_kind(_paint), do: :paint
+
+  # A content tag or an artifact that closes while a path started inside it
+  # is still open writes its EMC inside the path object (ISO 32000-1,
+  # Figure 9). W5 checks only at the open, so this checks at the close. 0.4.0
+  # raises; until then the call warns, and is written as before.
+  @doc false
+  @spec warn_closed_over_path(PDF.t(), String.t(), String.t()) :: :ok
+  def warn_closed_over_path(%PDF{} = pdf, closed, block) do
+    if path_started_inside_marked_content?(PDF.page_operations(pdf, pdf.current_page)) do
+      IO.warn(
+        "#{closed} with a path still open, so its end would be written inside the path, " <>
+          "where PDF does not allow it. Paint the path with stroke/1, fill/1 or clip/1 " <>
+          "before the #{block} closes. This will raise in 0.4.0."
+      )
+    end
+
+    :ok
+  end
+
+  # Whether the path was open when the closing tag opened is read from the
+  # operations already recorded, so nothing is stored for it. From the open
+  # path's first construction operator on, a BDC means the innermost open tag
+  # opened inside the path (W5's case, warned at the open), and an EMC means
+  # an inner tag has already closed over the path (warned there). With
+  # neither, the tag closing now is the first to close over a path started
+  # inside it.
+  defp path_started_inside_marked_content?(ops) do
+    ops
+    |> Enum.reverse()
+    |> Enum.take_while(&(path_kind(&1) != :paint))
+    |> Enum.reverse()
+    |> Enum.drop_while(&(path_kind(&1) != :construction))
+    |> case do
+      [] -> false
+      since_path_start -> not Enum.any?(since_path_start, &marked_content?/1)
+    end
+  end
+
+  defp marked_content?({:begin_marked_content, _tag, _mcid}), do: true
+  defp marked_content?({:begin_artifact}), do: true
+  defp marked_content?({:end_marked_content}), do: true
+  defp marked_content?(_op), do: false
 
   # A path object may hold only path construction until it is painted (ISO
   # 32000-1, Figure 9). Text, an image, a gradient, a q or Q, or marked
