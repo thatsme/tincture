@@ -16,7 +16,9 @@ defmodule Tincture.PathStateTest do
     * a content tag or artifact closing over a path started inside it warns
       (W7), with the bytes unchanged: 0.4.0 raises.
   """
-  use ExUnit.Case, async: true
+  # Not async: these tests capture stderr, which is shared by the whole VM, and
+  # a test running alongside that writes to it would land in the capture.
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO, only: [with_io: 2]
 
