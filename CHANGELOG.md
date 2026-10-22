@@ -64,15 +64,48 @@ them.
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
 
+## [0.3.8] — 2026-10-22
+
+A shape drawn with `paint: :none` now leaves its path open, as its
+documentation said, so a following `fill/1` fills it, a following `stroke/1`
+strokes it, and a following `clip/1` clips to it. Before, the path was ended
+at once and none of them did anything. Every release from 0.2.0, which
+introduced `:none`, to 0.3.7 has the defect. **Regenerate any document that
+uses `paint: :none`.**
+
 ### Fixed
 
+- **`paint: :none` leaves the path open.** A rectangle, line or circle drawn
+  with `paint: :none` was ended immediately, so `fill/1`, `stroke/1` or
+  `clip/1` after it had no path: nothing was filled or stroked, and no clip
+  was set. It is now painted or clipped by the next painting call.
+- **Colour and line settings between a path and its paint are written
+  before the path.** `set_stroke_color/2`, `set_fill_color/2`,
+  `set_line_width/2`, `set_line_cap/2`, `set_line_join/2`, `set_dash/3`,
+  `set_miter_limit/2` and `set_alpha/1,2`, called while a path is open, were
+  written inside the path, where PDF does not allow them. They are now
+  written before it, which the PDF specification permits, and they apply to
+  the path's paint as before.
 - **A font's OS/2 `fsType` is read as the OpenType specification defines
-  it.** Registering a font flagged it as Restricted License whenever bit 1 of
-  `fsType` was set. Restricted License applies only when that permission is
-  the only one set; a font with an OS/2 table of version 0 to 2 may combine
-  permissions, and the least restrictive applies. Such a font, for example
-  one with `fsType` 10 (Editable), no longer warns, and is no longer refused
-  under `enforce_embedding_permissions: true`.
+  it.** In an OS/2 table of version 0 to 2 the permissions may be combined,
+  and the least restrictive applies: a font that sets Restricted License
+  together with Preview & Print or Editable is no longer read as Restricted
+  License, so it no longer warns, and is no longer refused under
+  `enforce_embedding_permissions: true`. From version 3 the permissions are
+  exclusive, and a font that combines them anyway is still read by the most
+  restrictive.
+
+### Deprecated
+
+Each of these warns now and raises in 0.4.0:
+
+- **Drawing text, an image or a gradient, saving or restoring graphics
+  state, or opening a tag that marks content or an artifact, while a path is
+  open.** It is written inside the path, where PDF does not allow it. Paint
+  the path first, or draw this before starting it.
+- **Leaving a path unpainted** at `add_page/1`, at `set_page/2` to another
+  page, or at `export/1,2`. The path is ended without painting, as `n`. Paint
+  it, or remove it.
 
 ## [0.3.7] — 2026-10-20
 
@@ -904,7 +937,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.7...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.8...HEAD
+[0.3.8]: https://github.com/thatsme/tincture/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/thatsme/tincture/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/thatsme/tincture/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/thatsme/tincture/compare/v0.3.4...v0.3.5

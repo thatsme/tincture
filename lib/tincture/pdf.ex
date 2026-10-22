@@ -331,6 +331,7 @@ defmodule Tincture.PDF do
   def add_page(%__MODULE__{} = pdf) do
     refuse_in_form_xobject!(pdf, "Tincture.add_page/1")
     refuse_open_marked_content(pdf, "add_page/1")
+    Tincture.PDF.Ops.warn_unpainted_path(pdf, "Tincture.add_page/1")
 
     next_page =
       pdf
@@ -350,7 +351,11 @@ defmodule Tincture.PDF do
 
     case Map.fetch(pdf.pages, page_number) do
       {:ok, _ops} ->
-        if page_number != pdf.current_page, do: refuse_open_marked_content(pdf, "set_page/2")
+        if page_number != pdf.current_page do
+          refuse_open_marked_content(pdf, "set_page/2")
+          Tincture.PDF.Ops.warn_unpainted_path(pdf, "Tincture.set_page/2")
+        end
+
         sync_operations_mirror(%__MODULE__{pdf | current_page: page_number})
 
       :error ->

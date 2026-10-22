@@ -93,7 +93,7 @@ defmodule Tincture.OpenPathTest do
       end)
 
     assert warning == ""
-    assert content(pdf) == "10 20 30 40 re\nn\nf\n"
+    assert content(pdf) == "10 20 30 40 re\nf\n"
   end
 
   test "a line or circle drawn with paint: :none leaves the path open too" do
@@ -107,8 +107,8 @@ defmodule Tincture.OpenPathTest do
       end)
 
     assert warning == ""
-    assert content(pdf) =~ ~r/10 10 l\nn\nS\n/
-    assert content(pdf) =~ ~r/ c\nn\nf\n\z/
+    assert content(pdf) =~ ~r/10 10 l\nS\n/
+    assert content(pdf) =~ ~r/ c\nf\n\z/
   end
 
   test "text and colour between path and paint do not close it" do
@@ -137,16 +137,28 @@ defmodule Tincture.OpenPathTest do
     assert exception.message =~ "Tincture.stroke/1 was called with no open path"
   end
 
+  # Leaving page 1 with its path unpainted also warns (W6); that warning is the
+  # only thing written to stderr.
   test "the path is tracked per page" do
-    exception =
-      raises_silently(fn ->
-        Tincture.new()
-        |> Tincture.move_to(0, 0)
-        |> Tincture.line_to(10, 10)
-        |> Tincture.add_page()
-        |> Tincture.stroke()
+    parent = self()
+
+    stderr =
+      capture_io(:stderr, fn ->
+        exception =
+          assert_raise(ArgumentError, fn ->
+            Tincture.new()
+            |> Tincture.move_to(0, 0)
+            |> Tincture.line_to(10, 10)
+            |> Tincture.add_page()
+            |> Tincture.stroke()
+          end)
+
+        send(parent, {:raised, exception})
       end)
 
+    assert_received {:raised, exception}
     assert exception.message =~ "no open path"
+    assert stderr =~ "Tincture.add_page/1 was called while a path is open on page 1"
+    assert length(Regex.scan(~r/warning: /, stderr)) == 1
   end
 end
