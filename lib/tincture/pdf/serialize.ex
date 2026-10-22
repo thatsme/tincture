@@ -29,6 +29,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.ICC
   alias Tincture.PDF.Object
   alias Tincture.PDF.Page
+  alias Tincture.PDF.PathState
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
   alias Tincture.Telemetry
@@ -1854,7 +1855,13 @@ defmodule Tincture.PDF.Serialize do
     %{fonts: font_aliases, states: gs_aliases, shadings: shading_aliases} = aliases
     embedded_font_text_modes = refs.embedded_font_text_modes
 
-    Enum.map_join(operations, "", fn
+    operations
+    |> PathState.written_order()
+    |> Enum.map_join("", fn
+      # Ends a path nothing painted; see Tincture.PDF.PathState.
+      :end_path ->
+        "n\n"
+
       {:begin_marked_content, tag, mcid} ->
         "/#{tag} <</MCID #{mcid}>> BDC\n"
 
@@ -1971,8 +1978,9 @@ defmodule Tincture.PDF.Serialize do
   defp paint_operator(:fill), do: "f\n"
   defp paint_operator(:fill_even_odd), do: "f*\n"
   defp paint_operator(:fill_and_stroke), do: "B\n"
-  # `n` ends the path without painting, leaving the caller to paint it.
-  defp paint_operator(:none), do: "n\n"
+  # :none writes no operator: the path stays open for the call that paints or
+  # clips it. One that nothing paints is ended with `n` (PathState).
+  defp paint_operator(:none), do: ""
 
   defp bezier_circle(cx, cy, radius) do
     k = radius * 0.552_284_749_831
