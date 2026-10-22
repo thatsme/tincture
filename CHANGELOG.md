@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.8] — 2026-10-21
+## [0.3.8] — 2026-10-22
 
 A shape drawn with `paint: :none` now leaves its path open, as its
 documentation said, so a following `fill/1` fills it, a following `stroke/1`
@@ -25,7 +25,7 @@ uses `paint: :none`.**
 - **Colour and line settings between a path and its paint are written
   before the path.** `set_stroke_color/2`, `set_fill_color/2`,
   `set_line_width/2`, `set_line_cap/2`, `set_line_join/2`, `set_dash/3`,
-  `set_miter_limit/2` and `set_alpha/2`, called while a path is open, were
+  `set_miter_limit/2` and `set_alpha/1,2`, called while a path is open, were
   written inside the path, where PDF does not allow them. They are now
   written before it, which the PDF specification permits, and they apply to
   the path's paint as before.
@@ -47,7 +47,7 @@ Each of these warns now and raises in 0.4.0:
   open.** It is written inside the path, where PDF does not allow it. Paint
   the path first, or draw this before starting it.
 - **Leaving a path unpainted** at `add_page/1`, at `set_page/2` to another
-  page, or at `export/2`. The path is ended without painting, as `n`. Paint
+  page, or at `export/1,2`. The path is ended without painting, as `n`. Paint
   it, or remove it.
 
 ## [0.3.7] — 2026-10-20
