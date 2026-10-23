@@ -125,9 +125,11 @@ defmodule Tincture.PDF.Archival do
     ]
   end
 
-  # ISO 19005-2 clause 6.4.1. Text and choice fields have their value drawn by
-  # the viewer from /NeedAppearances, which PDF/A forbids. They need generated
-  # appearance streams, which Tincture does not yet produce for them.
+  # Text and choice fields carry their own appearances, but a viewer that lets
+  # someone edit one draws with the font its /DA names, from /DR. Under PDF/A
+  # that must be the field's own embedded font, with no other font in /DR and
+  # no document-level /DA, and Tincture does not write them that way yet. So
+  # they stay refused until it does.
   defp value_rendered_fields(%PDF{} = pdf) do
     case Enum.filter(pdf.form_fields, &(&1.type in [:text, :choice])) do
       [] ->
@@ -141,8 +143,10 @@ defmodule Tincture.PDF.Archival do
             message:
               "#{length(fields)} text or choice field(s) present " <>
                 "(#{fields |> Enum.map(& &1.name) |> Enum.take(3) |> Enum.map_join(", ", &inspect/1)}). " <>
-                "Their value is rendered by the viewer via /NeedAppearances, which PDF/A " <>
-                "forbids. Checkboxes and radio buttons carry their own appearances and are fine."
+                "A document that declares PDF/A cannot carry them yet: a viewer that lets " <>
+                "someone edit a field draws with the font its /DA names, which under PDF/A " <>
+                "must be the field's own embedded font, and Tincture does not yet write /DA " <>
+                "and /DR that way. Checkboxes and radio buttons draw no text and are fine."
           }
         ]
     end
