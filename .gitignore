@@ -59,3 +59,6 @@ tincture-*.tar
 
 # Hand-written GoToR spike artefacts (issue #1). Scratch, not a deliverable.
 /examples/gotor-spike/
+
+# pdf.js for the Viewer CI job, installed by npm ci
+/scripts/viewer_pdfjs/node_modules/

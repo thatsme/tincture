@@ -1,0 +1,9 @@
+{
+  "name": "tincture-viewer-pdfjs",
+  "private": true,
+  "type": "module",
+  "description": "pdf.js for the Viewer CI job (scripts/viewer_check.py)",
+  "dependencies": {
+    "pdfjs-dist": "6.4.299"
+  }
+}
