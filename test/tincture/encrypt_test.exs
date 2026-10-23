@@ -546,6 +546,9 @@ defmodule Tincture.EncryptTest do
     tooltip: "TU",
     choice_option: "Opt",
     choice_value: "V",
+    embedded_field_value: "V",
+    embedded_choice_option: "Opt",
+    embedded_choice_value: "V",
     button_label: "CA",
     button_url: "URI",
     button_submit: "F",
@@ -573,7 +576,11 @@ defmodule Tincture.EncryptTest do
   # Where the public API refuses an input, for a reason of its own: a blank
   # bookmark, language, link description or figure alternative; a path to
   # another file that is not ASCII; and a standard-14 field's value, option or
-  # label that WinAnsi cannot encode (J4), since its appearance draws it.
+  # label that WinAnsi cannot encode (J4), since its appearance draws it. The
+  # same text and choice inputs are round-tripped through an embedded-font
+  # field, the embedded_* sites, which J4 does not cover. A push button takes
+  # only the standard 14 until stage 6 of 0.4.0 gives its caption embedded
+  # fonts, so button_label stays refused until then.
   @refused %{
     bookmark: [:empty],
     language: [:empty],
@@ -588,7 +595,12 @@ defmodule Tincture.EncryptTest do
 
   # Where the writer, by design, writes nothing: an empty field value has no
   # /V (Tincture.PDF.Serialize, field_value_entries/1).
-  @not_written %{field_value: [:empty], choice_value: [:empty]}
+  @not_written %{
+    field_value: [:empty],
+    choice_value: [:empty],
+    embedded_field_value: [:empty],
+    embedded_choice_value: [:empty]
+  }
 
   defp written_value(site, value) when site in [:link_uri, :button_url, :button_submit],
     do: "https://example.com/" <> value
@@ -634,6 +646,39 @@ defmodule Tincture.EncryptTest do
     do:
       Tincture.new()
       |> Tincture.choice_field(0, 0, 90, 20, "c", options: ["x", value], value: value)
+
+  # A whole embedded font, which any field may use and an editable one needs.
+  defp with_embedded_field_font,
+    do:
+      Tincture.register_ttf_font(
+        Tincture.new(),
+        "Sans",
+        "examples/fonts/LiberationSans-Regular.ttf",
+        subset: :none
+      )
+
+  defp document_with(:embedded_field_value, value),
+    do:
+      Tincture.text_field(with_embedded_field_font(), 0, 0, 90, 40, "f",
+        value: value,
+        multiline: true,
+        font: "Sans"
+      )
+
+  defp document_with(:embedded_choice_option, value),
+    do:
+      Tincture.choice_field(with_embedded_field_font(), 0, 0, 90, 20, "c",
+        options: ["x", value],
+        font: "Sans"
+      )
+
+  defp document_with(:embedded_choice_value, value),
+    do:
+      Tincture.choice_field(with_embedded_field_font(), 0, 0, 90, 20, "c",
+        options: ["x", value],
+        value: value,
+        font: "Sans"
+      )
 
   defp document_with(:button_label, value),
     do: Tincture.new() |> Tincture.push_button(0, 0, 90, 20, "b", label: value, action: :reset)
