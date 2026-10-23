@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10] — 2026-10-23
+
+Three form defects are fixed. One of them is visible:
+
+- **A push-button label with an accented character, such as "Größe", was
+  drawn wrong** in any static render: printing, thumbnails, server-side
+  rasterising, and viewers that use the button's own appearance. Every
+  release from 0.2.0 has the defect. **Regenerate any form whose
+  push-button labels use characters outside 7-bit ASCII.**
+- **Regenerate a form with `sort: true`** if its options should appear
+  sorted. Until now they appeared in the order given.
+
+A new warning covers a non-editable choice field whose value is not one of
+its options.
+
+### Fixed
+
+- **A push-button caption is written in WinAnsi, the encoding of the font
+  that draws it.** A label with characters 128–255, such as "Größe", was
+  written as UTF-16 under a WinAnsi font, so a static render showed the byte
+  order mark and spaced-out letters ("þÿ G r ö ß e"). ASCII labels are
+  unchanged. A label WinAnsi cannot encode, such as Greek, keeps its old
+  bytes and its warning, and raises in 0.4.0.
+- **`sort: true` sorts the options.** `choice_field/7` set the Sort flag but
+  wrote the options in the order given, and a conforming viewer shows them
+  in the order written (ISO 32000-1 Table 230). They are now written
+  sorted, alphabetically ignoring case, with the exact text breaking ties.
+  The value is unchanged. Every release from 0.1.0 has the defect.
+- **The form's default appearance names only a font the form provides.**
+  The document-level `/DA` named Helvetica even when no field used it, and
+  so `/DR` did not contain it. ISO 32000-1 12.7.3.3 requires the font to be
+  in `/DR`. It is now written only when some field uses Helvetica; every
+  field carries its own `/DA` either way, so nothing a viewer draws changes.
+  Every release from 0.1.0 has the defect.
+
+### Deprecated
+
+This warns now and raises in 0.4.0:
+
+- **A choice field that is not `editable: true`, whose `:value` is not one
+  of its `:options`.** Such a field can only hold one of its options, and
+  0.4.0 draws the value into the field's appearance. *Migration:* add the
+  value to `:options`, or pass `editable: true`.
+
 ## [0.3.9] — 2026-10-22
 
 No output changes, and one new warning: a tag or artifact that closes while a
@@ -894,7 +938,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.9...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.10...HEAD
+[0.3.10]: https://github.com/thatsme/tincture/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/thatsme/tincture/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/thatsme/tincture/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/thatsme/tincture/compare/v0.3.6...v0.3.7

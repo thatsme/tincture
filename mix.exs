@@ -1,7 +1,7 @@
 defmodule Tincture.MixProject do
   use Mix.Project
 
-  @version "0.3.9"
+  @version "0.3.10"
   @source_url "https://github.com/thatsme/tincture"
 
   def project do
