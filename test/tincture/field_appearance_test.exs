@@ -4,8 +4,10 @@ defmodule Tincture.FieldAppearanceTest do
   by Tincture, so they display the same in every viewer and wherever no
   viewer regenerates them. /NeedAppearances is never written.
 
-  The layout rules are those of docs/design/0.4.0-forms.md, section D; the
-  bytes asserted here are the ones it gives.
+  The layout follows what Adobe Acrobat Reader (2026.002.22031) writes for
+  the same fields. The values marked "Acrobat:" below are the ones measured
+  from its saved appearance streams for Helvetica fields; Tincture's must be
+  within 0.005 point of them.
   """
   use ExUnit.Case, async: true
 
@@ -55,19 +57,95 @@ defmodule Tincture.FieldAppearanceTest do
     |> export()
   end
 
-  describe "the bytes of section D" do
-    test "a single-line field" do
-      assert content(single(value: "Ada Lovelace"), "f") ==
-               "/Tx BMC\nq\n1 1 198 22 re\nW\nn\n0 0 0 rg\nBT\n/Helv 12 Tf\n2 9 Td\n" <>
-                 "(Ada Lovelace) Tj\nET\nQ\nEMC\n"
+  # The size and the first baseline of an appearance.
+  defp size_and_baseline(content) do
+    [_, size] = Regex.run(~r/\/\S+ (\S+) Tf/, content)
+    [_, x, y] = Regex.run(~r/\n(\S+) (\S+) Td\n/, content)
+    {to_float(size), to_float(x), to_float(y)}
+  end
+
+  defp to_float(text), do: text |> Float.parse() |> elem(0)
+
+  describe "against Acrobat's appearances" do
+    test "a single-line field at auto size" do
+      # Acrobat: /Helv 16.302 Tf, 0 4.9524 Td, in a 240 x 22 field.
+      assert content(single([value: "Ada Lovelace"], {240, 22}), "f") ==
+               "/Tx BMC\n0 0 0 rg\nBT\n/Helv 16.3011 Tf\n0 4.9523 Td\n(Ada Lovelace) Tj\nET\nEMC\n"
+    end
+
+    test "a single-line field at a fixed size" do
+      # Acrobat: /Helv 9 Tf, 0 7.6615 Td.
+      {size, x, y} = size_and_baseline(content(single([value: "x", size: 9], {240, 22}), "f"))
+      assert {size, x} == {9.0, 0.0}
+      assert_in_delta y, 7.6615, 0.005
+    end
+
+    test "a bordered field" do
+      # Acrobat, /Border [0 0 2]: /Helv 13.334 Tf, 4 6.0536 Td.
+      {size, x, y} =
+        size_and_baseline(content(single([value: "x", border: {0, 0, 2}], {240, 22}), "f"))
+
+      assert_in_delta size, 13.334, 0.005
+      assert x == 4.0
+      assert_in_delta y, 6.0536, 0.005
+    end
+
+    test "centred and right-aligned" do
+      # Acrobat: 91.008 for "Centred", 176.568 for "1,234.50", at 16.302.
+      {_, x, _} =
+        size_and_baseline(content(single([value: "Centred", align: :center], {240, 22}), "f"))
+
+      assert_in_delta x, 91.008, 0.005
+
+      {_, x, _} =
+        size_and_baseline(content(single([value: "1,234.50", align: :right], {240, 22}), "f"))
+
+      assert_in_delta x, 176.568, 0.015
     end
 
     test "a list box with its selection drawn on a band" do
-      assert content(list_box(["Italy", "Norway", "Japan"], "Norway"), "c") ==
-               "/Tx BMC\nq\n1 1 198 52 re\nW\nn\n0.6 0.75 0.9 rg\n1 25.4 198 13.8 re\nf\n" <>
-                 "0 0 0 rg\nBT\n/Helv 12 Tf\n2 43.1 Td\n(Italy) Tj\nET\n" <>
-                 "BT\n/Helv 12 Tf\n2 29.3 Td\n(Norway) Tj\nET\n" <>
-                 "BT\n/Helv 12 Tf\n2 15.5 Td\n(Japan) Tj\nET\nQ\nEMC\n"
+      # Acrobat: 0.600006 0.756866 0.854904 rg, 0 36.1279 240 13.8721 re f,
+      # baselines 38.6119, 24.7399 and 10.8679, /TI 3.
+      binary =
+        Tincture.new()
+        |> Tincture.choice_field(72, 600, 240, 50, "c",
+          options: ~w(one two three four five six),
+          value: "four",
+          dropdown: false
+        )
+        |> export()
+
+      assert content(binary, "c") ==
+               "/Tx BMC\n0.600006 0.756866 0.854904 rg\n0 36.128 240 13.872 re\nf\n" <>
+                 "0 0 0 rg\nBT\n/Helv 12 Tf\n0 38.612 Td\n(four) Tj\nET\n" <>
+                 "BT\n/Helv 12 Tf\n0 24.74 Td\n(five) Tj\nET\n" <>
+                 "BT\n/Helv 12 Tf\n0 10.868 Td\n(six) Tj\nET\nEMC\n"
+
+      assert widget(binary, "c") =~ "/TI 3"
+    end
+
+    test "a multiline field" do
+      # Acrobat, 500 x 56: /Helv 12 Tf, first baseline 42.1279, then 13.872
+      # lower; "after" ends the first line and "an" starts the second.
+      binary =
+        Tincture.new()
+        |> Tincture.text_field(50, 560, 500, 56, "m",
+          multiline: true,
+          value:
+            "A multiline value long enough to wrap at the edge of the box, " <>
+              "with a second paragraph after an explicit line break.\nSecond paragraph."
+        )
+        |> export()
+
+      content = content(binary, "m")
+      baselines = for [_, y] <- Regex.scan(~r/\n0 (\S+) Td\n/, content), do: to_float(y)
+      assert_in_delta hd(baselines), 42.1279, 0.005
+      assert_in_delta Enum.at(baselines, 0) - Enum.at(baselines, 1), 13.872, 0.005
+
+      assert [first, "an explicit line break.", "Second paragraph."] =
+               for([_, text] <- Regex.scan(~r/\((.*?)\) Tj/, content), do: text)
+
+      assert String.ends_with?(first, "paragraph after")
     end
   end
 
@@ -105,7 +183,7 @@ defmodule Tincture.FieldAppearanceTest do
                "/Resources << /Font << /Courier << /Type /Font /Subtype /Type1 " <>
                  "/BaseFont /Courier /Encoding /WinAnsiEncoding >> >> >>"
 
-      assert content =~ "/Courier 12 Tf"
+      assert content =~ ~r"/Courier \S+ Tf"
     end
 
     test "standard-14 text is written in WinAnsi, not UTF-16" do
@@ -115,18 +193,18 @@ defmodule Tincture.FieldAppearanceTest do
     end
   end
 
-  describe "the /Tx marking, the clip and the border" do
-    test "with no border, everything is inside the marking, clipped 1 point in" do
-      assert content(single(value: "x"), "f") =~ ~r/\A\/Tx BMC\nq\n1 1 198 22 re\nW\nn\n/
+  describe "the /Tx marking and the border" do
+    test "with no border, everything is inside the marking, with no clip of its own" do
+      # Acrobat writes no clip and no q/Q; the /BBox clips.
+      content = content(single(value: "x"), "f")
+      assert content =~ ~r/\A\/Tx BMC\n0 0 0 rg\nBT\n/
+      refute content =~ " re\nW\n"
     end
 
-    test "a border is stroked before the marking, and the clip is inset by its width" do
+    test "a border is stroked before the marking, and the text starts at twice its width" do
       content = content(single(value: "x", border: {0, 0, 2}), "f")
-
-      assert content =~
-               ~r/\A0 0 0 RG\n2 w\n1 1 198 22 re\nS\n\/Tx BMC\nq\n2 2 196 20 re\nW\nn\n/
-
-      assert content =~ ~r/\n3 \S+ Td\n/
+      assert content =~ ~r/\A0 0 0 RG\n2 w\n1 1 198 22 re\nS\n\/Tx BMC\n/
+      assert content =~ ~r/\n4 \S+ Td\n/
     end
 
     test "nothing to draw is an empty marking" do
@@ -151,13 +229,10 @@ defmodule Tincture.FieldAppearanceTest do
       String.to_float(size <> if(String.contains?(size, "."), do: "", else: ".0"))
     end
 
-    test "is 12 when the line fits" do
-      assert size_of(content(single(value: "Ada"), "f")) == 12
-    end
-
-    test "follows a short box's height" do
-      # (12 - 2) / 1.15
-      assert size_of(content(single([value: "Ada"], {200, 12}), "f")) == 8.6957
+    test "follows the height, as Acrobat's does, with no cap at 12" do
+      # (h - 2b) / (1.156 + 2 x 0.0968): Acrobat's 16.302 for 22 points.
+      assert_in_delta size_of(content(single([value: "Ada"], {200, 22}), "f")), 16.302, 0.005
+      assert_in_delta size_of(content(single([value: "Ada"], {200, 12}), "f")), 8.892, 0.005
     end
 
     test "is scaled down to the width for a long value, not below 4" do
@@ -166,7 +241,7 @@ defmodule Tincture.FieldAppearanceTest do
       assert size < 12 and size >= 4
 
       width = Tincture.Font.text_width("Helvetica", size, long)
-      assert_in_delta width, 196, 0.01
+      assert_in_delta width, 200, 0.01
 
       assert size_of(content(single([value: String.duplicate("W", 400)], {200, 24}), "f")) == 4
     end
@@ -201,12 +276,13 @@ defmodule Tincture.FieldAppearanceTest do
         assert Tincture.Font.text_width("Helvetica", 10, line) <= 120 - 4
       end
 
-      # The leading is 1.15 x size, from the top inset.
+      # The leading is the font's bounding-box height, 1.156 x size, and the
+      # first baseline one leading below the top.
       baselines =
-        for [_, y] <- Regex.scan(~r/\n2 (\S+) Td\n/, content), do: elem(Float.parse(y), 0)
+        for [_, y] <- Regex.scan(~r/\n0 (\S+) Td\n/, content), do: elem(Float.parse(y), 0)
 
-      assert hd(baselines) == 80 - 1 - 7.5 - 0.75
-      assert_in_delta Enum.at(baselines, 0) - Enum.at(baselines, 1), 11.5, 0.0001
+      assert_in_delta hd(baselines), 80 - 11.56, 0.0001
+      assert_in_delta Enum.at(baselines, 0) - Enum.at(baselines, 1), 11.56, 0.0001
     end
 
     test "the auto size steps down until the text fits, with a floor of 4" do
@@ -231,7 +307,7 @@ defmodule Tincture.FieldAppearanceTest do
         |> Tincture.choice_field(72, 700, 200, 24, "c", options: ["a", "Norway"], value: "Norway")
         |> export()
 
-      assert content(binary, "c") =~ "2 9 Td\n(Norway) Tj"
+      assert content(binary, "c") =~ ~r/\n0 \S+ Td\n\(Norway\) Tj/
     end
 
     test "an editable combo shows a free value" do
@@ -289,15 +365,17 @@ defmodule Tincture.FieldAppearanceTest do
 
   describe ":align" do
     test "center and right are written as /Q and offset the text" do
+      center = single(value: "Ada", align: :center, size: 12)
       width = Tincture.Font.text_width("Helvetica", 12, "Ada")
-
-      center = single(value: "Ada", align: :center)
       assert widget(center, "f") =~ "/Q 1"
-      assert content(center, "f") =~ "#{Float.round((200 - width) / 2, 4)} 9 Td"
+      {_, x, _} = size_and_baseline(content(center, "f"))
+      assert_in_delta x, (200 - width) / 2, 0.0001
 
-      right = single(value: "Ada", align: :right)
+      # With no border the padding is 0, so right-aligned text ends at the edge.
+      right = single(value: "Ada", align: :right, size: 12)
       assert widget(right, "f") =~ "/Q 2"
-      assert content(right, "f") =~ "#{Float.round(200 - 2 - width, 4)} 9 Td"
+      {_, x, _} = size_and_baseline(content(right, "f"))
+      assert_in_delta x, 200 - width, 0.0001
     end
 
     test "left is the default, and writes no /Q" do
