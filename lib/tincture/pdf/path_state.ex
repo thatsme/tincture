@@ -21,13 +21,17 @@ defmodule Tincture.PDF.PathState do
   #     first - an operation that is not path construction, painting or a
   #     setter, or the end of the stream - the path is ended there with `n`,
   #     followed by any setters, which is what :none always wrote;
-  #   * a path built with move_to/line_to/bezier and never painted is ended
-  #     with `n` at the end of the stream, which would otherwise end inside
-  #     the path object.
+  #   * a path built with move_to/line_to/bezier and not painted before an
+  #     operation that is not path construction, painting or a setter, or
+  #     before the end of the stream, is ended with `n` there, with its setters
+  #     before it.
   #
-  # An operation that is neither construction, painting nor a setter, met
-  # while such a path is open, is written where it was called, as before:
-  # that is the case Tincture warns about.
+  # So a stream never ends inside a path object, and never holds a text,
+  # image, shading, q or Q, marked-content or XObject operator inside one.
+  # The public functions raise before a path can be left open at any of
+  # those points, the EMC closing a tag/4 or artifact/2 callback included.
+  # This is the output guarantee for what bypasses them:
+  # Tincture.PDF.append_current_op/2, which is published for internal use.
 
   @setters [
     :set_fill_color,
@@ -46,7 +50,7 @@ defmodule Tincture.PDF.PathState do
   @spec written_order([term()]) :: [term()]
   def written_order(operations) do
     {written, segment} = Enum.reduce(operations, {[], nil}, &step/2)
-    written |> close(segment, :end) |> Enum.reverse()
+    written |> close(segment) |> Enum.reverse()
   end
 
   # `segment` is nil when no path is open, or the open path's construction
@@ -67,7 +71,7 @@ defmodule Tincture.PDF.PathState do
         {[op | flush(written, segment)], nil}
 
       _other when segment != nil ->
-        {[op | close(written, segment, :other)], nil}
+        {[op | close(written, segment)], nil}
 
       _no_path ->
         {[op | written], nil}
@@ -79,17 +83,15 @@ defmodule Tincture.PDF.PathState do
   # construction before the setters writes the setters first.
   defp flush(written, segment), do: segment.construction ++ segment.setters ++ written
 
-  # The path is not painted. Ended by a :none shape, it is ended with `n`
-  # right after the construction and the setters follow, at the page level,
-  # as :none always wrote it. Otherwise the setters go first; at the end of
-  # the stream the path is ended with `n`.
-  defp close(written, nil, _why), do: written
+  # The path is not painted, and is ended with `n`. Ended by a :none shape,
+  # the `n` comes right after the construction and the setters follow, at the
+  # page level, as :none always wrote it. Otherwise the setters go first.
+  defp close(written, nil), do: written
 
-  defp close(written, %{none_last?: true} = segment, _why),
+  defp close(written, %{none_last?: true} = segment),
     do: segment.setters ++ [:end_path | segment.construction] ++ written
 
-  defp close(written, segment, :end), do: [:end_path | flush(written, segment)]
-  defp close(written, segment, :other), do: flush(written, segment)
+  defp close(written, segment), do: [:end_path | flush(written, segment)]
 
   defp kind({path_op, _x, _y}) when path_op in [:move_to, :line_to], do: :construction
   defp kind({:bezier, _x1, _y1, _x2, _y2, _x3, _y3}), do: :construction

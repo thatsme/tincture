@@ -183,18 +183,20 @@ defmodule Tincture.PDF.Ops do
   defp shape_kind(_paint), do: :paint
 
   # A content tag or an artifact that closes while a path started inside it
-  # is still open writes its EMC inside the path object (ISO 32000-1,
-  # Figure 9). W5 checks only at the open, so this checks at the close. 0.4.0
-  # raises; until then the call warns, and is written as before.
+  # is still open would write its EMC inside the path object (ISO 32000-1,
+  # Figure 9). The open is checked by refuse_open_path/3; this checks the
+  # close, and the call is refused. Without it the serialiser would end the
+  # path with `n` before the EMC, and a paint after the tag would paint
+  # nothing. A tag or artifact cannot open inside a form XObject, so the
+  # current stream here is always a page's.
   @doc false
-  @spec warn_closed_over_path(PDF.t(), String.t(), String.t()) :: :ok
-  def warn_closed_over_path(%PDF{} = pdf, closed, block) do
-    if path_started_inside_marked_content?(PDF.page_operations(pdf, pdf.current_page)) do
-      IO.warn(
-        "#{closed} with a path still open, so its end would be written inside the path, " <>
-          "where PDF does not allow it. Paint the path with stroke/1, fill/1 or clip/1 " <>
-          "before the #{block} closes. This will raise in 0.4.0."
-      )
+  @spec refuse_closed_over_path(PDF.t(), String.t(), String.t()) :: :ok
+  def refuse_closed_over_path(%PDF{} = pdf, closed, block) do
+    if path_started_inside_marked_content?(PDF.stream_operations(pdf, PDF.current_stream(pdf))) do
+      raise ArgumentError,
+            "#{closed} with a path still open, so its end would be written inside the " <>
+              "path, where PDF does not allow it. Paint the path with stroke/1, fill/1 or " <>
+              "clip/1 before the #{block} closes."
     end
 
     :ok
@@ -203,10 +205,10 @@ defmodule Tincture.PDF.Ops do
   # Whether the path was open when the closing tag opened is read from the
   # operations already recorded, so nothing is stored for it. From the open
   # path's first construction operator on, a BDC means the innermost open tag
-  # opened inside the path (W5's case, warned at the open), and an EMC means
-  # an inner tag has already closed over the path (warned there). With
-  # neither, the tag closing now is the first to close over a path started
-  # inside it.
+  # opened inside the path, which refuse_open_path/3 refuses at the open,
+  # and an EMC means an inner tag has already closed over the path, which is
+  # refused there. With neither, the tag closing now is the first to close
+  # over a path started inside it.
   defp path_started_inside_marked_content?(ops) do
     ops
     |> Enum.reverse()
@@ -227,36 +229,33 @@ defmodule Tincture.PDF.Ops do
   # A path object may hold only path construction until it is painted (ISO
   # 32000-1, Figure 9). Text, an image, a gradient, a q or Q, or marked
   # content written while a path is open lands inside it. Colour and line
-  # settings do not: they are written before the path (PathState). 0.4.0
-  # raises; until then the call warns, and is written as before.
+  # settings do not: they are written before the path (PathState). The call
+  # is refused, in the current stream, a page's or a form XObject's.
   @doc false
-  @spec warn_open_path(PDF.t(), String.t(), String.t()) :: :ok
-  def warn_open_path(%PDF{} = pdf, caller, what) do
+  @spec refuse_open_path(PDF.t(), String.t(), String.t()) :: :ok
+  def refuse_open_path(%PDF{} = pdf, caller, what) do
     if path_open?(PDF.stream_operations(pdf, PDF.current_stream(pdf))) do
-      IO.warn(
-        "#{caller} was called while a path is open, so #{what} would be written inside " <>
-          "the path, where PDF does not allow it. A path holds only path construction " <>
-          "until stroke/1, fill/1 or clip/1 paints it, or a shape's own paint argument " <>
-          "does: paint the path first, or draw this before starting it. This will raise " <>
-          "in 0.4.0."
-      )
+      raise ArgumentError,
+            "#{caller} was called while a path is open, so #{what} would be written " <>
+              "inside the path, where PDF does not allow it. A path holds only path " <>
+              "construction until stroke/1, fill/1 or clip/1 paints it, or a shape's own " <>
+              "paint argument does: paint the path first, or draw this before starting it."
     end
 
     :ok
   end
 
-  # A page left, or a document exported, with a path nothing painted: the
-  # content stream would end inside the path object, so it is ended with `n`
-  # (PathState), and the call warns. 0.4.0 raises.
+  # A page left, or a document exported, with a path nothing painted would end
+  # its content stream inside the path object. The call is refused. Every
+  # caller is itself refused inside a form XObject, so the stream is the page.
   @doc false
-  @spec warn_unpainted_path(PDF.t(), String.t()) :: :ok
-  def warn_unpainted_path(%PDF{} = pdf, caller) do
+  @spec refuse_unpainted_path(PDF.t(), String.t()) :: :ok
+  def refuse_unpainted_path(%PDF{} = pdf, caller) do
     if path_open?(PDF.page_operations(pdf, pdf.current_page)) do
-      IO.warn(
-        "#{caller} was called while a path is open on page #{pdf.current_page} that nothing " <>
-          "has painted. A path draws nothing until stroke/1, fill/1 or clip/1 paints it, so " <>
-          "it is ended unpainted. Paint it, or remove it. This will raise in 0.4.0."
-      )
+      raise ArgumentError,
+            "#{caller} was called while a path is open on page #{pdf.current_page} that " <>
+              "nothing has painted. A path draws nothing until stroke/1, fill/1 or clip/1 " <>
+              "paints it. Paint it, or remove it."
     end
 
     :ok

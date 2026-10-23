@@ -1858,7 +1858,13 @@ defmodule Tincture.PDF.Serialize do
     operations
     |> PathState.written_order()
     |> Enum.map_join("", fn
-      # Ends a path nothing painted; see Tincture.PDF.PathState.
+      # Ends a path nothing painted; see Tincture.PDF.PathState. The public
+      # functions raise before a path can be left open at a page change, at
+      # export, before text, an image, a gradient, q, Q or the start of
+      # marked content, and at the end of a tag/4 or artifact/2 callback
+      # which left a path open. This is reached only through
+      # Tincture.PDF.append_current_op/2. It stays as the guarantee that no
+      # stream ends inside a path or holds those operators inside one.
       :end_path ->
         "n\n"
 

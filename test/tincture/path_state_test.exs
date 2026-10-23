@@ -10,11 +10,13 @@ defmodule Tincture.PathStateTest do
     * a colour, line-style or alpha setter called while a path is open is
       written before the path, which §8.2 permits;
     * text, an image, a gradient, a saved or restored graphics state, or
-      marked content, while a path is open, warns (W5): 0.4.0 raises;
-    * a path nothing painted is ended with `n`, and leaving the page or
-      exporting with one warns (W6): 0.4.0 raises;
-    * a content tag or artifact closing over a path started inside it warns
-      (W7), with the bytes unchanged: 0.4.0 raises.
+      marked content, while a path is open, raises (W5);
+    * leaving the page or exporting with a path nothing painted raises (W6);
+    * a content tag or artifact closing over a path started inside it raises
+      (W7);
+    * the serialiser still ends any path left open with `n`, before such an
+      operator or at the end of the stream, for operations that bypass the
+      public functions.
   """
   # Not async: these tests capture stderr, which is shared by the whole VM, and
   # a test running alongside that writes to it would land in the capture.
@@ -39,26 +41,32 @@ defmodule Tincture.PathStateTest do
     {result, stderr}
   end
 
+  # Runs fun, which must raise ArgumentError, and returns its message. Nothing
+  # may be written to stderr: the condition raises and does not also warn.
+  defp refused(fun) do
+    {exception, stderr} = quiet(fn -> assert_raise(ArgumentError, fun) end)
+    assert stderr == ""
+    exception.message
+  end
+
   defp w5(caller, what) do
     "#{caller} was called while a path is open, so #{what} would be written inside the " <>
       "path, where PDF does not allow it. A path holds only path construction until " <>
       "stroke/1, fill/1 or clip/1 paints it, or a shape's own paint argument does: paint " <>
-      "the path first, or draw this before starting it. This will raise in 0.4.0."
+      "the path first, or draw this before starting it."
   end
 
   defp w6(caller, page) do
     "#{caller} was called while a path is open on page #{page} that nothing has painted. " <>
-      "A path draws nothing until stroke/1, fill/1 or clip/1 paints it, so it is ended " <>
-      "unpainted. Paint it, or remove it. This will raise in 0.4.0."
+      "A path draws nothing until stroke/1, fill/1 or clip/1 paints it. Paint it, or " <>
+      "remove it."
   end
 
   defp w7(closed, block) do
     "#{closed} with a path still open, so its end would be written inside the path, where " <>
       "PDF does not allow it. Paint the path with stroke/1, fill/1 or clip/1 before the " <>
-      "#{block} closes. This will raise in 0.4.0."
+      "#{block} closes."
   end
-
-  defp w7_count(stderr), do: length(String.split(stderr, "with a path still open")) - 1
 
   defp line_inside(pdf), do: pdf |> Tincture.move_to(10, 10) |> Tincture.line_to(50, 50)
 
@@ -221,33 +229,23 @@ defmodule Tincture.PathStateTest do
           do: assert(ContentStreamState.check_stream(content(pdf)) == [])
     end
 
-    test "then nothing: ended with n, and export warns (W6)" do
-      {binary, stderr} =
-        quiet(fn ->
-          Tincture.new() |> Tincture.rectangle(0, 0, 5, 5, :none) |> Tincture.export()
-        end)
+    test "then nothing: export raises (W6)" do
+      pdf = Tincture.new() |> Tincture.rectangle(0, 0, 5, 5, :none)
 
-      assert binary =~ "0 0 5 5 re\nn\n"
-      assert stderr =~ w6("Tincture.export/2", 1)
+      assert refused(fn -> Tincture.export(pdf) end) == w6("Tincture.export/1", 1)
     end
 
-    test "then a setter and text: n right after the shape, as :none always wrote, and W5" do
-      {pdf, stderr} =
-        quiet(fn ->
-          Tincture.new()
-          |> Tincture.rectangle(0, 0, 5, 5, :none)
-          |> Tincture.set_fill_color({1, 0, 0})
-          |> Tincture.text_at(0, 0, "x")
-        end)
+    test "then a setter and text: the text raises (W5)" do
+      pdf = Tincture.new() |> Tincture.rectangle(0, 0, 5, 5, :none)
+      pdf = Tincture.set_fill_color(pdf, {1, 0, 0})
 
-      assert content(pdf) == "0 0 5 5 re\nn\n1 0 0 rg\nBT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\n"
-      assert stderr =~ w5("Tincture.text_at/4", "the text")
-      assert ContentStreamState.check_stream(content(pdf)) == []
+      assert refused(fn -> Tincture.text_at(pdf, 0, 0, "x") end) ==
+               w5("Tincture.text_at/4", "the text")
     end
   end
 
   describe "PS8: W5 at every class-4 function" do
-    test "each one warns once, naming itself" do
+    test "each one raises, naming itself" do
       png = png()
 
       calls = [
@@ -285,44 +283,31 @@ defmodule Tincture.PathStateTest do
       ]
 
       for {caller, what, call} <- calls do
-        {_pdf, stderr} = quiet(fn -> open_path() |> call.() end)
-        message = w5(caller, what)
-
-        assert stderr =~ message, "#{caller}: #{stderr}"
-
-        assert length(String.split(stderr, "was called while a path is open")) == 2,
-               "#{caller} warned more than once: #{stderr}"
+        pdf = open_path()
+        assert refused(fn -> call.(pdf) end) == w5(caller, what), caller
       end
     end
 
-    test "image_jpeg/6 warns before it reads the file" do
-      {result, stderr} =
-        quiet(fn ->
-          try do
-            open_path() |> Tincture.image_jpeg(0, 0, 10, 10, "tmp/no_such_file.jpg")
-          rescue
-            _error -> :raised
-          end
-        end)
+    test "image_jpeg/6 raises before it reads the file" do
+      pdf = open_path()
 
-      assert result == :raised
-      assert stderr =~ w5("Tincture.image_jpeg/6", "the image")
+      assert refused(fn -> Tincture.image_jpeg(pdf, 0, 0, 10, 10, "tmp/no_such_file.jpg") end) ==
+               w5("Tincture.image_jpeg/6", "the image")
     end
 
     test "inside a form XObject, the path that counts is the XObject's own" do
-      {_pdf, inside} =
-        quiet(fn ->
+      inside =
+        refused(fn ->
           Tincture.new()
           |> Tincture.form_xobject(:stamp, 100, 100, fn pdf ->
             pdf
             |> Tincture.move_to(10, 10)
             |> Tincture.line_to(50, 50)
             |> Tincture.text_at(0, 0, "x")
-            |> Tincture.stroke()
           end)
         end)
 
-      assert inside =~ w5("Tincture.text_at/4", "the text")
+      assert inside == w5("Tincture.text_at/4", "the text")
 
       {_pdf, outside} =
         quiet(fn ->
@@ -331,15 +316,36 @@ defmodule Tincture.PathStateTest do
           |> Tincture.stroke()
         end)
 
-      refute outside =~ "was called while a path is open"
+      assert outside == ""
     end
 
-    test "a grouping tag writes no marked content, and does not warn" do
-      {_pdf, stderr} = quiet(fn -> open_path() |> Tincture.tag(:section, fn pdf -> pdf end) end)
-      refute stderr =~ "was called while a path is open"
+    test "a tag or artifact inside a form XObject is refused for that first" do
+      for {caller, call} <- [
+            {"Tincture.tag/4", &Tincture.tag(&1, :p, fn pdf -> pdf end)},
+            {"Tincture.artifact/2", &Tincture.artifact(&1, fn pdf -> pdf end)}
+          ] do
+        message =
+          refused(fn ->
+            Tincture.new()
+            |> Tincture.form_xobject(:stamp, 100, 100, fn pdf ->
+              pdf |> Tincture.move_to(10, 10) |> Tincture.line_to(50, 50) |> call.()
+            end)
+          end)
+
+        assert message =~ "#{caller} was called inside the form_xobject/5 callback"
+      end
     end
 
-    test "nothing warns with no path open, or after it is painted" do
+    test "a grouping tag writes no marked content, and is not refused" do
+      {_pdf, stderr} =
+        quiet(fn ->
+          open_path() |> Tincture.tag(:section, fn pdf -> pdf end) |> Tincture.stroke()
+        end)
+
+      assert stderr == ""
+    end
+
+    test "nothing raises with no path open, or after it is painted" do
       {_pdf, stderr} =
         quiet(fn ->
           Tincture.new()
@@ -357,72 +363,74 @@ defmodule Tincture.PathStateTest do
   end
 
   describe "PS9: W6" do
-    test "add_page/1 with a path open warns, and the page's path is ended with n" do
-      {pdf, stderr} = quiet(fn -> open_path() |> Tincture.add_page() end)
+    test "add_page/1 with a path open raises" do
+      pdf = open_path()
 
-      assert stderr =~ w6("Tincture.add_page/1", 1)
-      [_, page1 | _rest] = Regex.split(~r/stream\n/, Tincture.export(pdf))
-      assert page1 =~ ~r/\A10 10 m\n50 50 l\nn\n/
+      assert refused(fn -> Tincture.add_page(pdf) end) == w6("Tincture.add_page/1", 1)
     end
 
-    test "set_page/2 to another page warns; to the same page it does not" do
+    test "set_page/2 to another page raises; to the same page it does not" do
       base =
         Tincture.new() |> Tincture.add_page() |> Tincture.move_to(0, 0) |> Tincture.line_to(5, 5)
 
       {_pdf, same} = quiet(fn -> Tincture.set_page(base, 2) end)
-      {_pdf, other} = quiet(fn -> Tincture.set_page(base, 1) end)
 
       assert same == ""
-      assert other =~ w6("Tincture.set_page/2", 2)
+      assert refused(fn -> Tincture.set_page(base, 1) end) == w6("Tincture.set_page/2", 2)
     end
 
-    test "export warns, whatever enforce: says" do
-      {_binary, stderr} = quiet(fn -> Tincture.export(open_path(), enforce: false) end)
-      assert stderr =~ w6("Tincture.export/2", 1)
+    test "export raises, whatever enforce: says, naming the export called" do
+      pdf = open_path()
+
+      assert refused(fn -> Tincture.export(pdf) end) == w6("Tincture.export/1", 1)
+
+      for enforce <- [true, false] do
+        assert refused(fn -> Tincture.export(pdf, enforce: enforce) end) ==
+                 w6("Tincture.export/2", 1)
+      end
     end
   end
 
   describe "W7: a tag or artifact closing over a path started inside it" do
-    test "a path opened inside tag(:p) and painted after it warns once, bytes unchanged" do
-      {pdf, stderr} =
-        quiet(fn -> Tincture.new() |> Tincture.tag(:p, &line_inside/1) |> Tincture.stroke() end)
-
-      assert stderr =~ w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
-      assert w7_count(stderr) == 1
-      assert content(pdf) == "/P <</MCID 0>> BDC\n10 10 m\n50 50 l\nEMC\nS\n"
+    # 0.3.8 wrote this as BDC m l EMC S, with the EMC inside the path. Under
+    # the serialiser's guarantee it would be BDC m l n EMC S, and the stroke
+    # would paint nothing. It is refused at the tag's close, before either.
+    test "a path opened inside tag(:p) and painted after it raises at the tag's close" do
+      assert refused(fn ->
+               Tincture.new() |> Tincture.tag(:p, &line_inside/1) |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
     end
 
     test "the same inside artifact/2" do
-      {pdf, stderr} =
-        quiet(fn -> Tincture.new() |> Tincture.artifact(&line_inside/1) |> Tincture.stroke() end)
-
-      assert stderr =~ w7("Tincture.artifact/2 closed", "artifact")
-      assert w7_count(stderr) == 1
-      assert content(pdf) == "/Artifact BMC\n10 10 m\n50 50 l\nEMC\nS\n"
+      assert refused(fn ->
+               Tincture.new() |> Tincture.artifact(&line_inside/1) |> Tincture.stroke()
+             end) == w7("Tincture.artifact/2 closed", "artifact")
     end
 
-    test "nested tags warn once, at the inner close" do
-      {_pdf, stderr} =
-        quiet(fn ->
-          Tincture.new()
-          |> Tincture.tag(:p, &Tincture.tag(&1, :span, fn pdf -> line_inside(pdf) end))
-          |> Tincture.stroke()
-        end)
-
-      assert stderr =~ w7("Tincture.tag/4 closed tag(:span, ...)", "tag")
-      assert w7_count(stderr) == 1
+    test "nested tags raise at the inner close" do
+      assert refused(fn ->
+               Tincture.new()
+               |> Tincture.tag(:p, &Tincture.tag(&1, :span, fn pdf -> line_inside(pdf) end))
+               |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:span, ...)", "tag")
     end
 
-    test "a path open before the tag opened is W5's, at the open, and not W7's" do
-      {_pdf, stderr} =
-        quiet(fn -> open_path() |> Tincture.tag(:p, fn pdf -> pdf end) |> Tincture.stroke() end)
-
-      assert stderr =~ w5("Tincture.tag/4", "the marked content")
-      assert length(String.split(stderr, "was called while a path is open")) == 2
-      assert w7_count(stderr) == 0
+    test "a second path started after the first was painted inside the tag raises" do
+      assert refused(fn ->
+               Tincture.new()
+               |> Tincture.tag(:p, &(&1 |> line_inside() |> Tincture.stroke() |> line_inside()))
+               |> Tincture.stroke()
+             end) == w7("Tincture.tag/4 closed tag(:p, ...)", "tag")
     end
 
-    test "a path opened and painted inside the tag does not warn" do
+    test "a path open before the tag opened is W5's, refused at the open, and not W7's" do
+      pdf = open_path()
+
+      assert refused(fn -> Tincture.tag(pdf, :p, fn pdf -> pdf end) end) ==
+               w5("Tincture.tag/4", "the marked content")
+    end
+
+    test "a path opened and painted inside the tag is not refused" do
       {_pdf, stderr} =
         quiet(fn ->
           Tincture.new()
@@ -433,7 +441,7 @@ defmodule Tincture.PathStateTest do
       assert stderr == ""
     end
 
-    test "a grouping element closing over a path does not warn, and writes no EMC" do
+    test "a grouping element closing over a path is not refused, and writes no EMC" do
       {pdf, stderr} =
         quiet(fn ->
           Tincture.new() |> Tincture.tag(:section, &line_inside/1) |> Tincture.stroke()
@@ -444,19 +452,80 @@ defmodule Tincture.PathStateTest do
     end
   end
 
-  describe "PS1: the matrix, class 4 written as before" do
-    test "text inside an open path keeps today's bytes" do
-      {pdf, _stderr} =
-        quiet(fn -> open_path() |> Tincture.text_at(0, 0, "x") |> Tincture.stroke() end)
-
-      assert content(pdf) == "10 10 m\n50 50 l\nBT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\nS\n"
-    end
-
-    test "a shape with a paint joins the open path, valid as before" do
+  describe "PS1: the matrix, a shape with a paint" do
+    test "joins the open path, valid as before" do
       pdf = open_path() |> Tincture.rectangle(0, 0, 5, 5, :fill)
 
       assert content(pdf) == "10 10 m\n50 50 l\n0 0 5 5 re\nf\n"
       assert ContentStreamState.check_stream(content(pdf)) == []
+    end
+  end
+
+  describe "the serialiser's guarantee, for operations that bypass the public functions" do
+    # Tincture.PDF.append_current_op/2 appends an operation with no check. The
+    # public functions raise before a path can be left open at these points;
+    # the serialiser still never writes a stream that ends inside a path, nor
+    # one with a class-4 operator inside a path.
+    defp appended(ops) do
+      Enum.reduce(ops, Tincture.new(), &Tincture.PDF.append_current_op(&2, &1))
+    end
+
+    # export/2 refuses these documents (W6), so the serialiser, which is
+    # published for internal use too, is called directly.
+    defp serialised(pdf) do
+      [_, stream] = Regex.run(~r/stream\n(.*?)\nendstream/s, Tincture.PDF.Serialize.export(pdf))
+      stream
+    end
+
+    test "the checker sees the faults the guarantee prevents" do
+      refute ContentStreamState.check_stream("0 0 m\n10 10 l\n") == []
+      refute ContentStreamState.check_stream("0 0 m\n10 10 l\nq\nQ\nS\n") == []
+    end
+
+    test "a path left open at the end of the stream is ended with n" do
+      pdf = appended([{:move_to, 10, 10}, {:line_to, 50, 50}])
+
+      assert serialised(pdf) == "10 10 m\n50 50 l\nn\n"
+      assert ContentStreamState.check_stream(serialised(pdf)) == []
+    end
+
+    test "a path open before a class-4 operator is ended with n before it" do
+      font = {"Helvetica", 12}
+
+      for {op, bytes} <- [
+            {{:text_at, 0, 0, "x", font}, "BT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\n"},
+            {:save_state, "q\n"},
+            {{:begin_artifact}, "/Artifact BMC\n"},
+            {{:end_marked_content}, "EMC\n"}
+          ] do
+        pdf = appended([{:move_to, 10, 10}, {:line_to, 50, 50}, op])
+        assert serialised(pdf) =~ "10 10 m\n50 50 l\nn\n" <> bytes
+      end
+
+      pdf =
+        appended([
+          {:move_to, 10, 10},
+          {:line_to, 50, 50},
+          {:set_fill_color, {1, 0, 0}},
+          {:text_at, 0, 0, "x", font}
+        ])
+
+      assert serialised(pdf) ==
+               "1 0 0 rg\n10 10 m\n50 50 l\nn\nBT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\n"
+
+      assert ContentStreamState.check_stream(serialised(pdf)) == []
+    end
+
+    test "a :none shape then a setter and text: n right after the shape, as :none always wrote" do
+      pdf =
+        appended([
+          {:rectangle, 0, 0, 5, 5, :none},
+          {:set_fill_color, {1, 0, 0}},
+          {:text_at, 0, 0, "x", {"Helvetica", 12}}
+        ])
+
+      assert serialised(pdf) == "0 0 5 5 re\nn\n1 0 0 rg\nBT\n/F1 12 Tf\n0 0 Td\n(x) Tj\nET\n"
+      assert ContentStreamState.check_stream(serialised(pdf)) == []
     end
   end
 end

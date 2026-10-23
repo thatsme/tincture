@@ -137,28 +137,23 @@ defmodule Tincture.OpenPathTest do
     assert exception.message =~ "Tincture.stroke/1 was called with no open path"
   end
 
-  # Leaving page 1 with its path unpainted also warns (W6); that warning is the
-  # only thing written to stderr.
-  test "the path is tracked per page" do
-    parent = self()
-
-    stderr =
-      capture_io(:stderr, fn ->
-        exception =
-          assert_raise(ArgumentError, fn ->
-            Tincture.new()
-            |> Tincture.move_to(0, 0)
-            |> Tincture.line_to(10, 10)
-            |> Tincture.add_page()
-            |> Tincture.stroke()
-          end)
-
-        send(parent, {:raised, exception})
+  # A path left open across a page change was the way to show that the path is
+  # tracked per page: on the new page, stroke/1 found no path. Leaving a page
+  # with a path open now raises itself (W6), so no public call reaches a page
+  # while another holds an open path, and the per-page tracking is no longer
+  # observable. What remains is the refusal.
+  test "add_page/1 with a path open raises (W6)" do
+    exception =
+      raises_silently(fn ->
+        Tincture.new()
+        |> Tincture.move_to(0, 0)
+        |> Tincture.line_to(10, 10)
+        |> Tincture.add_page()
       end)
 
-    assert_received {:raised, exception}
-    assert exception.message =~ "no open path"
-    assert stderr =~ "Tincture.add_page/1 was called while a path is open on page 1"
-    assert length(Regex.scan(~r/warning: /, stderr)) == 1
+    assert exception.message ==
+             "Tincture.add_page/1 was called while a path is open on page 1 that nothing " <>
+               "has painted. A path draws nothing until stroke/1, fill/1 or clip/1 paints " <>
+               "it. Paint it, or remove it."
   end
 end
