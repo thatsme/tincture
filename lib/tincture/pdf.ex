@@ -1516,9 +1516,31 @@ defmodule Tincture.PDF do
 
     refuse_unusable_field_font!(pdf, field)
     warn_unencodable_field_text(field)
+    warn_value_outside_options(field)
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end
+
+  # A choice field that is not editable can only hold one of its options: /V
+  # names "the selected item, as given in the field dictionary's Opt array"
+  # (ISO 32000-1 12.7.4.4). Each option is its own export value. 0.4.0 draws
+  # /V into the field's appearance and refuses such a value; 0.3.10 warns.
+  defp warn_value_outside_options(%{type: :choice, value: value, options: options} = field)
+       when value != "" do
+    editable = Bitwise.band(field.flags, @field_flag_edit) != 0
+
+    unless editable or value in options do
+      IO.warn(
+        "choice field #{inspect(field.name)} has the value #{inspect(value)}, which is not " <>
+          "one of its options. A choice field that is not editable can only hold one of " <>
+          "its options: add it to options:, or pass editable: true. This will raise in 0.4.0."
+      )
+    end
+
+    :ok
+  end
+
+  defp warn_value_outside_options(_field), do: :ok
 
   # A standard-14 field font is written in /DR with /WinAnsiEncoding, so a
   # generated appearance can only draw what WinAnsi encodes. 0.4.0 generates

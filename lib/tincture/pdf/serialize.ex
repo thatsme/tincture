@@ -32,6 +32,7 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.PathState
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
+  alias Tincture.PDF.WinAnsi
   alias Tincture.Telemetry
 
   @doc false
@@ -821,13 +822,19 @@ defmodule Tincture.PDF.Serialize do
       if Enum.any?(form_fields, &(&1.type == :signature)), do: " /SigFlags 3", else: ""
 
     " /AcroForm << /Fields [#{fields}]#{need_appearances}#{signature_flags}" <>
-      " /DA #{Object.format_text(default_appearance_string(form_fields))}" <>
+      default_appearance_entry(form_fields) <>
       " /DR << /Font << #{acro_form_font_resources(form_fields, embedded_font_refs)} >> >> >>"
   end
 
-  # The document-level default appearance, used for any field that does not
-  # override it.
-  defp default_appearance_string(_form_fields), do: "/Helv 0 Tf 0 g"
+  # The document-level default appearance. Its font must be one /DR holds
+  # (ISO 32000-1 12.7.3.3), and /DR holds only the fields' own fonts, so it is
+  # written only when some field uses Helvetica. Every widget carries its own
+  # /DA, so leaving it out loses nothing; the key is optional.
+  defp default_appearance_entry(form_fields) do
+    if Enum.any?(form_fields, &(&1.font == "Helvetica")),
+      do: " /DA #{Object.format_text("/Helv 0 Tf 0 g")}",
+      else: ""
+  end
 
   # A standard font is written inline, with WinAnsi. An embedded font is a
   # reference to the very Type0 dictionary page text uses: one dictionary, one
@@ -1372,12 +1379,24 @@ defmodule Tincture.PDF.Serialize do
 
   defp max_length_entry(_field), do: ""
 
-  defp options_entry(%{options: options}) when is_list(options) do
-    entries = Enum.map_join(options, " ", &Object.format_text/1)
+  defp options_entry(%{options: options} = field) when is_list(options) do
+    entries = field |> written_options() |> Enum.map_join(" ", &Object.format_text/1)
     " /Opt [#{entries}]"
   end
 
   defp options_entry(_field), do: ""
+
+  # The Sort flag is for writers: "Conforming readers shall display the
+  # options in the order in which they occur in the Opt array" (ISO 32000-1
+  # Table 230). So sorting is ours to do. Case-folded first, then the text
+  # itself, so the order is deterministic.
+  @field_flag_sort 524_288
+
+  defp written_options(%{options: options, flags: flags}) do
+    if Bitwise.band(flags, @field_flag_sort) != 0,
+      do: Enum.sort_by(options, &{String.downcase(&1), &1}),
+      else: options
+  end
 
   defp tooltip_entry(%{tooltip: tooltip}) when is_binary(tooltip),
     do: " /TU #{Object.format_text(tooltip)}"
@@ -1513,7 +1532,7 @@ defmodule Tincture.PDF.Serialize do
     caption =
       "0 g\nBT\n/Helv #{Object.num(size)} Tf\n" <>
         "#{Object.num(x)} #{Object.num(y)} Td\n" <>
-        "#{Object.format_text(label)} Tj\nET\n"
+        "#{Object.format_text(label, caption_text_mode(label))} Tj\nET\n"
 
     resources =
       " /Font << /Helv << /Type /Font /Subtype /Type1" <>
@@ -1523,6 +1542,13 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp push_button_caption(_field, _width, _height), do: {"", ""}
+
+  # The caption font's encoding is WinAnsi, so its bytes must be WinAnsi codes.
+  # A label WinAnsi cannot encode has warned since 0.3.6, and keeps the bytes
+  # it was always written with until 0.4.0 refuses it.
+  defp caption_text_mode(label) do
+    if WinAnsi.first_unencodable(label) == nil, do: :win_ansi, else: :pdf_text
+  end
 
   defp form_xobject(width, height, content, resources) do
     [

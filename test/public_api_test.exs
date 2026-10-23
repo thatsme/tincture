@@ -43,6 +43,10 @@ defmodule Tincture.PublicApiTest do
   # widening: Tincture.PDF's form_field/0 gained optional(:full_font) => true,
   # set on a text or choice field given full_font: true.
   #
+  # Since v0.3.10, a widening: Tincture.PDF.Object's encode_text/2 and
+  # format_text/2 accept :win_ansi, 0.3.10's WinAnsi text mode for push-button
+  # captions, reused by 0.4.0's field appearances.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #

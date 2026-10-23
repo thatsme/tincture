@@ -2,8 +2,8 @@ defmodule Tincture.RaisePhraseTest do
   @moduledoc """
   "This will raise in 0.4.0" marks a warning that 0.4.0 turns into an error.
   Stage 1 converted W1-W4 and stage 1c W5, W6 and W7, so the phrase is left
-  only in the three 0.3.6 form warnings, J1, J2 and J4. Later stages convert
-  those, and lower the count here, until it is zero.
+  only in the three 0.3.6 form warnings, J1, J2 and J4, and in 0.3.10's W8.
+  Later stages convert those, and lower the count here, until it is zero.
 
   The phrase can be split across a `<>` (J2's is), so the source is not
   grepped line by line. Each file in lib/ is parsed, every chain of literal
@@ -18,10 +18,11 @@ defmodule Tincture.RaisePhraseTest do
   @remaining %{
     j1: "has no tooltip",
     j2: "is not in the structure tree",
-    j4: "uses the standard font"
+    j4: "uses the standard font",
+    w8: "which is not one of its options"
   }
 
-  test "the phrase is left only in J1, J2 and J4, once each" do
+  test "the phrase is left only in J1, J2, J4 and W8, once each" do
     found =
       "lib/**/*.ex"
       |> Path.wildcard()
@@ -35,8 +36,8 @@ defmodule Tincture.RaisePhraseTest do
         end)
       end)
 
-    assert length(found) == 3
-    assert Enum.sort(owners) == [:j1, :j2, :j4]
+    assert length(found) == 4
+    assert Enum.sort(owners) == [:j1, :j2, :j4, :w8]
   end
 
   test "self-check: a literal split across <> is found, and so is one with interpolation" do
