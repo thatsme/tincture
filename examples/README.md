@@ -67,10 +67,11 @@ Shows:
   specification models a group as a parent field holding the value with a kid
   widget per button, and a button's export value *is* the name of its "on"
   appearance state.
-- **Generated appearance streams.** Every button-like field carries a real
-  `/AP`, so the checkboxes and buttons are visible in this static render.
-  Relying on `/NeedAppearances` alone leaves them drawn only by interactive
-  viewers — invisible when printed, thumbnailed or rasterised server-side.
+- **Generated appearance streams.** Every field but the signature carries a
+  real `/AP`, so the checkboxes, buttons and the dropdowns' values are visible
+  in this static render. Text and choice values are laid out by Tincture;
+  `/NeedAppearances` is not written, so no field depends on an interactive
+  viewer to be drawn.
 - **Actions**: submit, reset and open-URL.
 - Static text in embedded fonts alongside field values in standard ones. A
   text or choice field may also use a registered TrueType or OpenType font; a

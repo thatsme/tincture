@@ -571,14 +571,19 @@ defmodule Tincture.EncryptTest do
   ]
 
   # Where the public API refuses an input, for a reason of its own: a blank
-  # bookmark, language, link description or figure alternative, and a path to
-  # another file that is not ASCII.
+  # bookmark, language, link description or figure alternative; a path to
+  # another file that is not ASCII; and a standard-14 field's value, option or
+  # label that WinAnsi cannot encode (J4), since its appearance draws it.
   @refused %{
     bookmark: [:empty],
     language: [:empty],
     link_contents: [:empty],
     link_to_file: [:non_ascii],
-    figure_alt: [:empty]
+    figure_alt: [:empty],
+    field_value: [:control_bytes, :non_ascii],
+    choice_option: [:control_bytes, :non_ascii],
+    choice_value: [:control_bytes, :non_ascii],
+    button_label: [:control_bytes, :non_ascii]
   }
 
   # Where the writer, by design, writes nothing: an empty field value has no
@@ -671,7 +676,7 @@ defmodule Tincture.EncryptTest do
         for {input, value} <- @string_inputs, input not in Map.get(@refused, site, []) do
           written = written_value(site, value)
 
-          # Characters a standard font cannot draw warn; that is not under test.
+          # A warning the call prints is not under test.
           {pdf, _warnings} = with_io(:stderr, fn -> document_with(site, written) end)
           binary = pdf |> Tincture.encrypt(user_password: "p") |> Tincture.export()
           read_back = binary |> decrypted_strings("p", key) |> Enum.map(&text_string/1)

@@ -1,14 +1,14 @@
 defmodule Tincture.FormDeprecationsTest do
   @moduledoc """
-  The 0.3.6 warnings for what 0.4.0 refuses in forms:
+  The form deprecations and the refusals they became:
 
-    * J1, a form field with no tooltip in a tagged document, at export;
+    * J1, a form field with no tooltip in a tagged document, at export, and
     * J2, a form field created outside every tag/4 scope in a tagged
-      document, at export;
-    * J4, a standard-14 field value that WinAnsi cannot encode, at the field
-      call.
-
-  Each warns and carries on: the exported bytes are those 0.3.5 writes.
+      document, at export: both still warn, and carry on;
+    * J4, a standard-14 field value that WinAnsi cannot encode, and
+    * W8, a non-editable choice value that is not one of its options: both
+      raise at the field call, as 0.4.0 draws the value into the field's
+      appearance.
   """
   # Captures stderr, which is process-global.
   use ExUnit.Case, async: false
@@ -143,22 +143,26 @@ defmodule Tincture.FormDeprecationsTest do
     end
   end
 
-  describe "J4, a standard-14 field value WinAnsi cannot encode" do
-    test "a Helvetica text field warns once at the call, naming the first such character" do
-      assert warnings(fn ->
-               Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name", value: "Ελλάδα")
-             end) == [
-               ~s{text field "full_name" uses the standard font "Helvetica", which cannot draw "Ε" (U+0395): its encoding is WinAnsi. Register a TrueType or OpenType font that has the character and use it for the field. This will raise in 0.4.0.}
-             ]
+  # J4 and W8 warned in 0.3.6 and 0.3.10, and raise in 0.4.0 with the same
+  # message less "This will raise in 0.4.0.".
+  describe "J4, a standard-14 field value WinAnsi cannot encode, raises" do
+    test "a Helvetica text field, naming the first such character" do
+      error =
+        assert_raise ArgumentError, fn ->
+          Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name", value: "Ελλάδα")
+        end
+
+      assert error.message ==
+               ~s{text field "full_name" uses the standard font "Helvetica", which cannot draw "Ε" (U+0395): its encoding is WinAnsi. Register a TrueType or OpenType font that has the character and use it for the field.}
     end
 
-    test "a WinAnsi value does not warn" do
+    test "a WinAnsi value does not raise" do
       assert warnings(fn ->
                Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name", value: "Größe")
              end) == []
     end
 
-    test "line breaks in a multiline text value do not warn" do
+    test "line breaks in a multiline text value do not raise" do
       assert warnings(fn ->
                Tincture.text_field(Tincture.new(), 72, 700, 200, 60, "notes",
                  multiline: true,
@@ -167,79 +171,71 @@ defmodule Tincture.FormDeprecationsTest do
              end) == []
     end
 
-    test "a line break in a single-line text value warns" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name",
-                   value: "Ada\nLovelace"
-                 )
-               end)
-
-      assert warning =~ ~s{text field "full_name" uses the standard font "Helvetica"}
-      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
+    test "a Greek letter in a multiline text value raises" do
+      assert_raise ArgumentError, ~r/text field "notes" .* cannot draw "Ε" \(U\+0395\)/, fn ->
+        Tincture.text_field(Tincture.new(), 72, 700, 200, 60, "notes",
+          multiline: true,
+          value: "eins\nΕλλάδα"
+        )
+      end
     end
 
-    test "a line break in a choice option warns" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
-                   options: ["Italy", "Norway\nNorge"]
-                 )
-               end)
-
-      assert warning =~ ~s{choice field "country"}
-      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
+    test "a line break in a single-line text value raises" do
+      assert_raise ArgumentError,
+                   ~r/text field "full_name" .* cannot draw "\\n" \(U\+000A\)/,
+                   fn ->
+                     Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name",
+                       value: "Ada\nLovelace"
+                     )
+                   end
     end
 
-    test "a line break in a push-button label warns" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.push_button(Tincture.new(), 72, 700, 80, 20, "go",
-                   label: "Send\nnow",
-                   action: :reset
-                 )
-               end)
-
-      assert warning =~ ~s{push button "go"}
-      assert warning =~ ~s{cannot draw "\\n" (U+000A)}
+    test "a line break in a choice option raises" do
+      assert_raise ArgumentError,
+                   ~r/choice field "country" .* cannot draw "\\n" \(U\+000A\)/,
+                   fn ->
+                     Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
+                       options: ["Italy", "Norway\nNorge"]
+                     )
+                   end
     end
 
-    test "a choice field with one Greek option warns" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
-                   options: ["Italy", "Ελλάδα"]
-                 )
-               end)
-
-      assert warning =~ ~s(choice field "country" uses the standard font "Helvetica")
-      assert warning =~ ~s{"Ε" (U+0395)}
+    test "a line break in a push-button label raises" do
+      assert_raise ArgumentError, ~r/push button "go" .* cannot draw "\\n" \(U\+000A\)/, fn ->
+        Tincture.push_button(Tincture.new(), 72, 700, 80, 20, "go",
+          label: "Send\nnow",
+          action: :reset
+        )
+      end
     end
 
-    test "a push button with a Greek label warns" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.push_button(Tincture.new(), 72, 700, 80, 20, "go",
-                   label: "Εμπρός",
-                   action: :reset
-                 )
-               end)
-
-      assert warning =~ ~s(push button "go" uses the standard font "Helvetica")
+    test "a choice value raises" do
+      assert_raise ArgumentError, ~r/choice field "country" uses the standard font/, fn ->
+        Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
+          options: ["Italy", "Ελλάδα"],
+          value: "Ελλάδα"
+        )
+      end
     end
 
-    test "a Greek label keeps the caption bytes it was always written with" do
-      capture_io(:stderr, fn ->
-        binary =
-          Tincture.new()
-          |> Tincture.push_button(72, 700, 80, 20, "go", label: "Εμπρός", action: :reset)
-          |> Tincture.export()
-
-        assert binary =~ "<FEFF039503BC03C003C103CC03C2> Tj"
-      end)
+    test "a choice field with one Greek option raises" do
+      assert_raise ArgumentError, ~r/choice field "country" .* cannot draw "Ε" \(U\+0395\)/, fn ->
+        Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "country",
+          options: ["Italy", "Ελλάδα"]
+        )
+      end
     end
 
-    test "checkboxes and radio groups draw no text and do not warn" do
+    test "a push button with a Greek label raises" do
+      assert_raise ArgumentError, ~r/push button "go" uses the standard font "Helvetica"/, fn ->
+        Tincture.push_button(Tincture.new(), 72, 700, 80, 20, "go",
+          label: "Εμπρός",
+          action: :reset
+        )
+      end
+    end
+
+    test "checkboxes and radio groups draw no text and do not raise" do
       assert warnings(fn ->
                Tincture.new()
                |> Tincture.checkbox(72, 700, 14, "agree")
@@ -248,32 +244,31 @@ defmodule Tincture.FormDeprecationsTest do
     end
   end
 
-  describe "W8, a non-editable choice value that is not one of its options" do
-    test "warns once at the call, with the full message" do
-      assert [warning] =
-               warnings(fn ->
-                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "currency",
-                   options: ["GBP", "USD"],
-                   value: "EUR"
-                 )
-               end)
+  describe "W8, a non-editable choice value that is not one of its options, raises" do
+    test "with the full message" do
+      error =
+        assert_raise ArgumentError, fn ->
+          Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "currency",
+            options: ["GBP", "USD"],
+            value: "EUR"
+          )
+        end
 
-      assert warning ==
-               ~s{choice field "currency" has the value "EUR", which is not one of its options. A choice field that is not editable can only hold one of its options: add it to options:, or pass editable: true. This will raise in 0.4.0.}
+      assert error.message ==
+               ~s{choice field "currency" has the value "EUR", which is not one of its options. A choice field that is not editable can only hold one of its options: add it to options:, or pass editable: true.}
     end
 
-    test "a list box warns too" do
-      assert [_warning] =
-               warnings(fn ->
-                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 60, "currency",
-                   options: ["GBP"],
-                   value: "EUR",
-                   dropdown: false
-                 )
-               end)
+    test "a list box raises too" do
+      assert_raise ArgumentError, ~r/has the value "EUR", which is not one of its options/, fn ->
+        Tincture.choice_field(Tincture.new(), 72, 700, 200, 60, "currency",
+          options: ["GBP"],
+          value: "EUR",
+          dropdown: false
+        )
+      end
     end
 
-    test "does not warn for an editable combo with a free value" do
+    test "not for an editable combo with a free value" do
       assert warnings(fn ->
                Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "currency",
                  options: ["GBP"],
@@ -283,7 +278,7 @@ defmodule Tincture.FormDeprecationsTest do
              end) == []
     end
 
-    test "does not warn for a value among the options, or for no value" do
+    test "not for a value among the options, or for no value" do
       assert warnings(fn ->
                Tincture.new()
                |> Tincture.choice_field(72, 700, 200, 20, "a", options: ["GBP"], value: "GBP")
@@ -293,18 +288,14 @@ defmodule Tincture.FormDeprecationsTest do
     end
   end
 
-  describe "no output changes" do
-    # Built and hashed at v0.3.5 (f3a9914), from a scratch worktree of the tag:
-    # 4627 bytes. The same document under this release must be byte-identical.
-    @v035_sha256 "c9261f1e7eacaa57df53f99d769df4416db8571b6c2b8144bc2c68e4a238f949"
-
-    test "a document that triggers J1, J2 and J4 exports the bytes 0.3.5 wrote" do
+  describe "J1 and J2 still warn" do
+    test "a document that triggers both exports, warning three times" do
       {binary, count} =
         with_warnings(fn ->
           Tincture.new()
           |> Tincture.set_language("en-GB")
           |> Tincture.set_metadata(title: "Form deprecations")
-          |> Tincture.text_field(72, 700, 200, 20, "full_name", value: "Ελλάδα")
+          |> Tincture.text_field(72, 700, 200, 20, "full_name", value: "Größe")
           |> Tincture.tag(:section, fn doc ->
             doc
             |> Tincture.tag(:p, &Tincture.text_at(&1, 72, 740, "Contact"))
@@ -313,10 +304,9 @@ defmodule Tincture.FormDeprecationsTest do
           |> Tincture.export()
         end)
 
-      # J4 for the value; J1 for both fields; J2 for the text field.
-      assert count == 4
-      assert byte_size(binary) == 4627
-      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @v035_sha256
+      # J1 for both fields; J2 for the text field.
+      assert count == 3
+      assert binary =~ "%%EOF"
       refute binary =~ "created_outside_structure"
     end
 

@@ -47,6 +47,11 @@ defmodule Tincture.PublicApiTest do
   # format_text/2 accept :win_ansi, 0.3.10's WinAnsi text mode for push-button
   # captions, reused by 0.4.0's field appearances.
   #
+  # Since v0.3.10, text and choice appearances (stage 5b of 0.4.0), a
+  # widening: Tincture.PDF's form_field/0 gained optional(:align) =>
+  # :left | :center | :right, set on a field given align: :center or :right
+  # and written as /Q.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #

@@ -161,6 +161,13 @@ fill and stroke; JPEG and PNG embedding with alpha.
 at a given page, interactive forms (text, choice, checkbox, radio group, push
 button, signature), AES-256 encryption.
 
+Every form field but the signature field carries its own appearance stream,
+so it displays the same in every viewer and in print. One limitation sits in
+the viewer, not the file: when someone types characters a field's font cannot
+encode, PDFium (Chrome, Edge) draws them with a font of its own, unembedded
+and taken from the machine doing the editing, even when the field's embedded
+font has them.
+
 **Standards** — tagged PDF for accessibility, PDF/A archival output with a
 built-in sRGB output intent, and detached PKCS#7 digital signatures.
 
@@ -181,7 +188,7 @@ mix examples
 |---|---|
 | [`gradient.exs`](https://github.com/thatsme/tincture/blob/main/examples/gradient.exs) | A report cover — axial and radial gradients, alpha, a watermark |
 | [`invoice.exs`](https://github.com/thatsme/tincture/blob/main/examples/invoice.exs) | A commercial invoice — embedded fonts, a table, justified terms, a payment link |
-| [`form.exs`](https://github.com/thatsme/tincture/blob/main/examples/form.exs) | Every interactive field type, with generated appearances |
+| [`form.exs`](https://github.com/thatsme/tincture/blob/main/examples/form.exs) | Every interactive field type; every one but the signature field with a generated appearance |
 | [`accessible.exs`](https://github.com/thatsme/tincture/blob/main/examples/accessible.exs) | A tagged report — headings, table scope, alt text |
 | [`compliant.exs`](https://github.com/thatsme/tincture/blob/main/examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
 | [`archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
