@@ -16,7 +16,13 @@ defmodule Tincture.PDF.Object do
     * `:identity_h` — text drawn with a composite (Type0) font, where the bytes
       are glyph indices rather than characters and must be written as hex with
       no byte order mark.
+    * `:win_ansi` — text drawn with a standard-14 font whose `/Encoding` is
+      `/WinAnsiEncoding`: one byte per character, its WinAnsi code, written as
+      a literal with octal escapes above 7-bit ASCII. Raises `ArgumentError`
+      for a character WinAnsi does not encode.
   """
+
+  alias Tincture.PDF.WinAnsi
 
   @doc """
   Format a number for PDF output.
@@ -33,9 +39,9 @@ defmodule Tincture.PDF.Object do
   @doc """
   Encode `text` as a PDF string, wrapped in its delimiters.
 
-  See the module documentation for the difference between the two modes.
+  See the module documentation for the difference between the modes.
   """
-  @spec format_text(String.t(), :pdf_text | :identity_h) :: String.t()
+  @spec format_text(String.t(), :pdf_text | :identity_h | :win_ansi) :: String.t()
   def format_text(text, mode \\ :pdf_text) do
     case encode_text(text, mode) do
       {:literal, encoded} -> "(#{encoded})"
@@ -46,7 +52,7 @@ defmodule Tincture.PDF.Object do
   @doc """
   Encode `text` without delimiters, reporting which form was produced.
   """
-  @spec encode_text(String.t(), :pdf_text | :identity_h) ::
+  @spec encode_text(String.t(), :pdf_text | :identity_h | :win_ansi) ::
           {:literal, String.t()} | {:hex, String.t()}
   def encode_text(text, :identity_h) do
     encoded =
@@ -74,6 +80,24 @@ defmodule Tincture.PDF.Object do
 
       {:literal, escaped}
     end
+  end
+
+  def encode_text(text, :win_ansi) do
+    escaped =
+      text
+      |> String.to_charlist()
+      |> Enum.map_join(fn codepoint ->
+        case WinAnsi.code(codepoint) do
+          nil ->
+            raise ArgumentError,
+                  "WinAnsi cannot encode #{inspect(<<codepoint::utf8>>)} in #{inspect(text)}"
+
+          byte ->
+            escape_byte(byte)
+        end
+      end)
+
+    {:literal, escaped}
   end
 
   @doc """

@@ -328,6 +328,111 @@ defmodule Tincture.FormTest do
     end
   end
 
+  describe "the AcroForm's default appearance" do
+    # Its font must be one /DR holds (ISO 32000-1 12.7.3.3), and /DR holds
+    # only the fields' own fonts.
+    test "is not written when no field uses Helvetica" do
+      binary =
+        Tincture.new()
+        |> Tincture.text_field(0, 0, 10, 10, "f", value: "x", font: "Courier")
+        |> export()
+
+      [acro_form] = Regex.run(~r|/AcroForm << .*? >> >> >>|s, binary)
+      refute acro_form =~ "/Helv"
+      refute acro_form =~ "/DA"
+      assert acro_form =~ "/DR << /Font << /Courier"
+      # The widget keeps its own.
+      assert field_object(binary, "f") =~ "/DA (/Courier 0 Tf 0 g)"
+    end
+
+    test "is written, naming /Helv, when a field uses Helvetica" do
+      binary =
+        Tincture.new()
+        |> Tincture.text_field(0, 0, 10, 10, "f", font: "Courier")
+        |> Tincture.checkbox(0, 20, 10, "c")
+        |> export()
+
+      assert binary =~ "/DA (/Helv 0 Tf 0 g) /DR << /Font << /Courier"
+      assert binary =~ "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica"
+    end
+  end
+
+  describe "the push-button caption" do
+    defp caption(label) do
+      binary =
+        Tincture.new()
+        |> Tincture.push_button(72, 700, 90, 24, "b", label: label, action: :reset)
+        |> export()
+
+      [_, shown] = Regex.run(~r|Td\n(.*?) Tj\nET|s, binary)
+      {shown, binary}
+    end
+
+    test "is written in WinAnsi, the caption font's encoding" do
+      {shown, binary} = caption("Größe")
+
+      # Not UTF-16: that belongs in /MK /CA, a text string, not in the stream.
+      assert shown == ~S"(Gr\366\337e)"
+      assert binary =~ "/MK << /CA <FEFF0047007200F600DF0065> >>"
+
+      assert binary =~
+               "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+    end
+
+    test "an ASCII label is written as before" do
+      assert {"(Send \\(now\\))", _binary} = caption("Send (now)")
+    end
+  end
+
+  describe "sort: true" do
+    defp opt(opts) do
+      binary =
+        Tincture.new()
+        |> Tincture.choice_field(
+          0,
+          0,
+          10,
+          10,
+          "c",
+          [options: ["banana", "Apple", "cherry"]] ++ opts
+        )
+        |> export()
+
+      [opt] = Regex.run(~r|/Opt \[.*?\]|, binary)
+      opt
+    end
+
+    test "writes the options sorted, ignoring case" do
+      assert opt(sort: true) == "/Opt [(Apple) (banana) (cherry)]"
+    end
+
+    test "without it, the order given is kept" do
+      assert opt([]) == "/Opt [(banana) (Apple) (cherry)]"
+    end
+
+    test "text differing only in case is ordered by the text itself" do
+      binary =
+        Tincture.new()
+        |> Tincture.choice_field(0, 0, 10, 10, "c", options: ["b", "a", "B", "A"], sort: true)
+        |> export()
+
+      assert binary =~ "/Opt [(A) (a) (B) (b)]"
+    end
+
+    test "the value is unchanged" do
+      binary =
+        Tincture.new()
+        |> Tincture.choice_field(0, 0, 10, 10, "c",
+          options: ["b", "a"],
+          value: "b",
+          sort: true
+        )
+        |> export()
+
+      assert field_object(binary, "c") =~ "/V (b) /DV (b) /Opt [(a) (b)]"
+    end
+  end
+
   describe "validation" do
     test "rejects a duplicate field name" do
       # Names address values in the filled document, so two fields sharing one

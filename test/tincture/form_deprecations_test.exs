@@ -228,11 +228,67 @@ defmodule Tincture.FormDeprecationsTest do
       assert warning =~ ~s(push button "go" uses the standard font "Helvetica")
     end
 
+    test "a Greek label keeps the caption bytes it was always written with" do
+      capture_io(:stderr, fn ->
+        binary =
+          Tincture.new()
+          |> Tincture.push_button(72, 700, 80, 20, "go", label: "Εμπρός", action: :reset)
+          |> Tincture.export()
+
+        assert binary =~ "<FEFF039503BC03C003C103CC03C2> Tj"
+      end)
+    end
+
     test "checkboxes and radio groups draw no text and do not warn" do
       assert warnings(fn ->
                Tincture.new()
                |> Tincture.checkbox(72, 700, 14, "agree")
                |> radio()
+             end) == []
+    end
+  end
+
+  describe "W8, a non-editable choice value that is not one of its options" do
+    test "warns once at the call, with the full message" do
+      assert [warning] =
+               warnings(fn ->
+                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "currency",
+                   options: ["GBP", "USD"],
+                   value: "EUR"
+                 )
+               end)
+
+      assert warning ==
+               ~s{choice field "currency" has the value "EUR", which is not one of its options. A choice field that is not editable can only hold one of its options: add it to options:, or pass editable: true. This will raise in 0.4.0.}
+    end
+
+    test "a list box warns too" do
+      assert [_warning] =
+               warnings(fn ->
+                 Tincture.choice_field(Tincture.new(), 72, 700, 200, 60, "currency",
+                   options: ["GBP"],
+                   value: "EUR",
+                   dropdown: false
+                 )
+               end)
+    end
+
+    test "does not warn for an editable combo with a free value" do
+      assert warnings(fn ->
+               Tincture.choice_field(Tincture.new(), 72, 700, 200, 20, "currency",
+                 options: ["GBP"],
+                 value: "EUR",
+                 editable: true
+               )
+             end) == []
+    end
+
+    test "does not warn for a value among the options, or for no value" do
+      assert warnings(fn ->
+               Tincture.new()
+               |> Tincture.choice_field(72, 700, 200, 20, "a", options: ["GBP"], value: "GBP")
+               |> Tincture.choice_field(72, 650, 200, 20, "b", options: ["GBP"])
+               |> Tincture.choice_field(72, 600, 200, 20, "c", options: ["GBP"], value: "")
              end) == []
     end
   end

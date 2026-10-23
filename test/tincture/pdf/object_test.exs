@@ -94,6 +94,27 @@ defmodule Tincture.PDF.ObjectTest do
     end
   end
 
+  describe "format_text/2 with :win_ansi" do
+    test "each character becomes its WinAnsi code, octal-escaped above ASCII" do
+      assert Object.format_text("Größe", :win_ansi) == ~S"(Gr\366\337e)"
+    end
+
+    test "the codes that differ from Latin-1 use WinAnsi's" do
+      # U+20AC EURO SIGN is 0x80 and U+2014 EM DASH 0x97 in WinAnsi.
+      assert Object.format_text("€—", :win_ansi) == ~S"(\200\227)"
+    end
+
+    test "ASCII is written as :pdf_text writes it" do
+      assert Object.format_text("a (b) \\", :win_ansi) == Object.format_text("a (b) \\")
+    end
+
+    test "a character WinAnsi does not encode raises" do
+      assert_raise ArgumentError, ~r/WinAnsi cannot encode "Ε"/, fn ->
+        Object.format_text("Ελλάδα", :win_ansi)
+      end
+    end
+  end
+
   describe "encode_text/2" do
     test "reports which form it chose" do
       assert Object.encode_text("plain", :pdf_text) == {:literal, "plain"}

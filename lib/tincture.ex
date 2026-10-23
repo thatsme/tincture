@@ -614,10 +614,14 @@ defmodule Tincture do
   ## Options
 
     * `:options` — **required**, the list of choices.
-    * `:value` — the initially selected choice.
+    * `:value` — the initially selected choice. Unless the field is
+      `editable: true`, it must be one of `:options`: any other value warns,
+      and 0.4.0 raises.
     * `:dropdown` — `true` (default) for a combo box, `false` for a list box.
     * `:editable` — allow a value outside the list. Defaults to `false`.
-    * `:sort` — present the options sorted. Defaults to `false`.
+    * `:sort` — write the options sorted, which is the order a viewer shows
+      them in: alphabetically ignoring case, with the exact text breaking
+      ties. Defaults to `false`, which keeps the order given.
     * `:read_only`, `:required`, `:no_export`, `:tooltip`, `:border`,
       `:page`, `:font`, `:size` — as for `text_field/7`.
 
