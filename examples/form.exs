@@ -63,6 +63,10 @@ section = fn pdf, y, title ->
   |> Tincture.line(margin, y - 6, page_w - margin, y - 6)
 end
 
+# Every label's baseline sits label_gap above the top of its field, so the
+# label clears the field's area rather than resting on its edge.
+label_gap = 4
+
 label = fn pdf, x, y, text ->
   pdf
   |> Tincture.set_fill_color(muted)
@@ -87,32 +91,32 @@ pdf = section.(pdf, page_h - 136, "Your details")
 
 pdf =
   pdf
-  |> label.(margin, page_h - 160, "Registered company name")
+  |> label.(margin, page_h - 160 + label_gap, "Registered company name")
   |> underline.(margin, page_h - 178, content_w)
   |> Tincture.text_field(margin, page_h - 178, content_w, 18, "company_name",
     required: true,
     border: :none,
     tooltip: "As it appears on your certificate of incorporation"
   )
-  |> label.(margin, page_h - 200, "Contact name")
+  |> label.(margin, page_h - 200 + label_gap, "Contact name")
   |> underline.(margin, page_h - 218, col_w)
   |> Tincture.text_field(margin, page_h - 218, col_w, 18, "contact_name",
     required: true,
     border: :none
   )
-  |> label.(right_x, page_h - 200, "Position")
+  |> label.(right_x, page_h - 200 + label_gap, "Position")
   |> underline.(right_x, page_h - 218, col_w)
   |> Tincture.text_field(right_x, page_h - 218, col_w, 18, "position", border: :none)
-  |> label.(margin, page_h - 240, "Email")
+  |> label.(margin, page_h - 240 + label_gap, "Email")
   |> underline.(margin, page_h - 258, col_w)
   |> Tincture.text_field(margin, page_h - 258, col_w, 18, "email",
     required: true,
     border: :none
   )
-  |> label.(right_x, page_h - 240, "Telephone")
+  |> label.(right_x, page_h - 240 + label_gap, "Telephone")
   |> underline.(right_x, page_h - 258, col_w)
   |> Tincture.text_field(right_x, page_h - 258, col_w, 18, "telephone", border: :none)
-  |> label.(margin, page_h - 280, "Registered address")
+  |> label.(margin, page_h - 280 + label_gap, "Registered address")
   |> underline.(margin, page_h - 330, content_w)
   |> Tincture.text_field(margin, page_h - 330, content_w, 50, "address",
     multiline: true,
@@ -122,17 +126,17 @@ pdf =
 # --- account ---------------------------------------------------------------
 pdf = section.(pdf, page_h - 366, "Account")
 
-radio_y = page_h - 394
+radio_y = page_h - 402
 
 pdf =
   pdf
-  |> label.(margin, radio_y + 16, "Account type")
+  |> label.(margin, radio_y + 12 + label_gap, "Account type")
   |> Tincture.radio_group(
     "account_type",
     [
-      [value: "standard", x: margin, y: radio_y - 12, size: 12],
-      [value: "priority", x: margin, y: radio_y - 32, size: 12],
-      [value: "trial", x: margin, y: radio_y - 52, size: 12]
+      [value: "standard", x: margin, y: radio_y, size: 12],
+      [value: "priority", x: margin, y: radio_y - 20, size: 12],
+      [value: "trial", x: margin, y: radio_y - 40, size: 12]
     ],
     selected: "standard",
     border: :none,
@@ -140,13 +144,13 @@ pdf =
   )
   |> Tincture.set_fill_color(ink)
   |> Tincture.set_font(body, 10)
-  |> Tincture.text_at(margin + 20, radio_y - 9, "Standard — invoiced per order")
-  |> Tincture.text_at(margin + 20, radio_y - 29, "Priority — invoiced monthly in arrears")
-  |> Tincture.text_at(margin + 20, radio_y - 49, "Trial — three months, then review")
+  |> Tincture.text_at(margin + 20, radio_y + 3, "Standard — invoiced per order")
+  |> Tincture.text_at(margin + 20, radio_y - 17, "Priority — invoiced monthly in arrears")
+  |> Tincture.text_at(margin + 20, radio_y - 37, "Trial — three months, then review")
 
 pdf =
   pdf
-  |> label.(right_x, radio_y + 16, "Payment terms")
+  |> label.(right_x, radio_y + 12 + label_gap, "Payment terms")
   |> underline.(right_x, radio_y - 6, col_w)
   |> Tincture.choice_field(right_x, radio_y - 6, col_w, 18, "payment_terms",
     options: ["14 days", "30 days", "60 days"],
@@ -154,7 +158,7 @@ pdf =
     dropdown: true,
     border: :none
   )
-  |> label.(right_x, radio_y - 30, "Currency")
+  |> label.(right_x, radio_y - 34 + label_gap, "Currency")
   |> underline.(right_x, radio_y - 52, col_w)
   |> Tincture.choice_field(right_x, radio_y - 52, col_w, 18, "currency",
     options: ["GBP", "EUR", "USD"],
@@ -182,7 +186,7 @@ pdf =
 
 pdf =
   pdf
-  |> label.(margin, check_y - 52, "Anything we should know")
+  |> label.(margin, check_y - 52 + label_gap, "Anything we should know")
   |> underline.(margin, check_y - 100, content_w)
   |> Tincture.text_field(margin, check_y - 100, content_w, 48, "notes",
     multiline: true,
@@ -196,14 +200,14 @@ sign_y = page_h - 690
 pdf =
   pdf
   |> section.(sign_y + 44, "Signature")
-  |> label.(margin, sign_y + 20, "Signed")
-  |> underline.(margin, sign_y - 20, 260)
-  |> Tincture.signature_field(margin, sign_y - 20, 260, 40, "signature",
+  |> label.(margin, sign_y + 20 + label_gap, "Signed")
+  |> underline.(margin, sign_y - 20, col_w)
+  |> Tincture.signature_field(margin, sign_y - 20, col_w, 40, "signature",
     required: true,
     border: :none,
     tooltip: "Sign here"
   )
-  |> label.(right_x, sign_y + 20, "Date")
+  |> label.(right_x, sign_y + 16 + label_gap, "Date")
   |> underline.(right_x, sign_y - 2, col_w)
   |> Tincture.text_field(right_x, sign_y - 2, col_w, 18, "signed_on", border: :none)
 

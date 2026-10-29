@@ -135,7 +135,9 @@ defmodule Tincture.FieldFontsTest do
   end
 
   describe "F1: standard-14 forms are unchanged" do
-    test "the /AcroForm of a Helvetica and Times-Roman form is byte for byte as before" do
+    # As 0.3.11 writes it: each /DR font is an object of its own, holding the
+    # dictionary earlier releases wrote inline.
+    test "the /DR fonts of a Helvetica and Times-Roman form are 0.3.11's Type1 objects" do
       binary =
         Tincture.new()
         |> Tincture.text_field(72, 700, 200, 20, "name")
@@ -146,11 +148,19 @@ defmodule Tincture.FieldFontsTest do
         )
         |> Tincture.export()
 
+      [_, helv, times] =
+        Regex.run(
+          ~r|/DA \(/Helv 0 Tf 0 g\) /DR << /Font << /Helv (\d+) 0 R /Times-Roman (\d+) 0 R >> >> >>|,
+          binary
+        )
+
       assert binary =~
-               " /DA (/Helv 0 Tf 0 g) /DR << /Font << " <>
-                 "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> " <>
-                 "/Times-Roman << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >> " <>
-                 ">> >> >>"
+               "\n#{helv} 0 obj\n" <>
+                 "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+
+      assert binary =~
+               "\n#{times} 0 obj\n" <>
+                 "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>"
 
       refute binary =~ "/Type0"
       refute binary =~ "/FontFile"

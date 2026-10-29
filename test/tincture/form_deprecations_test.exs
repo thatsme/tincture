@@ -295,10 +295,14 @@ defmodule Tincture.FormDeprecationsTest do
 
   describe "no output changes" do
     # Built and hashed at v0.3.5 (f3a9914), from a scratch worktree of the tag:
-    # 4627 bytes. The same document under this release must be byte-identical.
-    @v035_sha256 "c9261f1e7eacaa57df53f99d769df4416db8571b6c2b8144bc2c68e4a238f949"
+    # 4627 bytes, c9261f1e…f949, which 0.3.10 still wrote. 0.3.11 writes the
+    # /DR font as an indirect object, and that is the only change: object 1's
+    # /DR entry, the font as object 18, and the info dictionary moved to 19
+    # with its bytes unchanged, checked object by object against 0.3.10's
+    # output. The warnings themselves still change no byte.
+    @v0311_sha256 "3644a9eda8bc3d4db3321c3cef431c6441d1f8bdfc36d09632ba129cad8c5d38"
 
-    test "a document that triggers J1, J2 and J4 exports the bytes 0.3.5 wrote" do
+    test "a document that triggers J1, J2 and J4 exports the bytes 0.3.11 writes" do
       {binary, count} =
         with_warnings(fn ->
           Tincture.new()
@@ -315,8 +319,8 @@ defmodule Tincture.FormDeprecationsTest do
 
       # J4 for the value; J1 for both fields; J2 for the text field.
       assert count == 4
-      assert byte_size(binary) == 4627
-      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @v035_sha256
+      assert byte_size(binary) == 4670
+      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @v0311_sha256
       refute binary =~ "created_outside_structure"
     end
 

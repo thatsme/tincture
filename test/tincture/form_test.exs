@@ -10,6 +10,8 @@ defmodule Tincture.FormTest do
   """
   use ExUnit.Case, async: true
 
+  alias Tincture.Test.PDFObjects
+
   defp export(pdf), do: Tincture.export(pdf)
 
   defp field_object(pdf_binary, name) do
@@ -352,8 +354,65 @@ defmodule Tincture.FormTest do
         |> Tincture.checkbox(0, 20, 10, "c")
         |> export()
 
-      assert binary =~ "/DA (/Helv 0 Tf 0 g) /DR << /Font << /Courier"
-      assert binary =~ "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica"
+      assert binary =~ ~r|/DA \(/Helv 0 Tf 0 g\) /DR << /Font << /Courier \d+ 0 R /Helv \d+ 0 R|
+    end
+  end
+
+  describe "the AcroForm's /DR fonts" do
+    # ISO 32000-1 7.3.10 allows a font dictionary inline in /DR, but Acrobat
+    # Reader draws no value for a field whose /DA font is written that way:
+    # the value shows only while the field has focus.
+    test "are indirect objects, one per distinct field font, shared by the fields using it" do
+      binary =
+        Tincture.new()
+        |> Tincture.text_field(0, 0, 10, 10, "a")
+        |> Tincture.text_field(0, 20, 10, 10, "b", font: "Courier")
+        |> Tincture.choice_field(0, 40, 10, 10, "c", options: ["x"])
+        |> export()
+
+      %{objects: objects, trailer: trailer} = PDFObjects.read(binary)
+      catalog = PDFObjects.resolve(trailer["Root"], objects)
+      fonts = catalog["AcroForm"]["DR"]["Font"]
+
+      assert Map.keys(fonts) == ["Courier", "Helv"]
+      assert Enum.all?(Map.values(fonts), &match?({:ref, _}, &1))
+      assert fonts |> Map.values() |> Enum.uniq() |> length() == 2
+
+      for {alias_name, base_font} <- [{"Helv", "Helvetica"}, {"Courier", "Courier"}] do
+        assert PDFObjects.resolve(fonts[alias_name], objects) == %{
+                 "Type" => {:name, "Font"},
+                 "Subtype" => {:name, "Type1"},
+                 "BaseFont" => {:name, base_font},
+                 "Encoding" => {:name, "WinAnsiEncoding"}
+               }
+      end
+
+      assert field_object(binary, "a") =~ "/DA (/Helv 0 Tf 0 g)"
+      assert field_object(binary, "b") =~ "/DA (/Courier 0 Tf 0 g)"
+      assert field_object(binary, "c") =~ "/DA (/Helv 0 Tf 0 g)"
+    end
+
+    # The font objects are allocated after every other object but the info
+    # dictionary, and only for a form, so a document without one keeps its
+    # 0.3.10 bytes. Metadata, structure and an info dictionary are the objects
+    # written next to them. The hash is 0.3.10's output for this document.
+    test "leave a document without form fields byte-identical" do
+      binary =
+        Tincture.new()
+        |> Tincture.set_metadata(title: "No fields", author: "Tincture")
+        |> Tincture.set_language("en-GB")
+        |> Tincture.tag(:document, [], fn doc ->
+          Tincture.tag(doc, :p, [], fn p ->
+            p
+            |> Tincture.set_font("Helvetica", 12)
+            |> Tincture.text_at(50, 700, "Hello")
+          end)
+        end)
+        |> Tincture.add_bookmark("Start", 1)
+        |> export()
+
+      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) ==
+               "142be673da79531f691691403d538dd1a491ad4bf8220a655ac8d576766a05a8"
     end
   end
 
