@@ -110,6 +110,13 @@ defmodule Tincture.PDF.Serialize do
     {metadata_ref, metadata_objects} =
       build_metadata_objects(pdf, struct_tree_ref, metadata_start_id)
 
+    # Allocated last, after every other object but the info dictionary, so a
+    # document without form fields is numbered exactly as before.
+    dr_fonts_start_id = metadata_start_id + length(metadata_objects)
+
+    {dr_font_refs, dr_font_objects} =
+      build_dr_font_objects(pdf.form_fields, dr_fonts_start_id)
+
     kids =
       page_numbers
       |> Enum.with_index()
@@ -190,6 +197,7 @@ defmodule Tincture.PDF.Serialize do
         outlines_ref,
         form_field_refs,
         pdf.form_fields,
+        dr_font_refs,
         struct_tree_ref,
         metadata_ref,
         output_intent_ref,
@@ -203,7 +211,7 @@ defmodule Tincture.PDF.Serialize do
           signature_objects ++
           form_field_objects ++
           annotation_objects ++
-          structure_objects ++ output_intent_objects ++ metadata_objects
+          structure_objects ++ output_intent_objects ++ metadata_objects ++ dr_font_objects
     ]
 
     {object_bodies, info_ref} =
@@ -237,6 +245,7 @@ defmodule Tincture.PDF.Serialize do
          outlines_ref,
          form_field_refs,
          form_fields,
+         dr_font_refs,
          struct_tree_ref,
          metadata_ref,
          output_intent_ref,
@@ -292,7 +301,7 @@ defmodule Tincture.PDF.Serialize do
       end
 
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
-      "#{acro_form_entry(form_field_refs, form_fields)}#{structure}#{language}" <>
+      "#{acro_form_entry(form_field_refs, form_fields, dr_font_refs)}#{structure}#{language}" <>
       "#{metadata}#{viewer_preferences}#{output_intent} >>"
   end
 
@@ -725,9 +734,9 @@ defmodule Tincture.PDF.Serialize do
   defp bbox_entry({left, bottom, right, top}),
     do: "/BBox [#{Enum.map_join([left, bottom, right, top], " ", &Object.num/1)}]"
 
-  defp acro_form_entry([], _form_fields), do: ""
+  defp acro_form_entry([], _form_fields, _dr_font_refs), do: ""
 
-  defp acro_form_entry(form_field_refs, form_fields) do
+  defp acro_form_entry(form_field_refs, form_fields, dr_font_refs) do
     fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
     # Button-like fields (checkbox, radio, push button) carry real appearance
@@ -761,7 +770,7 @@ defmodule Tincture.PDF.Serialize do
 
     " /AcroForm << /Fields [#{fields}]#{need_appearances}#{signature_flags}" <>
       default_appearance_entry(form_fields) <>
-      " /DR << /Font << #{acro_form_font_resources(form_fields)} >> >> >>"
+      " /DR << /Font << #{acro_form_font_resources(dr_font_refs)} >> >> >>"
   end
 
   # The document-level default appearance. Its font must be one /DR holds
@@ -774,13 +783,25 @@ defmodule Tincture.PDF.Serialize do
       else: ""
   end
 
-  defp acro_form_font_resources(form_fields) do
-    form_fields
-    |> Enum.map(& &1.font)
-    |> Enum.uniq()
-    |> Enum.map_join(" ", fn font_name ->
-      "#{acro_form_font_alias(font_name)} << /Type /Font /Subtype /Type1 " <>
-        "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+  # One object per distinct field font, which /DR references. ISO 32000-1
+  # 7.3.10 allows the dictionary inline as well - "the semantics are
+  # equivalent" - but Acrobat Reader draws no value for a field whose /DA font
+  # is inline in /DR: the value shows only while the field has focus.
+  defp build_dr_font_objects(form_fields, start_id) do
+    fonts = form_fields |> Enum.map(& &1.font) |> Enum.uniq()
+
+    objects =
+      Enum.map(fonts, fn font_name ->
+        "<< /Type /Font /Subtype /Type1 " <>
+          "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+      end)
+
+    {Enum.with_index(fonts, start_id), objects}
+  end
+
+  defp acro_form_font_resources(dr_font_refs) do
+    Enum.map_join(dr_font_refs, " ", fn {font_name, id} ->
+      "#{acro_form_font_alias(font_name)} #{id} 0 R"
     end)
   end
 
