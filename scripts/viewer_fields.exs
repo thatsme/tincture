@@ -66,6 +66,13 @@ pdf =
     dropdown: false,
     sort: true
   )
+  |> label.(332, "Dropdown in the embedded font")
+  |> Tincture.choice_field(50, 310, 240, 22, "greek_combo",
+    options: ["Αθήνα", "Πάτρα", "Βόλος"],
+    value: "Πάτρα",
+    font: "Sans",
+    full_font: true
+  )
 
 File.mkdir_p!(Path.dirname(out))
 File.write!(out, Tincture.export(pdf))
