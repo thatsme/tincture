@@ -90,6 +90,12 @@ them, and the eighth follows from them.
   generated `/AP` stream, so they display the same in every viewer, and in
   print and thumbnails. A password field's appearance is empty. `form.pdf`
   and every form with a text or choice field change bytes.
+- **A bordered text or choice field declares its border.** It writes
+  `/MK << /BC [0 0 0] >>`, the colour its appearance strokes the border in,
+  and `/BS << /W w >>`, the border's width, beside the existing `/Border`. A
+  viewer that draws a new appearance after an edit keeps the border: PDFium
+  drops it without these entries. Nothing else from `/MK` is written, and an
+  unbordered field writes neither.
 - **A list box scrolls to its selected option.** `/TI` is written when the
   selected option would otherwise be below the visible rows.
 

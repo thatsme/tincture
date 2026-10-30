@@ -412,7 +412,9 @@ even when the field's embedded font has the characters. pdf.js uses the field's
 font.
 
 Also missing: JavaScript actions for client-side validation, and per-field
-appearance customisation (`/MK` border and background colours).
+appearance customisation (border and background colours). A bordered text or
+choice field declares its border, in the black its appearance draws it in, as
+`/MK /BC` and `/BS /W`; nothing else from `/MK` is written for those fields.
 
 Text and choice fields may use a TrueType or OpenType font registered with
 `register_ttf_font/4` or `register_otf_font/4`. It is written as a `Type0` font
