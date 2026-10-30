@@ -432,9 +432,15 @@ defmodule Tincture do
 
     * `:value` — the initial value. Defaults to empty.
     * `:size` — font size. Defaults to `0`, meaning auto-size, which is
-      usually what you want for a field whose height you chose: the field's
-      appearance uses the largest size up to 12 that fits the box, and a
-      viewer fits the text again when someone edits it. With an embedded
+      usually what you want for a field whose height you chose. The field's
+      appearance then sizes the text by the field's kind. A single-line
+      field or a dropdown takes the size at which a line of the field's
+      font, with a small margin above and below, fills the box's height less
+      its border; when the value is too wide for the box, that size shrinks
+      until it fits, down to 4. A multiline field starts at 12 and steps down
+      by 0.5 until the wrapped lines fit the height, down to 4, below which
+      the text is clipped. A list box uses 12. A viewer fits the text again
+      when someone edits it. With an embedded
       font, the field's `/DA` names the size computed for its initial value
       instead of `0`, because Acrobat Reader does not redraw an auto-sized
       embedded-font field after an edit. So in Acrobat Reader such a field
