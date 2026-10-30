@@ -1369,13 +1369,25 @@ defmodule Tincture.PDF.Serialize do
       field_ref: id,
       widget_refs: [{id, field.page_number}],
       objects: [
-        form_field_object_body(field, page_ref, "", entries),
+        form_field_object_body(default_appearance_size(field, appearance), page_ref, "", entries),
         appearance_object_body(field, appearance, context.stream_refs, context.dr_font_refs)
       ]
     }
 
     {built, id + 2}
   end
+
+  # An auto-sized field in an embedded font names in /DA the size its
+  # appearance resolved, not 0. Acrobat Reader (2026.002.22031) does not
+  # redraw such a field at auto size after an edit to a value its embedded
+  # font draws alone: the stale appearance stays, showing the old value while
+  # /V holds the new one. At the resolved size it redraws. A standard-14 field
+  # keeps 0, which Reader redraws, re-fitting the size.
+  defp default_appearance_size(%{size: 0, font: font} = field, appearance) do
+    if Font.standard_font?(font), do: field, else: %{field | size: appearance.size}
+  end
+
+  defp default_appearance_size(field, _appearance), do: field
 
   defp quadding_entry(%{align: :center}), do: " /Q 1"
   defp quadding_entry(%{align: :right}), do: " /Q 2"

@@ -68,7 +68,9 @@ defmodule Tincture.PDF.Appearance do
   @typedoc """
   `border` is drawn before the /Tx marked content, so that a reader which
   regenerates the appearance keeps it; `content` is drawn inside it.
-  `top_index` is the list box's /TI, or nil when it is not written.
+  `top_index` is the list box's /TI, or nil when it is not written. `size` is
+  the font size the text is drawn at, as its Tf operand writes it; a field
+  that draws no text, empty or a password, has the size its box gives.
   """
   @type t :: %{
           key: {:appearance, String.t(), non_neg_integer(), :n},
@@ -76,7 +78,8 @@ defmodule Tincture.PDF.Appearance do
           height: number(),
           border: [PDF.op()],
           content: [PDF.op()],
-          top_index: non_neg_integer() | nil
+          top_index: non_neg_integer() | nil,
+          size: number()
         }
 
   @doc """
@@ -129,8 +132,9 @@ defmodule Tincture.PDF.Appearance do
     height = y2 - y1
     border = border_width(field.border)
     box = %{w: width, h: height, border: border, pad: 2 * border, metrics: metrics}
+    size = field.size |> auto(fn -> auto_size(field, box, context) end)
 
-    {content, top_index} = content(field, box, context)
+    {content, top_index} = content(field, box, context, size)
 
     %{
       key: {:appearance, field.name, 0, :n},
@@ -138,8 +142,24 @@ defmodule Tincture.PDF.Appearance do
       height: height,
       border: border_ops(border, width, height),
       content: content,
-      top_index: top_index
+      top_index: top_index,
+      size: tidy(size)
     }
+  end
+
+  # A password field draws nothing, so its size takes no account of the value.
+  defp auto_size(%{type: :text, flags: flags} = field, box, context) do
+    cond do
+      flag?(flags, @field_flag_password) -> single_line_auto_size(field, "", box, context)
+      flag?(flags, @field_flag_multiline) -> multiline_auto_size(field, box, context)
+      true -> single_line_auto_size(field, field.value, box, context)
+    end
+  end
+
+  defp auto_size(%{type: :choice, flags: flags} = field, box, context) do
+    if flag?(flags, @field_flag_combo),
+      do: single_line_auto_size(field, field.value, box, context),
+      else: @list_size
   end
 
   defp border_width(:none), do: 0
@@ -155,25 +175,24 @@ defmodule Tincture.PDF.Appearance do
     ]
   end
 
-  defp content(%{type: :text, flags: flags} = field, box, context) do
+  defp content(%{type: :text, flags: flags} = field, box, context, size) do
     cond do
       flag?(flags, @field_flag_password) -> {[], nil}
-      flag?(flags, @field_flag_multiline) -> {multiline(field, box, context), nil}
-      true -> {single_line(field, field.value, box, context), nil}
+      flag?(flags, @field_flag_multiline) -> {multiline(field, box, context, size), nil}
+      true -> {single_line(field, field.value, box, context, size), nil}
     end
   end
 
-  defp content(%{type: :choice, flags: flags} = field, box, context) do
+  defp content(%{type: :choice, flags: flags} = field, box, context, size) do
     if flag?(flags, @field_flag_combo),
-      do: {single_line(field, field.value, box, context), nil},
-      else: list_box(field, box, context)
+      do: {single_line(field, field.value, box, context, size), nil},
+      else: list_box(field, box, context, size)
   end
 
   # One line box, centred in the field.
-  defp single_line(_field, "", _box, _context), do: []
+  defp single_line(_field, "", _box, _context, _size), do: []
 
-  defp single_line(field, text, box, context) do
-    size = field.size |> auto(fn -> single_line_auto_size(field, text, box, context) end)
+  defp single_line(field, text, box, context, size) do
     %{line: line, descent: descent} = box.metrics
     y = (box.h - line * size) / 2 + descent * size
     inked([text_op(field, text, size, x(field, text, size, box, context), y)])
@@ -193,10 +212,9 @@ defmodule Tincture.PDF.Appearance do
     max(size, @min_size)
   end
 
-  defp multiline(%{value: ""}, _box, _context), do: []
+  defp multiline(%{value: ""}, _box, _context, _size), do: []
 
-  defp multiline(field, box, context) do
-    size = field.size |> auto(fn -> multiline_auto_size(field, box, context) end)
+  defp multiline(field, box, context, size) do
     leading = box.metrics.line * size
     first = box.h - leading
 
@@ -254,8 +272,7 @@ defmodule Tincture.PDF.Appearance do
   # Rows from the top edge in /Opt order, each a line box, the selected one
   # filled across the full width. When the selection would fall below the
   # box, /TI scrolls the list so it is visible and the box stays full.
-  defp list_box(field, box, context) do
-    size = auto(field.size, fn -> @list_size end)
+  defp list_box(field, box, context, size) do
     row = box.metrics.line * size
     rows = max(1, trunc(box.h / row))
     options = ordered_options(field)

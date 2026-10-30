@@ -434,7 +434,12 @@ defmodule Tincture do
     * `:size` — font size. Defaults to `0`, meaning auto-size, which is
       usually what you want for a field whose height you chose: the field's
       appearance uses the largest size up to 12 that fits the box, and a
-      viewer fits the text again when someone edits it.
+      viewer fits the text again when someone edits it. With an embedded
+      font, the field's `/DA` names the size computed for its initial value
+      instead of `0`, because Acrobat Reader does not redraw an auto-sized
+      embedded-font field after an edit. So in Acrobat Reader such a field
+      keeps that size: a longer value is not shrunk, and the field box clips
+      it. An explicit size gives full control.
     * `:align` — `:left` (default), `:center` or `:right`, written as `/Q`.
     * `:font` — one of the standard 14, or a font registered with
       `register_ttf_font/4` or `register_otf_font/4`. Defaults to
