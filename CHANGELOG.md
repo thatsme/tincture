@@ -78,7 +78,16 @@ them, and the eighth follows from them.
   unless its font is embedded whole, with the new `full_font: true` option or
   a font registered with `subset: :none`, and unless the font's licence (OS/2
   `fsType`) allows editable embedding. A font used by both page text and a
-  field is embedded once. Other field types keep the standard 14.
+  field is embedded once. `push_button/7` and `signature_field/7` accept one
+  too, for the caption and the label, subset to their characters. Checkboxes
+  and radio buttons, which draw no text, keep the standard 14.
+- **`:label` and `invisible: true` on `signature_field/7`.** `:label` draws
+  one line of text in the field's appearance, such as
+  `"Signed by A. Lovelace"`, in the field's `:font` and laid out as a
+  single-line text value; the appearance is written before signing, so the
+  label lies inside the signed bytes. `invisible: true` writes a zero
+  rectangle and no appearance; with a `:label`, or with any non-zero
+  position argument, it raises.
 - **`:align` on `text_field/7` and `choice_field/7`**: `:left` (the
   default), `:center` or `:right`, written as `/Q` and applied in the field's
   appearance.
@@ -96,6 +105,15 @@ them, and the eighth follows from them.
   viewer that draws a new appearance after an edit keeps the border: PDFium
   drops it without these entries. Nothing else from `/MK` is written, and an
   unbordered field writes neither.
+- **A visible signature field carries its own appearance**: an empty one, or
+  with `:label` one line of text. Every document with a visible signature
+  field changes bytes, `signed.pdf` included.
+- **The push-button caption uses the form's font object.** Its appearance
+  references `/DR`'s font under the `/DA` alias rather than an inline `/Helv`
+  dictionary, and its face's border colour is written `0.6` rather than
+  `0.60`; the drawn caption is unchanged. A caption in a font other than
+  Helvetica is now named by its own alias, such as `/Courier`, where it was
+  always named `/Helv`.
 - **A list box scrolls to its selected option.** `/TI` is written when the
   selected option would otherwise be below the visible rows.
 

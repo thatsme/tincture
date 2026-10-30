@@ -67,9 +67,10 @@ Shows:
   specification models a group as a parent field holding the value with a kid
   widget per button, and a button's export value *is* the name of its "on"
   appearance state.
-- **Generated appearance streams.** Every field but the signature carries a
-  real `/AP`, so the checkboxes, buttons and the dropdowns' values are visible
-  in this static render. Text and choice values are laid out by Tincture;
+- **Generated appearance streams.** Every field carries a real `/AP`, so the
+  checkboxes, buttons and the dropdowns' values are visible in this static
+  render; the signature field, which has no `:label`, has an empty
+  appearance. Text and choice values are laid out by Tincture;
   `/NeedAppearances` is not written, so no field depends on an interactive
   viewer to be drawn.
 - **Actions**: submit, reset and open-URL.
@@ -77,8 +78,9 @@ Shows:
   text or choice field may also use a registered TrueType or OpenType font; a
   field someone can type into then needs the whole font embedded, with
   `full_font: true` or a font registered with `subset: :none`, and a font
-  whose licence allows editable embedding. The other field types use the
-  standard 14.
+  whose licence allows editable embedding. A push button's caption and a
+  signature's label may use a registered font as well; checkboxes and radio
+  buttons, which draw no text, use the standard 14.
 
 ## [`accessible.exs`](accessible.exs) → [`output/accessible.pdf`](output/accessible.pdf)
 
