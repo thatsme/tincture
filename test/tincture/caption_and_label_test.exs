@@ -90,9 +90,27 @@ defmodule Tincture.CaptionAndLabelTest do
       assert greek =~ "<039103C003BF03C303C403BF03BB03AE> Tj"
     end
 
-    test "names its resolved size in /DA, where a standard-14 caption keeps 0", %{binary: binary} do
+    test "names the size its caption is drawn at in /DA, in any font, never 0", %{binary: binary} do
       assert widget(binary, "greek") =~ "/DA (/Sans 12 Tf 0 g)"
-      assert widget(binary, "helv") =~ "/DA (/Helv 0 Tf 0 g)"
+      assert widget(binary, "helv") =~ "/DA (/Helv 12 Tf 0 g)"
+
+      for name <- ["greek", "helv"] do
+        [_, size] = Regex.run(~r"/DA \(/\S+ (\S+) Tf", widget(binary, name))
+        {_dictionary, content} = appearance(binary, name)
+        assert content =~ " #{size} Tf\n"
+      end
+    end
+
+    test "declares what its appearance draws: /MK /BC and /BG, and /BS /W", %{binary: binary} do
+      for name <- ["latin", "greek", "helv"] do
+        {_dictionary, content} = appearance(binary, name)
+
+        assert content =~ "0.93 0.93 0.94 rg\n"
+        assert content =~ "0.55 0.57 0.6 RG\n0.75 w\n"
+
+        assert widget(binary, name) =~
+                 ~r"/MK << /BC \[0\.55 0\.57 0\.6\] /BG \[0\.93 0\.93 0\.94\] /CA [^>]*>* >> /BS << /W 0\.75 >> /AP"
+      end
     end
 
     test "is subset with its glyphs, like page text", %{binary: binary} do
@@ -120,7 +138,7 @@ defmodule Tincture.CaptionAndLabelTest do
     end
 
     test "/MK /CA carries the caption as a text string", %{binary: binary} do
-      assert widget(binary, "greek") =~ "/MK << /CA <FEFF039103C003BF03C303C403BF03BB03AE> >>"
+      assert widget(binary, "greek") =~ "/CA <FEFF039103C003BF03C303C403BF03BB03AE> >>"
     end
   end
 

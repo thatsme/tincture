@@ -114,6 +114,12 @@ them, and the eighth follows from them.
   `0.60`; the drawn caption is unchanged. A caption in a font other than
   Helvetica is now named by its own alias, such as `/Courier`, where it was
   always named `/Helv`.
+- **A push button declares what its appearance draws.** The widget writes
+  `/MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] >>` and `/BS << /W 0.75 >>`
+  beside `/MK /CA`, and its `/DA` names the size the caption is drawn at
+  rather than `0`. Acrobat Reader draws a button anew from these entries when
+  it loses focus or the form is reset; without them it drew the button with
+  no face, no frame and a caption of its own size.
 - **A list box scrolls to its selected option.** `/TI` is written when the
   selected option would otherwise be below the visible rows.
 

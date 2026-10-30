@@ -14,7 +14,10 @@ defmodule Tincture.ButtonAppearanceBytesTest do
   font is `/DR`'s object under the field's `/DA` alias, where it was an
   inline Type1 dictionary always named `/Helv`; its face's stroke colour is
   written `0.6`, where it was `0.60`; and a visible signature field carries
-  an empty appearance, where it had none.
+  an empty appearance, where it had none. After the Reader review, a push
+  button also declares what its appearance draws, `/MK /BC`, `/BG` and `/BS
+  /W`, from the appearance's own operations, and its `/DA` names the
+  caption's size rather than `0`.
   """
   use ExUnit.Case, async: true
 
@@ -156,7 +159,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
 
       assert objects(pdf) == ~S"""
              5 0 obj
-             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
+             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
              << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv 7 0 R >> >> /Length 128 >>
@@ -189,7 +192,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
 
       assert objects(pdf) == ~S"""
              5 0 obj
-             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 168 726] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
+             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 168 726] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
              << /Type /XObject /Subtype /Form /BBox [0 0 96 26] /Resources << /Font << /Helv 7 0 R >> >> /Length 126 >>
@@ -223,7 +226,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
 
       assert objects(pdf) == ~S"""
              5 0 obj
-             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Courier 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
+             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Courier 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
              << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Courier 7 0 R >> >> /Length 130 >>
@@ -252,7 +255,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
 
       assert objects(pdf) == ~S"""
              5 0 obj
-             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /AP << /N 6 0 R >> >>
+             << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
              << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << >> /Length 80 >>

@@ -439,7 +439,7 @@ defmodule Tincture.FormTest do
 
       # Not UTF-16: that belongs in /MK /CA, a text string, not in the stream.
       assert shown == ~S"(Gr\366\337e)"
-      assert binary =~ "/MK << /CA <FEFF0047007200F600DF0065> >>"
+      assert binary =~ "/CA <FEFF0047007200F600DF0065> >>"
 
       # The caption's font is /DR's object under the /DA alias, the
       # WinAnsi-encoded Type1 dictionary, not an inline copy.

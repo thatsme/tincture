@@ -624,10 +624,15 @@ defmodule Tincture do
       needs no `full_font:`.
     * `:read_only`, `:required`, `:no_export` — field flags.
     * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
-    * `:size` — the caption's font size, also named in the button's `/DA`.
-      Defaults to `0`: the caption is then drawn at half the button's height,
-      at most 12. With a registered font, the `/DA` names that size rather
-      than `0`.
+    * `:size` — the caption's font size. Defaults to `0`: the caption is
+      then drawn at half the button's height, at most 12. The button's `/DA`
+      names the size the caption is drawn at, never `0`, so that a viewer
+      redrawing the button, as Acrobat Reader does after the form is reset,
+      keeps it.
+
+  The button's appearance draws a grey face, a thin frame and the caption,
+  and the widget declares them, as `/MK /BG`, `/MK /BC` with `/BS /W`, and
+  `/MK /CA`, for a viewer that draws the button anew.
 
   In a tagged document, a push button needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. With a standard-14 font, its

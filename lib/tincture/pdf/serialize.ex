@@ -1374,9 +1374,10 @@ defmodule Tincture.PDF.Serialize do
           widget_refs: [{id, field.page_number}],
           objects: [
             form_field_object_body(
-              default_appearance_size(field, appearance),
+              drawn_field_appearance_size(field, appearance),
               page_ref,
-              " /AP << /N #{appearance_id} 0 R >>"
+              push_button_declaration(field, appearance.content) <>
+                " /AP << /N #{appearance_id} 0 R >>"
             ),
             drawn_appearance_object_body(
               field,
@@ -1431,20 +1432,60 @@ defmodule Tincture.PDF.Serialize do
 
   defp default_appearance_size(field, _appearance), do: field
 
+  # A push button's /DA names the size its caption is drawn at, for every
+  # font, never 0: Acrobat Reader redraws a button from /MK /CA and /DA when
+  # it loses focus or the form is reset, and at 0 Tf it draws the caption at
+  # a size of its own. A signature field follows the text-field rule.
+  defp drawn_field_appearance_size(%{type: :push_button, size: 0} = field, appearance),
+    do: %{field | size: appearance.size}
+
+  defp drawn_field_appearance_size(field, appearance),
+    do: default_appearance_size(field, appearance)
+
+  # A push button declares what its appearance draws, for a viewer that
+  # draws a new one: Acrobat Reader does so when the button loses focus or
+  # the form is reset, from the widget's declarations alone. /MK's /BC is the
+  # frame's stroke colour, /BG the face's fill colour and /CA the caption,
+  # which is for button fields only (ISO 32000-1 Table 189), so a signature's
+  # :label is not written there; /BS's /W is the frame's width. Each is
+  # taken from the appearance's own
+  # operations, so the declaration and the drawing cannot disagree. Nothing
+  # else from /MK is written.
+  defp push_button_declaration(%{type: :push_button} = field, operations) do
+    frame = first_operand(operations, :set_stroke_color)
+    face = first_operand(operations, :set_fill_color)
+    width = first_operand(operations, :set_line_width)
+
+    caption =
+      case Map.get(field, :label) do
+        nil -> ""
+        label -> " /CA #{Object.format_text(label)}"
+      end
+
+    " /MK << /BC #{color_array(frame)} /BG #{color_array(face)}#{caption} >>" <>
+      " /BS << /W #{Object.num(width)} >>"
+  end
+
+  defp push_button_declaration(_field, _operations), do: ""
+
+  defp first_operand(operations, operator) do
+    Enum.find_value(operations, fn
+      {^operator, operand} -> operand
+      _op -> nil
+    end)
+  end
+
+  defp color_array(color) do
+    components = if is_tuple(color), do: Tuple.to_list(color), else: [color]
+    "[#{Enum.map_join(components, " ", &Object.num/1)}]"
+  end
+
   # A bordered field declares its border: /MK's /BC, the colour its appearance
   # strokes the border in, and /BS's /W, the same width, for a viewer that
   # draws a new appearance after an edit. /Border gives a width but no
   # colour. Nothing else from /MK is written.
   defp border_declaration({_horizontal, _vertical, width}, border_ops) when width > 0 do
-    color =
-      Enum.find_value(border_ops, fn
-        {:set_stroke_color, color} -> color
-        _op -> nil
-      end)
-
-    components = if is_tuple(color), do: Tuple.to_list(color), else: [color]
-
-    " /MK << /BC [#{Enum.map_join(components, " ", &Object.num/1)}] >>" <>
+    " /MK << /BC #{color_array(first_operand(border_ops, :set_stroke_color))} >>" <>
       " /BS << /W #{Object.num(width)} >>"
   end
 
@@ -1539,7 +1580,6 @@ defmodule Tincture.PDF.Serialize do
       max_length_entry(field) <>
       options_entry(field) <>
       button_action_entry(field) <>
-      button_caption_entry(field) <>
       appearance_entry <>
       tooltip_entry(field) <> trailing_entries <> " >>"
   end
@@ -1771,14 +1811,6 @@ defmodule Tincture.PDF.Serialize do
         " /Flags 4 >>"
 
   defp button_action_entry(_field), do: ""
-
-  # /MK /CA is the caption a viewer draws on the button face. It is for
-  # button fields only (ISO 32000-1 Table 189), so a signature's :label,
-  # which its appearance draws, is not written there.
-  defp button_caption_entry(%{type: :push_button, label: label}) when is_binary(label),
-    do: " /MK << /CA #{Object.format_text(label)} >>"
-
-  defp button_caption_entry(_field), do: ""
 
   defp annotation_dictionary(
          %{type: :link, rect: {x1, y1, x2, y2}, target: target, border: border} = annotation,

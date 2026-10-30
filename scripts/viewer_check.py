@@ -38,6 +38,11 @@ if any fails.
    push-button captions (/MK /CA) and signature /DA are changed, the entries
    an engine would redraw them from. At least one file in the run must have
    a push button.
+7. PDFium only: a push button regenerated from its declarations keeps its
+   face. The first push button's /AP is deleted in a copy, PDFium draws a
+   new one, and the saved /AP must fill a path in /MK /BG's colour. Whether
+   it strokes a frame from /MK /BC and /BS /W is reported, not required:
+   PDFium 156's regeneration draws no frame in any variant tried.
 
 Renders and filled files are written to OUT_DIR.
 """
@@ -172,6 +177,49 @@ def check_button_structure(path, label):
                    f"{len(widgets)} widgets" + (f", missing: {missing}" if missing else "")
                    + (f", not /DR's: {not_dr}" if not_dr else ""))
         return any(widget.FT == "/Btn" for widget in widgets)
+
+
+def check_button_regeneration(path, label, out_dir):
+    """Whether the file had a push button with a declared face to check."""
+    copy = posixpath.join(out_dir, f"{label}-button-noap.pdf")
+    with pikepdf.open(path) as pdf:
+        target = next((w for w in button_and_signature_widgets(pdf)
+                       if w.FT == "/Btn" and "/BG" in w.get("/MK", {})), None)
+        if target is None:
+            return False
+        name = str(target.T)
+        face = " ".join(f"{float(v):g}" for v in target.MK.BG)
+        del target["/AP"]
+        pdf.save(copy)
+
+    saved = posixpath.join(out_dir, f"{label}-button-regenerated.pdf")
+    doc = pdfium.PdfDocument(copy)
+    doc.init_forms()
+    form, page = doc.formenv.raw, doc[0]
+    for index in range(c.FPDFPage_GetAnnotCount(page.raw)):
+        annot = c.FPDFPage_GetAnnot(page.raw, index)
+        if field_name(form, annot) == name:
+            c.FORM_SetFocusedAnnot(form, annot)
+            c.FORM_ForceToKillFocus(form)
+        c.FPDFPage_CloseAnnot(annot)
+    doc.save(saved)
+    page.close()
+    doc.close()
+
+    with pikepdf.open(saved) as pdf:
+        widget = next(w for w in button_and_signature_widgets(pdf) if str(w.T) == name)
+        normal = widget.get("/AP", {}).get("/N")
+        content = normal.read_bytes().decode("latin-1") if isinstance(normal, pikepdf.Stream) else ""
+    tokens = content.split()
+    colours = [" ".join(f"{float(v):g}" for v in tokens[i - 3:i])
+               for i, token in enumerate(tokens) if token == "rg" and i >= 3]
+    filled = face in colours and re.search(r"(^|\s)f\*?(\s|$)", content) is not None
+    framed = re.search(r"(^|\s)[Ss](\s|$)", content) is not None
+    report(filled, f"{label}: PDFium regenerating {name!r} keeps its face, /MK /BG {face}",
+           "" if filled else f"no fill in /BG's colour ({len(content)} bytes)")
+    print(f"INFO  {label}: PDFium regenerating {name!r} "
+          f"{'strokes' if framed else 'draws no'} frame (/MK /BC, /BS /W)")
+    return True
 
 
 def without_captions(path, out_dir, label):
@@ -349,7 +397,7 @@ def main():
     print(f"pypdfium2 {PYPDFIUM_INFO}, PDFium {PDFIUM_INFO}, pikepdf {pikepdf.__version__}, "
           f"pdf.js {node('version')}")
 
-    bordered = buttons = False
+    bordered = buttons = regenerated = False
     for path in paths:
         label = os.path.splitext(os.path.basename(path))[0]
         check_structure(path, label)
@@ -367,9 +415,12 @@ def main():
 
         check_fill("pdf.js", fill_pdfjs, path, label, out_dir, "type0", GREEK_FILL)
         bordered = check_border_fill(path, label, out_dir) or bordered
+        regenerated = check_button_regeneration(path, label, out_dir) or regenerated
 
     report(bordered, "a bordered field was checked", "" if bordered else "no file has one")
     report(buttons, "a push button was checked", "" if buttons else "no file has one")
+    report(regenerated, "a push button was regenerated",
+           "" if regenerated else "no file has one with /MK /BG")
 
     if failures:
         print(f"{len(failures)} check(s) failed")
