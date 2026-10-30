@@ -295,14 +295,19 @@ defmodule Tincture.PDF.Serialize do
     {xobject_refs, objects, start_object_id + length(names)}
   end
 
-  # Written by `form_xobject/4`, the writer the button appearances use, with
+  # Written by `form_xobject/2`, the writer every widget appearance uses, with
   # its content and resources produced from operations as a page's are. No
   # telemetry span is emitted for it.
   defp form_xobject_object(%PDF{} = pdf, name, refs) do
     xobject = Map.fetch!(pdf.form_xobjects, name)
-    {aliases, entries} = stream_resources(xobject.operations, refs)
-    content = content_stream(xobject.operations, aliases, refs)
-    form_xobject(xobject.width, xobject.height, content, resource_entries(entries))
+    form_xobject({0, 0, xobject.width, xobject.height}, xobject_stream(xobject.operations, refs))
+  end
+
+  # A public form XObject's content and resources: the page's resource
+  # collectors name its fonts, images and states as they would on a page.
+  defp xobject_stream(operations, refs) do
+    {aliases, entries} = stream_resources(operations, refs)
+    {content_stream(operations, aliases, refs), resource_entries(entries)}
   end
 
   defp build_signature_objects(%PDF{signature: nil}, _start_id), do: {nil, []}
@@ -1247,6 +1252,9 @@ defmodule Tincture.PDF.Serialize do
         %{type: type} = field, id when type in [:text, :choice] ->
           build_variable_text_field(field, page_object_refs, id, context)
 
+        %{type: :push_button} = field, id ->
+          build_push_button(field, page_object_refs, id, context)
+
         field, id ->
           build_form_field(field, page_object_refs, id)
       end)
@@ -1326,24 +1334,6 @@ defmodule Tincture.PDF.Serialize do
     {built, id + 3}
   end
 
-  # A push button's face is entirely appearance - it has no value to render -
-  # so without a stream there is nothing to see at all.
-  defp build_form_field(%{type: :push_button} = field, page_object_refs, id) do
-    appearance_id = id + 1
-    page_ref = Map.fetch!(page_object_refs, field.page_number)
-
-    built = %{
-      field_ref: id,
-      widget_refs: [{id, field.page_number}],
-      objects: [
-        form_field_object_body(field, page_ref, " /AP << /N #{appearance_id} 0 R >>"),
-        push_button_appearance_object_body(field)
-      ]
-    }
-
-    {built, id + 2}
-  end
-
   defp build_form_field(field, page_object_refs, id) do
     built = %{
       field_ref: id,
@@ -1352,6 +1342,24 @@ defmodule Tincture.PDF.Serialize do
     }
 
     {built, id + 1}
+  end
+
+  # A push button's face is entirely appearance - it has no value to render -
+  # so without a stream there is nothing to see at all.
+  defp build_push_button(field, page_object_refs, id, context) do
+    appearance_id = id + 1
+    page_ref = Map.fetch!(page_object_refs, field.page_number)
+
+    built = %{
+      field_ref: id,
+      widget_refs: [{id, field.page_number}],
+      objects: [
+        form_field_object_body(field, page_ref, " /AP << /N #{appearance_id} 0 R >>"),
+        push_button_appearance_object_body(field, context.stream_refs)
+      ]
+    }
+
+    {built, id + 2}
   end
 
   # A text or choice field's widget, then its appearance stream: the value as
@@ -1424,23 +1432,57 @@ defmodule Tincture.PDF.Serialize do
   # through Identity-H, as page text is. The border is drawn outside the /Tx
   # marked content, which a viewer regenerating the appearance replaces.
   defp appearance_object_body(field, appearance, refs, dr_font_refs) do
-    alias_name = acro_form_font_alias(field.font)
-    "/" <> bare_alias = alias_name
+    text_mode = if Font.standard_font?(field.font), do: :win_ansi
 
-    aliases = %{fonts: %{field.font => bare_alias}, states: %{}, shadings: %{}}
+    font = %{
+      name: field.font,
+      alias: acro_form_font_alias(field.font),
+      resource: "#{Map.fetch!(dr_font_refs, field.font)} 0 R",
+      text_mode: text_mode
+    }
+
+    form_xobject(
+      {0, 0, appearance.width, appearance.height},
+      widget_stream({:tx, appearance.border, appearance.content}, [font], refs)
+    )
+  end
+
+  # A widget appearance's content and resources. Each font is named by the
+  # field's /DA alias and given as its resource value: the /DR object, or,
+  # in stage 6a only, the push button's inline caption dictionary. A text
+  # mode, when given, overrides how the font's strings are encoded. A
+  # variable-text appearance, {:tx, border, content}, has its content inside
+  # /Tx marked content and its border before it.
+  defp widget_stream(operations, fonts, refs) do
+    aliases = %{
+      fonts: Map.new(fonts, fn %{name: name, alias: "/" <> bare} -> {name, bare} end),
+      states: %{},
+      shadings: %{}
+    }
 
     refs =
-      if Font.standard_font?(field.font),
-        do: put_in(refs.embedded_font_text_modes[field.font], :win_ansi),
-        else: refs
-
-    font_resource = "#{alias_name} #{Map.fetch!(dr_font_refs, field.font)} 0 R"
+      Enum.reduce(fonts, refs, fn
+        %{text_mode: nil}, acc -> acc
+        %{name: name, text_mode: mode}, acc -> put_in(acc.embedded_font_text_modes[name], mode)
+      end)
 
     content =
-      content_stream(appearance.border, aliases, refs) <>
-        "/Tx BMC\n" <> content_stream(appearance.content, aliases, refs) <> "EMC\n"
+      case operations do
+        {:tx, border, inner} ->
+          content_stream(border, aliases, refs) <>
+            "/Tx BMC\n" <> content_stream(inner, aliases, refs) <> "EMC\n"
 
-    form_xobject(appearance.width, appearance.height, content, " /Font << #{font_resource} >>")
+        operations ->
+          content_stream(operations, aliases, refs)
+      end
+
+    resources =
+      case fonts do
+        [] -> ""
+        fonts -> " /Font << #{Enum.map_join(fonts, " ", &"#{&1.alias} #{&1.resource}")} >>"
+      end
+
+    {content, resources}
   end
 
   # For every other type the field and its on-page widget are one object. The
@@ -1573,6 +1615,10 @@ defmodule Tincture.PDF.Serialize do
       " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >> >>"
   end
 
+  # The stream references of an appearance that draws no text and places no
+  # XObject: a checkbox's or a radio button's.
+  @no_font_refs %{embedded_font_text_modes: %{}, form_xobject_refs: %{}}
+
   # A radio button's appearance has to be a real stream: the /AP /N keys are
   # what name the export values, so there is nowhere else to put them. These
   # are deliberately plain - a ring, and a dot when selected - because a viewer
@@ -1583,35 +1629,38 @@ defmodule Tincture.PDF.Serialize do
     centre = size / 2
     radius = centre - 0.5
 
-    content =
-      case state do
-        :off ->
-          ring_path(centre, centre, radius) <> "S\n"
+    ring = ring_path(centre, centre, radius) ++ [:stroke]
 
-        :on ->
-          ring_path(centre, centre, radius) <>
-            "S\n" <> ring_path(centre, centre, radius * 0.5) <> "f\n"
+    operations =
+      case state do
+        :off -> ring
+        :on -> ring ++ ring_path(centre, centre, radius * 0.5) ++ [:fill]
       end
 
-    form_xobject(size, size, "0 G 0 g 1 w\n" <> content, "")
+    form_xobject(
+      {0, 0, size, size},
+      widget_stream([button_line_state() | operations], [], @no_font_refs)
+    )
   end
 
-  # Four cubic beziers, the standard circle approximation.
+  # Black stroke and fill and a 1-point line, on one line, as checkbox and
+  # radio streams have always begun: 0 G 0 g 1 w.
+  defp button_line_state,
+    do: {:state_line, [{:set_stroke_gray, 0}, {:set_fill_gray, 0}, {:set_line_width, 1}]}
+
+  # Four cubic beziers, the standard circle approximation. Its own kappa, not
+  # :circle's, so that the ring's bytes do not move.
   @circle_kappa 0.5523
   defp ring_path(cx, cy, r) do
     k = r * @circle_kappa
 
-    Enum.map_join(
-      [
-        "#{Object.num(cx + r)} #{Object.num(cy)} m",
-        "#{Object.num(cx + r)} #{Object.num(cy + k)} #{Object.num(cx + k)} #{Object.num(cy + r)} #{Object.num(cx)} #{Object.num(cy + r)} c",
-        "#{Object.num(cx - k)} #{Object.num(cy + r)} #{Object.num(cx - r)} #{Object.num(cy + k)} #{Object.num(cx - r)} #{Object.num(cy)} c",
-        "#{Object.num(cx - r)} #{Object.num(cy - k)} #{Object.num(cx - k)} #{Object.num(cy - r)} #{Object.num(cx)} #{Object.num(cy - r)} c",
-        "#{Object.num(cx + k)} #{Object.num(cy - r)} #{Object.num(cx + r)} #{Object.num(cy - k)} #{Object.num(cx + r)} #{Object.num(cy)} c"
-      ],
-      "\n",
-      & &1
-    ) <> "\n"
+    [
+      {:move_to, cx + r, cy},
+      {:bezier, cx + r, cy + k, cx + k, cy + r, cx, cy + r},
+      {:bezier, cx - k, cy + r, cx - r, cy + k, cx - r, cy},
+      {:bezier, cx - r, cy - k, cx - k, cy - r, cx, cy - r},
+      {:bezier, cx + k, cy - r, cx + r, cy - k, cx + r, cy}
+    ]
   end
 
   defp checkbox_appearance_entry(on_id, off_id),
@@ -1621,59 +1670,73 @@ defmodule Tincture.PDF.Serialize do
     {x1, y1, x2, y2} = field.rect
     size = min(x2 - x1, y2 - y1)
 
-    box = "0.5 0.5 #{Object.num(size - 1)} #{Object.num(size - 1)} re\nS\n"
+    box = {:rectangle, 0.5, 0.5, size - 1, size - 1, :stroke}
 
     tick =
       case state do
         :off ->
-          ""
+          []
 
         :on ->
           # A check mark as three points, stroked.
-          "#{Object.num(size * 0.22)} #{Object.num(size * 0.52)} m\n" <>
-            "#{Object.num(size * 0.42)} #{Object.num(size * 0.28)} l\n" <>
-            "#{Object.num(size * 0.78)} #{Object.num(size * 0.72)} l\n" <>
-            "S\n"
+          [
+            {:move_to, size * 0.22, size * 0.52},
+            {:line_to, size * 0.42, size * 0.28},
+            {:line_to, size * 0.78, size * 0.72},
+            :stroke
+          ]
       end
 
-    form_xobject(size, size, "0 G 0 g 1 w\n" <> box <> tick, "")
+    form_xobject(
+      {0, 0, size, size},
+      widget_stream([button_line_state(), box | tick], [], @no_font_refs)
+    )
   end
 
-  defp push_button_appearance_object_body(field) do
+  defp push_button_appearance_object_body(field, refs) do
     {x1, y1, x2, y2} = field.rect
     width = x2 - x1
     height = y2 - y1
 
-    face =
-      "0.93 0.93 0.94 rg\n0 0 #{Object.num(width)} #{Object.num(height)} re\nf\n" <>
-        "0.55 0.57 0.60 RG\n0.75 w\n" <>
-        "0.4 0.4 #{Object.num(width - 0.8)} #{Object.num(height - 0.8)} re\nS\n"
+    face = [
+      {:set_fill_color, {0.93, 0.93, 0.94}},
+      {:rectangle, 0, 0, width, height, :fill},
+      # Stage 6a only: removed in stage 6b, which writes
+      # {:set_stroke_color, {0.55, 0.57, 0.6}}.
+      {:set_stroke_color_preformatted, "0.55 0.57 0.60"},
+      {:set_line_width, 0.75},
+      {:rectangle, 0.4, 0.4, width - 0.8, height - 0.8, :stroke}
+    ]
 
-    {caption, resources} = push_button_caption(field, width, height)
-    form_xobject(width, height, face <> caption, resources)
+    {caption, fonts} = push_button_caption(field, width, height)
+    form_xobject({0, 0, width, height}, widget_stream(face ++ caption, fonts, refs))
   end
 
   # The caption is centred, which needs its width - so it is measured with the
   # same standard-font metrics the viewer will use.
+  #
+  # Stage 6a only: the caption font is the inline Type1 dictionary it has
+  # always been, named /Helv whatever the field's font, rather than /DR's
+  # object under the /DA alias. Removed in stage 6b.
   defp push_button_caption(%{label: label} = field, width, height) when is_binary(label) do
     size = if field.size == 0, do: min(height * 0.5, 12), else: field.size
     text_width = Font.text_width(field.font, size, label)
     x = max((width - text_width) / 2, 2)
     y = (height - size * 0.72) / 2
 
-    caption =
-      "0 g\nBT\n/Helv #{Object.num(size)} Tf\n" <>
-        "#{Object.num(x)} #{Object.num(y)} Td\n" <>
-        "#{Object.format_text(label, caption_text_mode(label))} Tj\nET\n"
+    inline_font = %{
+      name: field.font,
+      alias: "/Helv",
+      resource:
+        "<< /Type /Font /Subtype /Type1 /BaseFont /#{Object.sanitize_name(field.font)}" <>
+          " /Encoding /WinAnsiEncoding >>",
+      text_mode: caption_text_mode(label)
+    }
 
-    resources =
-      " /Font << /Helv << /Type /Font /Subtype /Type1" <>
-        " /BaseFont /#{Object.sanitize_name(field.font)} /Encoding /WinAnsiEncoding >> >>"
-
-    {caption, resources}
+    {[{:set_fill_gray, 0}, {:text_at, x, y, label, {field.font, size}}], [inline_font]}
   end
 
-  defp push_button_caption(_field, _width, _height), do: {"", ""}
+  defp push_button_caption(_field, _width, _height), do: {[], []}
 
   # The caption font's encoding is WinAnsi, so its bytes must be WinAnsi codes.
   # A label WinAnsi cannot encode has warned since 0.3.6, and keeps the bytes
@@ -1682,9 +1745,13 @@ defmodule Tincture.PDF.Serialize do
     if WinAnsi.first_unencodable(label) == nil, do: :win_ansi, else: :pdf_text
   end
 
-  defp form_xobject(width, height, content, resources) do
+  # Every form XObject, public or a widget appearance: its bounding box, and
+  # its content and resource entries from xobject_stream/2 or widget_stream/3.
+  defp form_xobject({x1, y1, x2, y2}, {content, resources}) do
+    bbox = Enum.map_join([x1, y1, x2, y2], " ", &Object.num/1)
+
     [
-      "<< /Type /XObject /Subtype /Form /BBox [0 0 #{Object.num(width)} #{Object.num(height)}]",
+      "<< /Type /XObject /Subtype /Form /BBox [#{bbox}]",
       " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n",
       content,
       "\nendstream"
@@ -2070,6 +2137,26 @@ defmodule Tincture.PDF.Serialize do
 
       {:set_fill_color, {r, g, b}} ->
         "#{Object.num(r)} #{Object.num(g)} #{Object.num(b)} rg\n"
+
+      # The widget appearances' own operations (Tincture.PDF.Appearance's
+      # widget_op/0); no public function takes them.
+      {:set_stroke_gray, gray} ->
+        "#{Object.num(gray)} G\n"
+
+      {:set_fill_gray, gray} ->
+        "#{Object.num(gray)} g\n"
+
+      {:state_line, state_ops} ->
+        state_ops
+        |> content_stream(aliases, refs)
+        |> String.trim_trailing("\n")
+        |> String.replace("\n", " ")
+        |> Kernel.<>("\n")
+
+      # Stage 6a only: the push-button face's stroke colour as it has always
+      # been written. Stage 6b writes it with :set_stroke_color.
+      {:set_stroke_color_preformatted, components} ->
+        "#{components} RG\n"
 
       {:move_to, x, y} ->
         "#{Object.num(x)} #{Object.num(y)} m\n"

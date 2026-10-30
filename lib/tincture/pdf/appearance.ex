@@ -66,6 +66,26 @@ defmodule Tincture.PDF.Appearance do
   @field_flag_sort 524_288
 
   @typedoc """
+  An operation a widget appearance may hold besides `t:Tincture.PDF.op/0`.
+  Internal: no public function takes one.
+
+    * `{:set_stroke_gray, g}`, `{:set_fill_gray, g}`: a DeviceGray colour,
+      written `g G` and `g g`.
+    * `{:state_line, ops}`: state operators written on one line, separated
+      by spaces, as checkbox and radio streams have always begun:
+      `0 G 0 g 1 w`.
+    * `{:set_stroke_color_preformatted, components}`: an RGB stroke colour
+      whose components are written as given. Only the push-button face's
+      `0.55 0.57 0.60` uses it, and it is removed in stage 6b.
+  """
+  @type widget_op ::
+          PDF.op()
+          | {:set_stroke_gray, number()}
+          | {:set_fill_gray, number()}
+          | {:state_line, [widget_op()]}
+          | {:set_stroke_color_preformatted, String.t()}
+
+  @typedoc """
   `border` is drawn before the /Tx marked content, so that a reader which
   regenerates the appearance keeps it; `content` is drawn inside it.
   `top_index` is the list box's /TI, or nil when it is not written. `size` is
