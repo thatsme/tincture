@@ -135,6 +135,31 @@ defmodule Tincture.CaptionAndLabelTest do
       assert content == ""
     end
 
+    test "with a border and no label, strokes its border, as an empty bordered text field does" do
+      binary =
+        Tincture.new()
+        |> Tincture.signature_field(72, 600, 200, 40, "s", border: {0, 0, 2})
+        |> Tincture.text_field(72, 500, 200, 40, "t", border: {0, 0, 2})
+        |> Tincture.export()
+
+      {dictionary, content} = appearance(binary, "s")
+      {_dictionary, text} = appearance(binary, "t")
+
+      assert dictionary =~ "/BBox [0 0 200 40] /Resources << >> /Length 29 >>"
+      assert content == "0 0 0 RG\n2 w\n1 1 198 38 re\nS\n"
+      # The text field draws the same border, then its empty /Tx marking.
+      assert text == content <> "/Tx BMC\nEMC\n"
+    end
+
+    test "without a border and without a label, stays empty" do
+      binary =
+        Tincture.new()
+        |> Tincture.signature_field(72, 600, 200, 40, "s", border: :none)
+        |> Tincture.export()
+
+      assert {_dictionary, ""} = appearance(binary, "s")
+    end
+
     test "draws its label on the single-line rule a text field uses, left at the padding" do
       label = "Signed by A. Lovelace"
 
