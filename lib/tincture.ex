@@ -617,16 +617,28 @@ defmodule Tincture do
       * `{:url, url}` — open a URL.
       * `{:submit, url}` — submit the form's values to a URL.
     * `:label` — the caption drawn on the button face.
+    * `:font` — the caption's font: one of the standard 14, or a font
+      registered with `register_ttf_font/4` or `register_otf_font/4`.
+      Defaults to `"Helvetica"`. A registered font is subset to the
+      caption's characters, like page text; a caption is not editable, so it
+      needs no `full_font:`.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:font`, `:page` — as for `text_field/7`.
-    * `:size` — the caption's font size, also named in the button's `/DA`.
-      Defaults to `0`: the caption is then drawn at half the button's height,
-      at most 12.
+    * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+    * `:size` — the caption's font size. Defaults to `0`: the caption is
+      then drawn at half the button's height, at most 12. The button's `/DA`
+      names the size the caption is drawn at, never `0`, so that a viewer
+      redrawing the button, as Acrobat Reader does after the form is reset,
+      keeps it.
+
+  The button's appearance draws a grey face, a thin frame and the caption,
+  and the widget declares them, as `/MK /BG`, `/MK /BC` with `/BS /W`, and
+  `/MK /CA`, for a viewer that draws the button anew.
 
   In a tagged document, a push button needs a `:tooltip` and must be created
-  inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
-  characters WinAnsi encodes, as a text field's value (`text_field/7`), and
-  a line break in it raises.
+  inside a `tag/4` scope, as for `text_field/7`. With a standard-14 font, its
+  `:label` may only use characters WinAnsi encodes, as a text field's value
+  (`text_field/7`); for other characters, use a registered font. A line break
+  in a label raises.
 
   ## Examples
 
@@ -648,16 +660,46 @@ defmodule Tincture do
   @doc """
   Add a signature field: a place for someone to sign.
 
-  On its own this reserves the field, unsigned, for a viewer to fill. To sign it
-  as the document is exported, pass its name to `sign/3`.
+  On its own this reserves the field, unsigned, for a viewer or another
+  signing tool to fill. To sign it as the document is exported, pass its name
+  to `sign/3`.
 
-  The widget carries no appearance stream, so a static render shows nothing for
-  the field, and a document that declares PDF/A refuses to export with one.
+  A visible field carries its own appearance stream: empty, or with `:label`
+  one line of text, drawn the same in every viewer and in print. The
+  appearance is written before the document is signed, so the label lies
+  inside the bytes the signature covers. A document that declares PDF/A
+  refuses to export with a signature field.
 
   ## Options
 
+    * `:label` — one line of text drawn in the field, such as
+      `"Signed by A. Lovelace"`, left-aligned and laid out as a single-line
+      text field's value. Without `:size`, it is sized to fill the field's
+      height, shrunk to fit its width, as a text field's value is; for a
+      signature line, an explicit `size:` of 10 to 12 usually reads better.
+      In Acrobat Reader, the field highlight covers an unsigned signature
+      field on screen; the label shows in print.
+    * `:font` — the label's font: one of the standard 14, or a font
+      registered with `register_ttf_font/4` or `register_otf_font/4`.
+      Defaults to `"Helvetica"`. A registered font is subset to the label's
+      characters. With a standard-14 font, the label may only use characters
+      WinAnsi encodes. A line break in a label raises.
+    * `:size` — the label's font size. Defaults to `0`, meaning auto-size, as
+      above. With a registered font, the field's `/DA` names the size the
+      label is drawn at rather than `0`.
+    * `:invisible` — `true` for a field with no rectangle and no appearance:
+      it is listed for signing and draws nothing. Its `x`, `y`, `width` and
+      `height` must all be `0`. Any other value, or a `:label`, raises.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:page` — as for `text_field/7`. A border is
+      drawn in the appearance, with or without a label, and declared as a
+      text field's is, as `/MK /BC` and `/BS /W`.
+
+  A field Tincture writes can be signed later by another tool. PDFgear 2.1.16
+  signed one as an incremental update: the bytes Tincture wrote were kept
+  unchanged and covered by its signature, and it wrote the field's value and
+  an appearance of its own, where the field had none. Whether a signing tool
+  keeps or replaces a `:label` appearance has not been observed.
 
   In a tagged document, a signature field needs a `:tooltip` and must be
   created inside a `tag/4` scope, as for `text_field/7`.
@@ -665,7 +707,9 @@ defmodule Tincture do
   ## Examples
 
       Tincture.signature_field(pdf, 72, 120, 220, 48, "signature",
-        tooltip: "Sign here")
+        tooltip: "Sign here", label: "Signed by A. Lovelace", size: 11)
+
+      Tincture.signature_field(pdf, 0, 0, 0, 0, "approval", invisible: true)
 
   """
   @spec signature_field(PDF.t(), number(), number(), number(), number(), String.t(), keyword()) ::

@@ -264,7 +264,7 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "go", action: :reset, label: "Send")
         |> export()
 
-      assert binary =~ "/MK << /CA (Send) >>"
+      assert binary =~ "/MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >>"
       assert binary =~ "/AP << /N "
       assert binary =~ "/Subtype /Form /BBox [0 0 80 20]"
       assert binary =~ "(Send) Tj"

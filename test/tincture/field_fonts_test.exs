@@ -414,24 +414,37 @@ defmodule Tincture.FieldFontsTest do
     end
   end
 
-  describe "F11: fields other than text and choice keep the standard 14" do
-    test "checkbox, radio group, push button and signature field refuse an embedded font" do
+  describe "F11: checkboxes and radio buttons, which draw no text, keep the standard 14" do
+    test "a checkbox and a radio group refuse an embedded font" do
       pdf = Tincture.new() |> with_sans()
 
       calls = [
-        {"checkbox \"c\"", &Tincture.checkbox(&1, 0, 0, 12, "c", font: "Sans")},
-        {"radio group \"r\"",
-         &Tincture.radio_group(&1, "r", [[value: "a", x: 0, y: 0, size: 12]], font: "Sans")},
-        {"push button \"p\"", &Tincture.push_button(&1, 0, 0, 80, 20, "p", font: "Sans")},
-        {"signature field \"s\"", &Tincture.signature_field(&1, 0, 0, 200, 40, "s", font: "Sans")}
+        {"checkbox", "\"c\"", &Tincture.checkbox(&1, 0, 0, 12, "c", font: "Sans")},
+        {"radio group", "\"r\"",
+         &Tincture.radio_group(&1, "r", [[value: "a", x: 0, y: 0, size: 12]], font: "Sans")}
       ]
 
-      for {label, call} <- calls do
+      for {kind, name, call} <- calls do
         assert_raise ArgumentError,
-                     "#{label} uses the embedded font \"Sans\", but only text and choice fields " <>
-                       "can use an embedded font; other fields use one of the standard 14 fonts.",
+                     "#{kind} #{name} uses the embedded font \"Sans\", but a #{kind} draws no " <>
+                       "text, so it has no use for one; checkboxes and radio buttons use one of " <>
+                       "the standard 14 fonts.",
                      fn -> call.(pdf) end
       end
+    end
+
+    test "a push button and a signature field accept one" do
+      pdf =
+        Tincture.new()
+        |> with_sans()
+        |> Tincture.push_button(0, 100, 80, 20, "p",
+          font: "Sans",
+          label: "Αποστολή",
+          action: :reset
+        )
+        |> Tincture.signature_field(0, 0, 200, 40, "s", font: "Sans", label: "Υπογραφή")
+
+      assert [%{font: "Sans"}, %{font: "Sans"}] = pdf.form_fields
     end
 
     test "an unregistered font is named as neither standard nor registered" do

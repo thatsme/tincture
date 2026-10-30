@@ -358,10 +358,11 @@ What remains:
   extension point good enough to build on without reaching for internals.
 - **Incremental updates**, without which a document can carry only one
   signature and cannot be counter-signed or amended after signing.
-- **Signature appearances.** The widget carries no appearance stream, so a
-  signed field is invisible in a static render and a signed document is
-  currently rejected by the PDF/A check for that reason. Signed archival
-  documents (PAdES over PDF/A) need this.
+- **Signed archival documents** (PAdES over PDF/A). A visible signature
+  field now carries its own appearance, empty or with a `:label`, and an
+  invisible one has a zero rectangle, so the reason the PDF/A check gave for
+  rejecting a signature field no longer holds; the check itself still rejects
+  one until it is lifted.
 - **PAdES subfilters.** `/adbe.pkcs7.detached` is the widely supported form;
   `/ETSI.CAdES.detached` is what the European regulation names.
 
@@ -395,16 +396,20 @@ What remains:
 
 ## 6. Forms, completed
 
-**Status: the field set is complete; every field but the signature has its
-appearance.** Text, checkbox, choice, radio group, push button and signature
-fields all exist, with reset, URL and submit actions.
+**Status: the field set is complete, and every field has its appearance.**
+Text, checkbox, choice, radio group, push button and signature fields all
+exist, with reset, URL and submit actions.
 
-Every field but the signature carries a generated `/AP` appearance stream, so
-it renders anywhere — printing, thumbnails, server-side rasterising — not only
-in an interactive viewer. Text and choice values are laid out and clipped by
+Every field carries a generated `/AP` appearance stream, so it renders
+anywhere — printing, thumbnails, server-side rasterising — not only in an
+interactive viewer. Text and choice values are laid out and clipped by
 Tincture: single-line, wrapped multiline, aligned with `:align`, and list boxes
-scrolled to their selection. `/NeedAppearances` is not written. A signature
-field still has no appearance.
+scrolled to their selection. `/NeedAppearances` is not written. A visible
+signature field's appearance is empty, or draws one line of `:label` text; an
+invisible signature field (`invisible: true`) has a zero rectangle and no
+appearance. A signature field written by Tincture has been signed later by
+PDFgear 2.1.16, as an incremental update that left Tincture's bytes unchanged;
+whether a signing tool keeps or replaces a `:label` has not been observed.
 
 A limitation that sits in the viewer: when someone types characters a field's
 font cannot encode, PDFium (Chrome, Edge) adds a font of its own, unembedded,
@@ -414,7 +419,9 @@ font.
 Also missing: JavaScript actions for client-side validation, and per-field
 appearance customisation (border and background colours). A bordered text or
 choice field declares its border, in the black its appearance draws it in, as
-`/MK /BC` and `/BS /W`; nothing else from `/MK` is written for those fields.
+`/MK /BC` and `/BS /W`; a push button declares its face, frame and caption, as
+`/MK /BG`, `/MK /BC` with `/BS /W`, and `/MK /CA`. Nothing else from `/MK` is
+written.
 
 Text and choice fields may use a TrueType or OpenType font registered with
 `register_ttf_font/4` or `register_otf_font/4`. It is written as a `Type0` font
@@ -422,8 +429,9 @@ with Identity-H encoding, and page text in the same font shares one font
 dictionary and one font program. A field someone can type into needs the whole
 font embedded, with `full_font: true` or a font registered with
 `subset: :none`, and a font whose licence (OS/2 `fsType`) allows editable
-embedding. Push buttons, checkboxes, radio buttons and signature fields use
-the standard 14 fonts.
+embedding. A push button's caption and a signature field's label may use a
+registered font too, subset to their characters, since neither is editable.
+Checkboxes and radio buttons, which draw no text, use the standard 14 fonts.
 
 ## 7. Complex scripts
 

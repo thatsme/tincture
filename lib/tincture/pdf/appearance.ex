@@ -74,45 +74,54 @@ defmodule Tincture.PDF.Appearance do
     * `{:state_line, ops}`: state operators written on one line, separated
       by spaces, as checkbox and radio streams have always begun:
       `0 G 0 g 1 w`.
-    * `{:set_stroke_color_preformatted, components}`: an RGB stroke colour
-      whose components are written as given. Only the push-button face's
-      `0.55 0.57 0.60` uses it, and it is removed in stage 6b.
   """
   @type widget_op ::
           PDF.op()
           | {:set_stroke_gray, number()}
           | {:set_fill_gray, number()}
           | {:state_line, [widget_op()]}
-          | {:set_stroke_color_preformatted, String.t()}
 
   @typedoc """
   `border` is drawn before the /Tx marked content, so that a reader which
-  regenerates the appearance keeps it; `content` is drawn inside it.
-  `top_index` is the list box's /TI, or nil when it is not written. `size` is
-  the font size the text is drawn at, as its Tf operand writes it; a field
-  that draws no text, empty or a password, has the size its box gives.
+  regenerates the appearance keeps it; `content` is drawn inside it. A push
+  button's and a signature's appearance has no /Tx marking: the two are
+  written in turn. `top_index` is the list box's /TI, or nil when it is not
+  written. `size` is the font size the text is drawn at, as its Tf operand
+  writes it; a field that draws no text, empty or a password, has the size
+  its box gives.
   """
   @type t :: %{
           key: {:appearance, String.t(), non_neg_integer(), :n},
           width: number(),
           height: number(),
           border: [PDF.op()],
-          content: [PDF.op()],
+          content: [widget_op()],
           top_index: non_neg_integer() | nil,
           size: number()
         }
 
   @doc """
-  The appearance of every text and choice field, by field name.
+  The appearance of every text, choice and push-button field, and of every
+  signature field that is not invisible, by field name.
   """
   @spec build_all(PDF.t()) :: %{optional(String.t()) => t()}
   def build_all(%PDF{} = pdf) do
     context = Context.from_pdf(pdf)
 
-    for %{type: type} = field <- pdf.form_fields, type in [:text, :choice], into: %{} do
+    for %{type: type} = field <- pdf.form_fields,
+        type in [:text, :choice, :push_button, :signature],
+        not zero_size?(field.rect),
+        into: %{} do
       {field.name, build(field, context, metrics(pdf, field.font))}
     end
   end
+
+  @doc """
+  Whether a widget's rectangle has zero width and height: an invisible
+  signature field, which carries no appearance (ISO 32000-1 12.7.4.5).
+  """
+  @spec zero_size?({number(), number(), number(), number()}) :: boolean()
+  def zero_size?({x1, y1, x2, y2}), do: x1 == x2 and y1 == y2
 
   @doc """
   A choice field's options in the order they are written to /Opt: sorted when
@@ -145,6 +154,46 @@ defmodule Tincture.PDF.Appearance do
   end
 
   defp embedded_metrics(_font), do: @fallback_metrics
+
+  # A push button's face, and its caption centred on it: a size of
+  # min(h / 2, 12) unless one is given, x = max((w - width) / 2, 2), and
+  # y = (h - 0.72 size) / 2. Not calibrated against Acrobat; it is the layout
+  # every release has drawn.
+  defp build(%{type: :push_button} = field, context, _metrics) do
+    {x1, y1, x2, y2} = field.rect
+    width = x2 - x1
+    height = y2 - y1
+    size = if field.size == 0, do: min(height * 0.5, 12), else: field.size
+
+    face = [
+      {:set_fill_color, {0.93, 0.93, 0.94}},
+      {:rectangle, 0, 0, width, height, :fill},
+      {:set_stroke_color, {0.55, 0.57, 0.6}},
+      {:set_line_width, 0.75},
+      {:rectangle, 0.4, 0.4, width - 0.8, height - 0.8, :stroke}
+    ]
+
+    caption =
+      case Map.get(field, :label) do
+        nil ->
+          []
+
+        label ->
+          x = max((width - measure(context, field, size, label)) / 2, 2)
+          y = (height - size * 0.72) / 2
+          [{:set_fill_gray, 0}, {:text_at, x, y, label, {field.font, size}}]
+      end
+
+    %{
+      key: {:appearance, field.name, 0, :n},
+      width: width,
+      height: height,
+      border: [],
+      content: face ++ caption,
+      top_index: nil,
+      size: size
+    }
+  end
 
   defp build(field, context, metrics) do
     {x1, y1, x2, y2} = field.rect
@@ -182,6 +231,10 @@ defmodule Tincture.PDF.Appearance do
       else: @list_size
   end
 
+  # A signature's label is one line, sized like a single-line text value.
+  defp auto_size(%{type: :signature} = field, box, context),
+    do: single_line_auto_size(field, Map.get(field, :label, ""), box, context)
+
   defp border_width(:none), do: 0
   defp border_width({_horizontal, _vertical, width}), do: width
 
@@ -208,6 +261,11 @@ defmodule Tincture.PDF.Appearance do
       do: {single_line(field, field.value, box, context, size), nil},
       else: list_box(field, box, context, size)
   end
+
+  # Left-aligned at the padding, as a single-line text value; nothing without
+  # a :label.
+  defp content(%{type: :signature} = field, box, context, size),
+    do: {single_line(field, Map.get(field, :label, ""), box, context, size), nil}
 
   # One line box, centred in the field.
   defp single_line(_field, "", _box, _context, _size), do: []
