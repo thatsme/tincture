@@ -101,15 +101,11 @@ defmodule Tincture.PDF.Serialize do
 
     form_fields_start_id = signature_start_id + length(signature_objects)
 
-    {form_field_refs, widget_refs, form_field_objects} =
-      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
-        signature_field: pdf.signature && pdf.signature.field_name,
-        signature_ref: signature_ref,
-        appearances: appearances,
-        stream_refs: stream_refs
-      })
-
-    annotations_start_id = form_fields_start_id + length(form_field_objects)
+    # The field objects are built after the /DR fonts are numbered, since their
+    # appearance streams reference those fonts. How many objects a field takes
+    # depends only on its type, so the numbering after them is known first.
+    form_field_object_count = form_field_object_count(pdf.form_fields)
+    annotations_start_id = form_fields_start_id + form_field_object_count
 
     {tagged_annotations, annotation_objects} =
       build_link_annotation_objects(pdf, page_object_refs, page_numbers, annotations_start_id)
@@ -134,6 +130,24 @@ defmodule Tincture.PDF.Serialize do
 
     {metadata_ref, metadata_objects} =
       build_metadata_objects(pdf, struct_tree_ref, metadata_start_id)
+
+    # Allocated last, after every other object but the info dictionary, so a
+    # document without form fields is numbered exactly as before.
+    dr_fonts_start_id = metadata_start_id + length(metadata_objects)
+
+    {dr_font_refs, dr_font_objects} =
+      build_dr_font_objects(pdf.form_fields, embedded_font_refs, dr_fonts_start_id)
+
+    {form_field_refs, widget_refs, form_field_objects} =
+      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
+        signature_field: pdf.signature && pdf.signature.field_name,
+        signature_ref: signature_ref,
+        appearances: appearances,
+        stream_refs: stream_refs,
+        dr_font_refs: Map.new(dr_font_refs)
+      })
+
+    ^form_field_object_count = length(form_field_objects)
 
     kids =
       page_numbers
@@ -181,7 +195,8 @@ defmodule Tincture.PDF.Serialize do
       catalog_object_body(
         outlines_ref,
         form_field_refs,
-        {pdf.form_fields, embedded_font_refs},
+        pdf.form_fields,
+        dr_font_refs,
         struct_tree_ref,
         metadata_ref,
         output_intent_ref,
@@ -196,7 +211,7 @@ defmodule Tincture.PDF.Serialize do
           signature_objects ++
           form_field_objects ++
           annotation_objects ++
-          structure_objects ++ output_intent_objects ++ metadata_objects
+          structure_objects ++ output_intent_objects ++ metadata_objects ++ dr_font_objects
     ]
 
     {object_bodies, info_ref} =
@@ -299,12 +314,11 @@ defmodule Tincture.PDF.Serialize do
   defp page_object_id(index), do: 3 + index * 2
   defp content_object_id(index), do: page_object_id(index) + 1
 
-  # `fields` is the form fields with the embedded fonts' object ids, which /DR
-  # references.
   defp catalog_object_body(
          outlines_ref,
          form_field_refs,
-         fields,
+         form_fields,
+         dr_font_refs,
          struct_tree_ref,
          metadata_ref,
          output_intent_ref,
@@ -360,7 +374,7 @@ defmodule Tincture.PDF.Serialize do
       end
 
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
-      "#{acro_form_entry(form_field_refs, fields)}#{structure}#{language}" <>
+      "#{acro_form_entry(form_field_refs, form_fields, dr_font_refs)}#{structure}#{language}" <>
       "#{metadata}#{viewer_preferences}#{output_intent} >>"
   end
 
@@ -793,9 +807,9 @@ defmodule Tincture.PDF.Serialize do
   defp bbox_entry({left, bottom, right, top}),
     do: "/BBox [#{Enum.map_join([left, bottom, right, top], " ", &Object.num/1)}]"
 
-  defp acro_form_entry([], _form_fields), do: ""
+  defp acro_form_entry([], _form_fields, _dr_font_refs), do: ""
 
-  defp acro_form_entry(form_field_refs, {form_fields, embedded_font_refs}) do
+  defp acro_form_entry(form_field_refs, form_fields, dr_font_refs) do
     fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
     # Every text and choice field carries its own appearance stream, and
@@ -816,7 +830,7 @@ defmodule Tincture.PDF.Serialize do
 
     " /AcroForm << /Fields [#{fields}]#{signature_flags}" <>
       default_appearance_entry(form_fields) <>
-      " /DR << /Font << #{acro_form_font_resources(form_fields, embedded_font_refs)} >> >> >>"
+      " /DR << /Font << #{acro_form_font_resources(dr_font_refs)} >> >> >>"
   end
 
   # The document-level default appearance. Its font must be one /DR holds
@@ -829,21 +843,37 @@ defmodule Tincture.PDF.Serialize do
       else: ""
   end
 
-  # A standard font is written inline, with WinAnsi. An embedded font is a
+  # Every /DR font is an object of its own, which /DR references. ISO 32000-1
+  # 7.3.10 allows the dictionary inline as well - "the semantics are
+  # equivalent" - but Acrobat Reader draws no value for a field whose /DA font
+  # is inline in /DR: the value shows only while the field has focus.
+  #
+  # A standard font gets one new object, with WinAnsi. An embedded font is a
   # reference to the very Type0 dictionary page text uses: one dictionary, one
   # program.
-  defp acro_form_font_resources(form_fields, embedded_font_refs) do
-    form_fields
-    |> Enum.map(& &1.font)
-    |> Enum.uniq()
-    |> Enum.map_join(" ", fn font_name ->
-      case Map.fetch(embedded_font_refs, font_name) do
-        {:ok, object_id} ->
-          "#{acro_form_font_alias(font_name)} #{object_id} 0 R"
+  defp build_dr_font_objects(form_fields, embedded_font_refs, start_id) do
+    fonts = form_fields |> Enum.map(& &1.font) |> Enum.uniq()
+    standard_fonts = Enum.reject(fonts, &Map.has_key?(embedded_font_refs, &1))
+    standard_refs = Map.new(Enum.with_index(standard_fonts, start_id))
 
-        :error ->
-          "#{acro_form_font_alias(font_name)} #{standard_field_font_dictionary(font_name)}"
-      end
+    objects =
+      Enum.map(standard_fonts, fn font_name ->
+        "<< /Type /Font /Subtype /Type1 " <>
+          "/BaseFont /#{Object.sanitize_name(font_name)} /Encoding /WinAnsiEncoding >>"
+      end)
+
+    refs =
+      Enum.map(fonts, fn font_name ->
+        {font_name,
+         Map.get_lazy(embedded_font_refs, font_name, fn -> standard_refs[font_name] end)}
+      end)
+
+    {refs, objects}
+  end
+
+  defp acro_form_font_resources(dr_font_refs) do
+    Enum.map_join(dr_font_refs, " ", fn {font_name, id} ->
+      "#{acro_form_font_alias(font_name)} #{id} 0 R"
     end)
   end
 
@@ -1194,6 +1224,19 @@ defmodule Tincture.PDF.Serialize do
     {tagged, objects}
   end
 
+  # How many objects each field's builder below writes, by type: a radio group
+  # its parent and, per button, a kid with an on and an off appearance; a
+  # checkbox the field and both states; a push button and a text or choice
+  # field the field and one appearance; anything else the field alone.
+  defp form_field_object_count(form_fields) do
+    Enum.reduce(form_fields, 0, fn
+      %{type: :radio, widgets: widgets}, count -> count + 1 + 3 * length(widgets)
+      %{type: :checkbox}, count -> count + 3
+      %{type: type}, count when type in [:push_button, :text, :choice] -> count + 2
+      _field, count -> count + 1
+    end)
+  end
+
   defp build_form_field_objects([], _page_object_refs, _start_id, _signing), do: {[], [], []}
 
   defp build_form_field_objects(form_fields, page_object_refs, start_id, context) do
@@ -1327,7 +1370,7 @@ defmodule Tincture.PDF.Serialize do
       widget_refs: [{id, field.page_number}],
       objects: [
         form_field_object_body(field, page_ref, "", entries),
-        appearance_object_body(field, appearance, context.stream_refs)
+        appearance_object_body(field, appearance, context.stream_refs, context.dr_font_refs)
       ]
     }
 
@@ -1342,12 +1385,12 @@ defmodule Tincture.PDF.Serialize do
   defp top_index_entry(index), do: " /TI #{index}"
 
   # The stream's font is the /DR font under the /DA alias (ISO 32000-1
-  # 12.7.3.3: its resources come from /DR), so the Tf in it is the /DA's own.
-  # A standard font is drawn in WinAnsi, the encoding /DR gives it; an
-  # embedded one through Identity-H, as page text is. The border is drawn
-  # outside the /Tx marked content, which a viewer regenerating the
-  # appearance replaces.
-  defp appearance_object_body(field, appearance, refs) do
+  # 12.7.3.3: its resources come from /DR), so the Tf in it is the /DA's own,
+  # and the resource is the /DR object itself: one object per font. A standard
+  # font is drawn in WinAnsi, the encoding /DR gives it; an embedded one
+  # through Identity-H, as page text is. The border is drawn outside the /Tx
+  # marked content, which a viewer regenerating the appearance replaces.
+  defp appearance_object_body(field, appearance, refs, dr_font_refs) do
     alias_name = acro_form_font_alias(field.font)
     "/" <> bare_alias = alias_name
 
@@ -1358,11 +1401,7 @@ defmodule Tincture.PDF.Serialize do
         do: put_in(refs.embedded_font_text_modes[field.font], :win_ansi),
         else: refs
 
-    font_resource =
-      case Map.fetch(refs.embedded_font_refs, field.font) do
-        {:ok, object_id} -> "#{alias_name} #{object_id} 0 R"
-        :error -> "#{alias_name} #{standard_field_font_dictionary(field.font)}"
-      end
+    font_resource = "#{alias_name} #{Map.fetch!(dr_font_refs, field.font)} 0 R"
 
     content =
       content_stream(appearance.border, aliases, refs) <>
@@ -1370,11 +1409,6 @@ defmodule Tincture.PDF.Serialize do
 
     form_xobject(appearance.width, appearance.height, content, " /Font << #{font_resource} >>")
   end
-
-  defp standard_field_font_dictionary(font_name),
-    do:
-      "<< /Type /Font /Subtype /Type1 /BaseFont /#{Object.sanitize_name(font_name)}" <>
-        " /Encoding /WinAnsiEncoding >>"
 
   # For every other type the field and its on-page widget are one object. The
   # specification allows splitting them, but that is only needed when one field

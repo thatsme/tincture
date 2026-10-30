@@ -18,8 +18,8 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.10: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.10: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.11: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.11: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
 | Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
 
@@ -69,8 +69,8 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. At 0.3.10: 1,548 tests; coverage: CI fails below 80%, and
-measured 90.3% in CI at 0.3.10;
+dependencies. At 0.3.11: 1,553 tests; coverage: CI fails below 80%, and
+measured 90.3% in CI at 0.3.11;
 Credo `--strict` clean with pre-existing findings in `lib/` exempted inline one
 by one and `test/` and `scripts/` exempt from the structural checks, clean
 Dialyzer, CI on four Elixir versions.
@@ -169,7 +169,7 @@ publicly, and it should stay that way — that parser is the seed of
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
-profile) in CI on every commit; at 0.3.10: 106 of 106 rules, 1698 of 1698
+profile) in CI on every commit; at 0.3.11: 106 of 106 rules, 1698 of 1698
 checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
 warnings — for this document and the four other PDF/UA examples.
@@ -280,7 +280,7 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit; at 0.3.10: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
+every commit; at 0.3.11: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
 (146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
 4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2255 of 2255 checks), since 2a is the accessible archival level and

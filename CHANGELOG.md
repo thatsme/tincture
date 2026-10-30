@@ -98,6 +98,50 @@ them, and the eighth follows from them.
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
 
+## [0.3.11] — 2026-10-29
+
+**In Adobe Acrobat Reader, a value typed into a form field disappeared as
+soon as the field lost focus.** This affected every text and choice field,
+in every release from 0.1.0 to 0.3.10. **Regenerate any form that is meant to
+be filled in Acrobat Reader.**
+
+The files were valid PDF. ISO 32000-1 allows what Tincture wrote, so this is
+a compatibility fix for Acrobat Reader, not a conformance fix. PDFium and
+PDFgear drew the values with either form.
+
+### Fixed
+
+- **A form's fonts are written as objects of their own.**
+  - Until now, each font in the form's default resources (`/DR`) was
+    written as a dictionary inline. ISO 32000-1 7.3.10 permits this: "the
+    semantics are equivalent".
+  - But Acrobat Reader (observed in 2026.002.22031) does not draw the value
+    of a field whose font is given that way. The value shows only while the
+    field has focus.
+  - Each field font is now one object, which `/DR` references. The font
+    dictionary itself is unchanged.
+  - Every document with a form field changes bytes. A document without one
+    is byte-identical.
+
+### Documentation
+
+- **`examples/form.exs` lays out its labels by one rule.** Each label's
+  baseline sits 4 pt above the top of its field. Before, the gap ranged from
+  0 to 16 pt, and the Account section's labels touched the section's rule.
+  The signature field is now the width of its column. It used to be 22.5 pt
+  wider, and overlapped the Date field beside it by 2.5 pt.
+  `examples/output/form.pdf` is regenerated.
+
+### Infrastructure
+
+- **Timing assertions run in a CI job of their own.**
+  - The benchmark tests that assert measured wall-clock values are tagged
+    `:benchmark`. They are excluded from `mix test` and run by a separate
+    Benchmark job with `mix test --only benchmark`.
+  - The typography ratio check failed intermittently under a parallel test
+    run. It measured two iterations with no warm-up. It now warms up for 50
+    iterations and measures 50, against a limit of 300 rather than 150.
+
 ## [0.3.10] — 2026-10-23
 
 Three form defects are fixed. One of them is visible:
@@ -1029,7 +1073,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/thatsme/tincture/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/thatsme/tincture/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/thatsme/tincture/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/thatsme/tincture/compare/v0.3.7...v0.3.8

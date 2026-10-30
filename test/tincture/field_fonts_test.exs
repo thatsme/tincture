@@ -6,7 +6,8 @@ defmodule Tincture.FieldFontsTest do
   dictionary any page text in that font uses, over one font program. A field
   someone can type into needs its font embedded whole, covering every
   character of its cmap, and licensed for editable embedding. A form whose
-  fields use only the standard 14 is written exactly as before.
+  fields use only the standard 14 writes the same font dictionaries as before;
+  since 0.3.11 `/DR` references them as indirect objects.
   """
   use ExUnit.Case, async: true
 
@@ -15,6 +16,7 @@ defmodule Tincture.FieldFontsTest do
   alias Tincture.Test.ContentStreamState
   alias Tincture.Test.MeasurableFont
   alias Tincture.Test.PatchedFont
+  alias Tincture.Test.PDFObjects
 
   @sans "examples/fonts/LiberationSans-Regular.ttf"
 
@@ -135,7 +137,9 @@ defmodule Tincture.FieldFontsTest do
   end
 
   describe "F1: standard-14 forms are unchanged" do
-    test "the /AcroForm of a Helvetica and Times-Roman form is byte for byte as before" do
+    # As 0.3.11 writes it: each /DR font is an object of its own, holding the
+    # dictionary earlier releases wrote inline.
+    test "the /DR fonts of a Helvetica and Times-Roman form are 0.3.11's Type1 objects" do
       binary =
         Tincture.new()
         |> Tincture.text_field(72, 700, 200, 20, "name")
@@ -146,11 +150,19 @@ defmodule Tincture.FieldFontsTest do
         )
         |> Tincture.export()
 
+      [_, helv, times] =
+        Regex.run(
+          ~r|/DA \(/Helv 0 Tf 0 g\) /DR << /Font << /Helv (\d+) 0 R /Times-Roman (\d+) 0 R >> >> >>|,
+          binary
+        )
+
       assert binary =~
-               " /DA (/Helv 0 Tf 0 g) /DR << /Font << " <>
-                 "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> " <>
-                 "/Times-Roman << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >> " <>
-                 ">> >> >>"
+               "\n#{helv} 0 obj\n" <>
+                 "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+
+      assert binary =~
+               "\n#{times} 0 obj\n" <>
+                 "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>"
 
       refute binary =~ "/Type0"
       refute binary =~ "/FontFile"
@@ -454,6 +466,50 @@ defmodule Tincture.FieldFontsTest do
 
       assert String.to_integer(page_font) < String.to_integer(field_font)
       assert_clean(binary)
+    end
+  end
+
+  # Every /DR font is an object of its own. A standard font gets a new one,
+  # allocated after every other object but the info dictionary; an embedded
+  # font is the Type0 dictionary its page text uses.
+  describe "F14: a /DR mixing embedded and standard fonts" do
+    test "references in field order; standard fonts consecutive after the metadata; no ids skipped" do
+      binary =
+        Tincture.new()
+        |> with_sans()
+        |> Tincture.set_metadata(title: "Mixed field fonts")
+        |> Tincture.set_font("Sans", 12)
+        |> Tincture.text_at(72, 750, "Hello")
+        |> Tincture.text_field(72, 700, 200, 20, "a")
+        |> Tincture.text_field(72, 650, 200, 20, "b", font: "Sans", full_font: true)
+        |> Tincture.text_field(72, 600, 200, 20, "c", font: "Courier")
+        |> Tincture.export()
+
+      [helv, sans, courier] =
+        ~r/\/DR << \/Font << \/Helv (\d+) 0 R \/Sans (\d+) 0 R \/Courier (\d+) 0 R >> >>/
+        |> Regex.run(binary, capture: :all_but_first)
+        |> Enum.map(&String.to_integer/1)
+
+      %{objects: objects, trailer: trailer} = PDFObjects.read(binary)
+      {:ref, metadata} = PDFObjects.resolve(trailer["Root"], objects)["Metadata"]
+      {:ref, info} = trailer["Info"]
+
+      assert [helv, courier, info] == [metadata + 1, metadata + 2, metadata + 3]
+
+      for {id, base_font} <- [{helv, "Helvetica"}, {courier, "Courier"}] do
+        assert objects[id].value == %{
+                 "Type" => {:name, "Font"},
+                 "Subtype" => {:name, "Type1"},
+                 "BaseFont" => {:name, base_font},
+                 "Encoding" => {:name, "WinAnsiEncoding"}
+               }
+      end
+
+      [_, page_font] = Regex.run(~r/\/Font << \/F1 (\d+) 0 R >>/, binary)
+      assert String.to_integer(page_font) == sans
+      assert %{"Subtype" => {:name, "Type0"}} = objects[sans].value
+
+      assert objects |> Map.keys() |> Enum.sort() == Enum.to_list(1..(trailer["Size"] - 1))
     end
   end
 end

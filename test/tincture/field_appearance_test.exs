@@ -176,12 +176,16 @@ defmodule Tincture.FieldAppearanceTest do
       assert dictionary =~ "/BBox [0 0 150 30]"
     end
 
-    test "a standard font is the /DR dictionary under the /DA alias, with WinAnsi" do
-      {dictionary, content} = appearance(single(value: "x", font: "Courier"), "f")
+    test "a standard font is the /DR object under the /DA alias, with WinAnsi" do
+      binary = single(value: "x", font: "Courier")
+      {dictionary, content} = appearance(binary, "f")
 
-      assert dictionary =~
-               "/Resources << /Font << /Courier << /Type /Font /Subtype /Type1 " <>
-                 "/BaseFont /Courier /Encoding /WinAnsiEncoding >> >> >>"
+      [_, font_id] = Regex.run(~r"/Resources << /Font << /Courier (\d+) 0 R >> >>", dictionary)
+      assert binary =~ "/DR << /Font << /Courier #{font_id} 0 R >> >>"
+
+      assert binary =~
+               "\n#{font_id} 0 obj\n<< /Type /Font /Subtype /Type1 " <>
+                 "/BaseFont /Courier /Encoding /WinAnsiEncoding >>\nendobj"
 
       assert content =~ ~r"/Courier \S+ Tf"
     end

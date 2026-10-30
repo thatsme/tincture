@@ -288,7 +288,13 @@ defmodule Tincture.FormDeprecationsTest do
     end
   end
 
-  describe "J1 and J2 still warn" do
+  describe "J1 and J2 still warn, and change no byte" do
+    # 0.3.11 writes the same document as 4662 bytes, cff2445e…6419. Against
+    # that, three structural changes and no others: the text field carries its
+    # own /AP, whose /Helv is the /DR font object, and /NeedAppearances is
+    # gone. The warnings themselves change no byte.
+    @sha256 "e62e1a91b1280db28aa1bf01393221a266408f3b8d0b114960c738fa385c44e4"
+
     test "a document that triggers both exports, warning three times" do
       {binary, count} =
         with_warnings(fn ->
@@ -306,7 +312,8 @@ defmodule Tincture.FormDeprecationsTest do
 
       # J1 for both fields; J2 for the text field.
       assert count == 3
-      assert binary =~ "%%EOF"
+      assert byte_size(binary) == 4895
+      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @sha256
       refute binary =~ "created_outside_structure"
     end
 
