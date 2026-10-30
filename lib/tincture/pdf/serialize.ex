@@ -1810,11 +1810,15 @@ defmodule Tincture.PDF.Serialize do
   defp new_window_entry(%{new_window: false}), do: " /NewWindow false"
   defp new_window_entry(_annotation), do: ""
 
-  # A page writes `/Resources` only when it has some; a form XObject always
-  # writes it, from the same entries.
+  # A page's /Resources is required even when its content uses nothing: ISO
+  # 32000-1 Table 30, "If the page requires no resources, the value of this
+  # entry shall be an empty dictionary. Omitting the entry entirely indicates
+  # that the resources shall be inherited from an ancestor node in the page
+  # tree", and /Pages carries none to inherit. A form XObject always writes
+  # it too, from the same entries.
   defp resource_dictionary(entries) do
     case resource_entries(entries) do
-      "" -> ""
+      "" -> " /Resources << >>"
       inner -> " /Resources <<#{inner} >>"
     end
   end
