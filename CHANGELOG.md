@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.12] — 2026-10-30
+
+**A page that used no fonts, images or other resources was written without
+the `/Resources` entry ISO 32000-1 requires.** This affected every release
+from 0.1.0 to 0.3.11. Viewers repair the omission silently, and veraPDF's
+PDF/UA-1 and PDF/A-2b profiles pass a document that has it, so nothing
+reported it. This is a conformance fix. **Regenerate documents that a strict
+PDF processor reads.**
+
+### Fixed
+
+- **Every page carries `/Resources`.**
+  - ISO 32000-1 Table 30 makes the entry required, and gives the value for a
+    page that needs nothing: "If the page requires no resources, the value
+    of this entry shall be an empty dictionary." Omitting it means the
+    resources are inherited from the page tree, and Tincture's `/Pages`
+    carries none.
+  - The pages affected were those whose content used no font, image, form
+    XObject, graphics state or shading: a blank page, a page of paths only,
+    a page holding only form fields, a page holding only links. Each is now
+    written with `/Resources << >>`.
+  - Every other page is unchanged. A document with no such page is
+    byte-identical.
+
 ## [0.3.11] — 2026-10-29
 
 **In Adobe Acrobat Reader, a value typed into a form field disappeared as
@@ -982,7 +1006,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.12...HEAD
+[0.3.12]: https://github.com/thatsme/tincture/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/thatsme/tincture/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/thatsme/tincture/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/thatsme/tincture/compare/v0.3.8...v0.3.9
