@@ -36,6 +36,9 @@ defmodule Tincture.PDF.PathState do
   @setters [
     :set_fill_color,
     :set_stroke_color,
+    :set_fill_gray,
+    :set_stroke_gray,
+    :set_stroke_color_preformatted,
     :set_line_width,
     :set_line_cap,
     :set_line_join,
