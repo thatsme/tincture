@@ -1376,7 +1376,7 @@ defmodule Tincture.PDF.Serialize do
             form_field_object_body(
               drawn_field_appearance_size(field, appearance),
               page_ref,
-              push_button_declaration(field, appearance.content) <>
+              drawn_field_declaration(field, appearance) <>
                 " /AP << /N #{appearance_id} 0 R >>"
             ),
             drawn_appearance_object_body(
@@ -1442,6 +1442,16 @@ defmodule Tincture.PDF.Serialize do
   defp drawn_field_appearance_size(field, appearance),
     do: default_appearance_size(field, appearance)
 
+  # A drawn field declares what its appearance draws. A push button's frame
+  # is part of its face; a signature field's border is the text field's, so
+  # it is declared as a text field's is, for a viewer or signing tool that
+  # draws a new appearance from the widget's declarations.
+  defp drawn_field_declaration(%{type: :push_button} = field, appearance),
+    do: push_button_declaration(field, appearance.content)
+
+  defp drawn_field_declaration(%{type: :signature} = field, appearance),
+    do: border_declaration(field.border, appearance.border)
+
   # A push button declares what its appearance draws, for a viewer that
   # draws a new one: Acrobat Reader does so when the button loses focus or
   # the form is reset, from the widget's declarations alone. /MK's /BC is the
@@ -1465,8 +1475,6 @@ defmodule Tincture.PDF.Serialize do
     " /MK << /BC #{color_array(frame)} /BG #{color_array(face)}#{caption} >>" <>
       " /BS << /W #{Object.num(width)} >>"
   end
-
-  defp push_button_declaration(_field, _operations), do: ""
 
   defp first_operand(operations, operator) do
     Enum.find_value(operations, fn

@@ -169,6 +169,19 @@ defmodule Tincture.CaptionAndLabelTest do
       assert text == content <> "/Tx BMC\nEMC\n"
     end
 
+    test "with a border, declares it as a text field does: /MK /BC and /BS /W" do
+      binary =
+        Tincture.new()
+        |> Tincture.signature_field(72, 600, 200, 40, "s", border: {0, 0, 2}, label: "Signed")
+        |> Tincture.text_field(72, 500, 200, 40, "t", border: {0, 0, 2})
+        |> Tincture.export()
+
+      declaration = " /MK << /BC [0 0 0] >> /BS << /W 2 >> /AP << /N "
+      assert widget(binary, "s") =~ declaration
+      assert widget(binary, "t") =~ declaration
+      refute widget(binary, "s") =~ "/CA"
+    end
+
     test "without a border and without a label, stays empty" do
       binary =
         Tincture.new()

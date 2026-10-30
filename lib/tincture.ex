@@ -677,6 +677,8 @@ defmodule Tincture do
       text field's value. Without `:size`, it is sized to fill the field's
       height, shrunk to fit its width, as a text field's value is; for a
       signature line, an explicit `size:` of 10 to 12 usually reads better.
+      In Acrobat Reader, the field highlight covers an unsigned signature
+      field on screen; the label shows in print.
     * `:font` — the label's font: one of the standard 14, or a font
       registered with `register_ttf_font/4` or `register_otf_font/4`.
       Defaults to `"Helvetica"`. A registered font is subset to the label's
@@ -689,7 +691,9 @@ defmodule Tincture do
       it is listed for signing and draws nothing. Its `x`, `y`, `width` and
       `height` must all be `0`. Any other value, or a `:label`, raises.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:page` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:page` — as for `text_field/7`. A border is
+      drawn in the appearance, with or without a label, and declared as a
+      text field's is, as `/MK /BC` and `/BS /W`.
 
   A field Tincture writes can be signed later by another tool. PDFgear 2.1.16
   signed one as an incremental update: the bytes Tincture wrote were kept
