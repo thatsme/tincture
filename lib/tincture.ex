@@ -712,6 +712,14 @@ defmodule Tincture do
   `text_field/7` describes. Otherwise its font is subset to its value and
   every one of its `:options`.
 
+  **Acrobat Reader and non-Latin dropdown options.** In Acrobat Reader, a
+  dropdown whose options use characters outside WinAnsi, such as Greek,
+  shows its options garbled whenever the list is open, and a newly selected
+  option garbled until the document is saved. At rest after saving, and in
+  the stored value, the option is correct: `/V` holds the option exactly as
+  given, and the appearance Reader saves draws it, in a font of Reader's own
+  rather than the field's.
+
   ## Examples
 
       Tincture.choice_field(pdf, 72, 700, 200, 24, "country",
