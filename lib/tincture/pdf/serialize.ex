@@ -1557,6 +1557,11 @@ defmodule Tincture.PDF.Serialize do
   defp new_window_entry(%{new_window: false}), do: " /NewWindow false"
   defp new_window_entry(_annotation), do: ""
 
+  # A page's /Resources is required even when its content uses nothing: ISO
+  # 32000-1 Table 30, "If the page requires no resources, the value of this
+  # entry shall be an empty dictionary. Omitting the entry entirely indicates
+  # that the resources shall be inherited from an ancestor node in the page
+  # tree", and /Pages carries none to inherit.
   defp resource_dictionary(font_resources, xobject_resources, gs_resources, shading_resources) do
     parts =
       []
@@ -1566,7 +1571,7 @@ defmodule Tincture.PDF.Serialize do
       |> maybe_add_resource("/Shading << #{shading_resources} >>", shading_resources)
 
     case parts do
-      [] -> ""
+      [] -> " /Resources << >>"
       _ -> " /Resources << #{Enum.join(parts, " ")} >>"
     end
   end
