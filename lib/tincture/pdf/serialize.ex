@@ -24,6 +24,7 @@ defmodule Tincture.PDF.Serialize do
 
   alias Tincture.Font
   alias Tincture.PDF
+  alias Tincture.PDF.Appearance
   alias Tincture.PDF.Encrypt
   alias Tincture.PDF.FontEmbed
   alias Tincture.PDF.ICC
@@ -63,12 +64,15 @@ defmodule Tincture.PDF.Serialize do
       |> Enum.with_index()
       |> Map.new(fn {page_number, idx} -> {page_number, page_object_id(idx)} end)
 
+    # Appearances come first: font embedding must see the text they draw.
+    appearances = Appearance.build_all(pdf)
+
     {embedded_font_refs, embedded_font_objects, embedded_font_text_modes, images_start_id} =
       FontEmbed.build_embedded_font_objects_for_streams(
         pdf,
         PDF.stream_keys(pdf),
         embedded_fonts_start_id,
-        field_font_plan(pdf)
+        field_font_plan(pdf, appearances)
       )
 
     {image_object_refs, image_objects, form_xobjects_start_id} =
@@ -97,13 +101,11 @@ defmodule Tincture.PDF.Serialize do
 
     form_fields_start_id = signature_start_id + length(signature_objects)
 
-    {form_field_refs, widget_refs, form_field_objects} =
-      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
-        signature_field: pdf.signature && pdf.signature.field_name,
-        signature_ref: signature_ref
-      })
-
-    annotations_start_id = form_fields_start_id + length(form_field_objects)
+    # The field objects are built after the /DR fonts are numbered, since their
+    # appearance streams reference those fonts. How many objects a field takes
+    # depends only on its type, so the numbering after them is known first.
+    form_field_object_count = form_field_object_count(pdf.form_fields)
+    annotations_start_id = form_fields_start_id + form_field_object_count
 
     {tagged_annotations, annotation_objects} =
       build_link_annotation_objects(pdf, page_object_refs, page_numbers, annotations_start_id)
@@ -135,6 +137,17 @@ defmodule Tincture.PDF.Serialize do
 
     {dr_font_refs, dr_font_objects} =
       build_dr_font_objects(pdf.form_fields, embedded_font_refs, dr_fonts_start_id)
+
+    {form_field_refs, widget_refs, form_field_objects} =
+      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
+        signature_field: pdf.signature && pdf.signature.field_name,
+        signature_ref: signature_ref,
+        appearances: appearances,
+        stream_refs: stream_refs,
+        dr_font_refs: Map.new(dr_font_refs)
+      })
+
+    ^form_field_object_count = length(form_field_objects)
 
     kids =
       page_numbers
@@ -799,28 +812,15 @@ defmodule Tincture.PDF.Serialize do
   defp acro_form_entry(form_field_refs, form_fields, dr_font_refs) do
     fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
-    # Button-like fields (checkbox, radio, push button) carry real appearance
-    # streams, because their appearance *is* their content: relying on
-    # /NeedAppearances leaves them invisible anywhere the renderer is not an
-    # interactive viewer - printing, thumbnails, server-side rasterising.
-    #
-    # Fields whose appearance is their typed value (text, choice) still defer to
-    # /NeedAppearances. Rendering those at export would mean laying out the value
-    # ourselves, and getting it wrong shows up as a clipped or invisible value
-    # rather than an error. Every mainstream viewer honours the flag.
+    # Every text and choice field carries its own appearance stream, and
+    # button-like fields always have, so /NeedAppearances is never written:
+    # a field displays the same everywhere, including where no viewer
+    # regenerates it - printing, thumbnails, server-side rasterising. PDF/A
+    # requires the flag absent or false (ISO 19005-2 clause 6.4.1).
     #
     # /DR is the resource dictionary the /DA strings resolve font names
-    # against; without it a viewer has no font to render the value with.
-    # Only fields whose *value* the viewer has to render need it: a checkbox or
-    # radio button carries its own appearance for every state it can be in.
-    # Emitting it regardless would forbid archival output that is otherwise
-    # perfectly valid (ISO 19005-2 clause 6.4.1).
-    need_appearances =
-      if Enum.any?(form_fields, &(&1.type in [:text, :choice])) do
-        " /NeedAppearances true"
-      else
-        ""
-      end
+    # against, and from which a viewer builds a new appearance when someone
+    # edits a field.
 
     # /SigFlags 3 is SignaturesExist and AppendOnly: it tells a reader the form
     # contains a signature and must only ever be changed by appending, since
@@ -828,7 +828,7 @@ defmodule Tincture.PDF.Serialize do
     signature_flags =
       if Enum.any?(form_fields, &(&1.type == :signature)), do: " /SigFlags 3", else: ""
 
-    " /AcroForm << /Fields [#{fields}]#{need_appearances}#{signature_flags}" <>
+    " /AcroForm << /Fields [#{fields}]#{signature_flags}" <>
       default_appearance_entry(form_fields) <>
       " /DR << /Font << #{acro_form_font_resources(dr_font_refs)} >> >> >>"
   end
@@ -878,12 +878,13 @@ defmodule Tincture.PDF.Serialize do
   end
 
   # What font embedding has to know about the fields: the text each embedded
-  # field font must draw, given as operation lists keyed {:field, name} that
-  # are never written; that every such font is Type0, since /DA names it; and,
-  # for editable fields, that the font is whole and covers its whole cmap.
-  # A standard-14 field contributes nothing, so a form without embedded field
-  # fonts is exported exactly as before.
-  defp field_font_plan(%PDF{} = pdf) do
+  # field font must draw; that every such font is Type0, since /DA names it;
+  # and, for editable fields, that the font is whole and covers its whole
+  # cmap. The text is each field's appearance stream, exactly what it draws,
+  # plus, for a choice field, every option as an operation list keyed
+  # {:field, name} that is never written: a viewer draws whichever option
+  # someone picks. A standard-14 field contributes nothing.
+  defp field_font_plan(%PDF{} = pdf, appearances) do
     fields =
       Enum.filter(pdf.form_fields, fn field ->
         field.type in [:text, :choice] and Map.has_key?(pdf.embedded_fonts, field.font)
@@ -897,21 +898,25 @@ defmodule Tincture.PDF.Serialize do
           into: MapSet.new(),
           do: field.font
 
+    drawn =
+      Enum.map(fields, fn field ->
+        appearance = Map.fetch!(appearances, field.name)
+        {appearance.key, appearance.content}
+      end)
+
+    options = for %{type: :choice} = field <- fields, do: field_options_stream(field)
+
     [
-      extra_streams: Enum.map(fields, &field_font_stream/1),
+      extra_streams: drawn ++ options,
       type0: MapSet.new(fields, & &1.font),
       whole: whole,
       whole_cmap: MapSet.new(editable, & &1.font)
     ]
   end
 
-  # A non-editable field's possible text is known now: its value and, for a
-  # choice field, every option. An editable field's font covers its whole
-  # cmap anyway.
-  defp field_font_stream(field) do
-    texts = [field.value | Map.get(field, :options, [])]
+  defp field_options_stream(field) do
     font = {field.font, field.size}
-    {{:field, field.name}, Enum.map(texts, &{:text_at, 0, 0, &1, font})}
+    {{:field, field.name}, Enum.map(field.options, &{:text_at, 0, 0, &1, font})}
   end
 
   # /Helv is the conventional alias for Helvetica in an AcroForm resource
@@ -1219,13 +1224,32 @@ defmodule Tincture.PDF.Serialize do
     {tagged, objects}
   end
 
+  # How many objects each field's builder below writes, by type: a radio group
+  # its parent and, per button, a kid with an on and an off appearance; a
+  # checkbox the field and both states; a push button and a text or choice
+  # field the field and one appearance; anything else the field alone.
+  defp form_field_object_count(form_fields) do
+    Enum.reduce(form_fields, 0, fn
+      %{type: :radio, widgets: widgets}, count -> count + 1 + 3 * length(widgets)
+      %{type: :checkbox}, count -> count + 3
+      %{type: type}, count when type in [:push_button, :text, :choice] -> count + 2
+      _field, count -> count + 1
+    end)
+  end
+
   defp build_form_field_objects([], _page_object_refs, _start_id, _signing), do: {[], [], []}
 
-  defp build_form_field_objects(form_fields, page_object_refs, start_id, signing) do
-    form_fields = Enum.map(form_fields, &attach_signature_ref(&1, signing))
+  defp build_form_field_objects(form_fields, page_object_refs, start_id, context) do
+    form_fields = Enum.map(form_fields, &attach_signature_ref(&1, context))
 
     {built, _next_id} =
-      Enum.map_reduce(form_fields, start_id, &build_form_field(&1, page_object_refs, &2))
+      Enum.map_reduce(form_fields, start_id, fn
+        %{type: type} = field, id when type in [:text, :choice] ->
+          build_variable_text_field(field, page_object_refs, id, context)
+
+        field, id ->
+          build_form_field(field, page_object_refs, id)
+      end)
 
     {
       Enum.map(built, & &1.field_ref),
@@ -1330,12 +1354,106 @@ defmodule Tincture.PDF.Serialize do
     {built, id + 1}
   end
 
+  # A text or choice field's widget, then its appearance stream: the value as
+  # Tincture lays it out, so the field displays the same in every viewer.
+  defp build_variable_text_field(field, page_object_refs, id, context) do
+    appearance = Map.fetch!(context.appearances, field.name)
+    appearance_id = id + 1
+    page_ref = Map.fetch!(page_object_refs, field.page_number)
+
+    entries =
+      quadding_entry(field) <>
+        top_index_entry(appearance.top_index) <>
+        border_declaration(field.border, appearance.border) <>
+        " /AP << /N #{appearance_id} 0 R >>"
+
+    built = %{
+      field_ref: id,
+      widget_refs: [{id, field.page_number}],
+      objects: [
+        form_field_object_body(default_appearance_size(field, appearance), page_ref, "", entries),
+        appearance_object_body(field, appearance, context.stream_refs, context.dr_font_refs)
+      ]
+    }
+
+    {built, id + 2}
+  end
+
+  # An auto-sized field in an embedded font names in /DA the size its
+  # appearance resolved, not 0. Acrobat Reader (2026.002.22031) does not
+  # redraw such a field at auto size after an edit to a value its embedded
+  # font draws alone: the stale appearance stays, showing the old value while
+  # /V holds the new one. At the resolved size it redraws. A standard-14 field
+  # keeps 0, which Reader redraws, re-fitting the size.
+  defp default_appearance_size(%{size: 0, font: font} = field, appearance) do
+    if Font.standard_font?(font), do: field, else: %{field | size: appearance.size}
+  end
+
+  defp default_appearance_size(field, _appearance), do: field
+
+  # A bordered field declares its border: /MK's /BC, the colour its appearance
+  # strokes the border in, and /BS's /W, the same width, for a viewer that
+  # draws a new appearance after an edit. /Border gives a width but no
+  # colour. Nothing else from /MK is written.
+  defp border_declaration({_horizontal, _vertical, width}, border_ops) when width > 0 do
+    color =
+      Enum.find_value(border_ops, fn
+        {:set_stroke_color, color} -> color
+        _op -> nil
+      end)
+
+    components = if is_tuple(color), do: Tuple.to_list(color), else: [color]
+
+    " /MK << /BC [#{Enum.map_join(components, " ", &Object.num/1)}] >>" <>
+      " /BS << /W #{Object.num(width)} >>"
+  end
+
+  defp border_declaration(_border, _border_ops), do: ""
+
+  defp quadding_entry(%{align: :center}), do: " /Q 1"
+  defp quadding_entry(%{align: :right}), do: " /Q 2"
+  defp quadding_entry(_field), do: ""
+
+  defp top_index_entry(nil), do: ""
+  defp top_index_entry(index), do: " /TI #{index}"
+
+  # The stream's font is the /DR font under the /DA alias (ISO 32000-1
+  # 12.7.3.3: its resources come from /DR), so the Tf in it is the /DA's own,
+  # and the resource is the /DR object itself: one object per font. A standard
+  # font is drawn in WinAnsi, the encoding /DR gives it; an embedded one
+  # through Identity-H, as page text is. The border is drawn outside the /Tx
+  # marked content, which a viewer regenerating the appearance replaces.
+  defp appearance_object_body(field, appearance, refs, dr_font_refs) do
+    alias_name = acro_form_font_alias(field.font)
+    "/" <> bare_alias = alias_name
+
+    aliases = %{fonts: %{field.font => bare_alias}, states: %{}, shadings: %{}}
+
+    refs =
+      if Font.standard_font?(field.font),
+        do: put_in(refs.embedded_font_text_modes[field.font], :win_ansi),
+        else: refs
+
+    font_resource = "#{alias_name} #{Map.fetch!(dr_font_refs, field.font)} 0 R"
+
+    content =
+      content_stream(appearance.border, aliases, refs) <>
+        "/Tx BMC\n" <> content_stream(appearance.content, aliases, refs) <> "EMC\n"
+
+    form_xobject(appearance.width, appearance.height, content, " /Font << #{font_resource} >>")
+  end
+
   # For every other type the field and its on-page widget are one object. The
   # specification allows splitting them, but that is only needed when one field
   # has several widgets, which only a radio group has.
   defp form_field_object_body(field, page_ref), do: form_field_object_body(field, page_ref, "")
 
-  defp form_field_object_body(field, page_ref, appearance_entry) do
+  defp form_field_object_body(field, page_ref, appearance_entry),
+    do: form_field_object_body(field, page_ref, appearance_entry, "")
+
+  # `trailing_entries` follow /TU: a text or choice field's /Q, /TI and /AP,
+  # so that every key a 0.3.x widget carried keeps its place.
+  defp form_field_object_body(field, page_ref, appearance_entry, trailing_entries) do
     {x1, y1, x2, y2} = field.rect
 
     rect =
@@ -1355,7 +1473,7 @@ defmodule Tincture.PDF.Serialize do
       button_action_entry(field) <>
       button_caption_entry(field) <>
       appearance_entry <>
-      tooltip_entry(field) <> " >>"
+      tooltip_entry(field) <> trailing_entries <> " >>"
   end
 
   defp signature_value_entry(%{signature_ref: reference}) when is_integer(reference),
@@ -1402,23 +1520,15 @@ defmodule Tincture.PDF.Serialize do
   defp max_length_entry(_field), do: ""
 
   defp options_entry(%{options: options} = field) when is_list(options) do
-    entries = field |> written_options() |> Enum.map_join(" ", &Object.format_text/1)
+    # Sorted when the field has the Sort flag, in the order its list-box
+    # appearance draws them.
+    entries =
+      field |> Appearance.ordered_options() |> Enum.map_join(" ", &Object.format_text/1)
+
     " /Opt [#{entries}]"
   end
 
   defp options_entry(_field), do: ""
-
-  # The Sort flag is for writers: "Conforming readers shall display the
-  # options in the order in which they occur in the Opt array" (ISO 32000-1
-  # Table 230). So sorting is ours to do. Case-folded first, then the text
-  # itself, so the order is deterministic.
-  @field_flag_sort 524_288
-
-  defp written_options(%{options: options, flags: flags}) do
-    if Bitwise.band(flags, @field_flag_sort) != 0,
-      do: Enum.sort_by(options, &{String.downcase(&1), &1}),
-      else: options
-  end
 
   defp tooltip_entry(%{tooltip: tooltip}) when is_binary(tooltip),
     do: " /TU #{Object.format_text(tooltip)}"

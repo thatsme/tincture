@@ -37,9 +37,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drawing nothing raises, and a page change inside a content tag, a figure
   included, raises. *Migration:* remove any match on them.
 
-The first four have warned since 0.3.4, the next two since 0.3.8 and the
-seventh since 0.3.9, so code that runs without those warnings is unaffected
-by them, and the last follows from them.
+- **A standard-14 field value, option or push-button label that WinAnsi
+  cannot encode raises** at `text_field/7`, `choice_field/7` or
+  `push_button/7`. The field's appearance is drawn in the font's own
+  encoding, which cannot hold the character. A line break in the value of a
+  `multiline: true` text field is still allowed. *Migration:* use a font
+  registered with `register_ttf_font/4` or `register_otf_font/4` for the
+  field.
+- **A choice field that is not `editable: true` raises when its `:value` is
+  not one of its `:options`.** *Migration:* add the value to `:options`, or
+  pass `editable: true`.
+
+The first four have warned since 0.3.4, the next two since 0.3.8, the
+seventh since 0.3.9, the standard-14 field text since 0.3.6 and the choice
+value since 0.3.10, so code that runs without those warnings is unaffected by
+them, and the eighth follows from them.
 
 ### Added
 
@@ -67,8 +79,25 @@ by them, and the last follows from them.
   a font registered with `subset: :none`, and unless the font's licence (OS/2
   `fsType`) allows editable embedding. A font used by both page text and a
   field is embedded once. Other field types keep the standard 14.
+- **`:align` on `text_field/7` and `choice_field/7`**: `:left` (the
+  default), `:center` or `:right`, written as `/Q` and applied in the field's
+  appearance.
 
 ### Changed
+
+- **Every text and choice field carries its own appearance.**
+  `/NeedAppearances` is no longer written, and text and choice fields get a
+  generated `/AP` stream, so they display the same in every viewer, and in
+  print and thumbnails. A password field's appearance is empty. `form.pdf`
+  and every form with a text or choice field change bytes.
+- **A bordered text or choice field declares its border.** It writes
+  `/MK << /BC [0 0 0] >>`, the colour its appearance strokes the border in,
+  and `/BS << /W w >>`, the border's width, beside the existing `/Border`. A
+  viewer that draws a new appearance after an edit keeps the border: PDFium
+  drops it without these entries. Nothing else from `/MK` is written, and an
+  unbordered field writes neither.
+- **A list box scrolls to its selected option.** `/TI` is written when the
+  selected option would otherwise be below the visible rows.
 
 - **Signing an encrypted document raises a clear error.** `sign/3` and
   `encrypt/2` refuse to be combined, naming the combination, at the call

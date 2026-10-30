@@ -162,6 +162,9 @@ defmodule Tincture.PDF do
             # Set on a text or choice field given full_font: true: its font
             # is embedded whole, for the whole document.
             optional(:full_font) => true,
+            # Set on a text or choice field given align: :center or :right;
+            # absent means left-aligned.
+            optional(:align) => :left | :center | :right,
             # Internal: whether the field was created with no structure
             # element open. Read only by the 0.3.6 warnings; never written.
             optional(:created_outside_structure) => boolean()
@@ -1512,45 +1515,65 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:action, normalize_action(type, Keyword.get(opts, :action)))
       |> maybe_put_field(:label, normalize_label(type, Keyword.get(opts, :label)))
       |> maybe_put_field(:full_font, normalize_full_font(type, Keyword.get(opts, :full_font)))
+      |> maybe_put_field(:align, normalize_align(type, Keyword.get(opts, :align)))
       |> Map.put(:created_outside_structure, pdf.structure_stack == [])
 
     refuse_unusable_field_font!(pdf, field)
-    warn_unencodable_field_text(field)
-    warn_value_outside_options(field)
+    refuse_unencodable_field_text!(field)
+    refuse_value_outside_options!(field)
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end
 
+  # Quadding, written as /Q (ISO 32000-1 Table 222). Left is the default, so
+  # it is not stored: a field without :align is left-aligned.
+  defp normalize_align(type, align) when type in [:text, :choice] and align in [nil, :left],
+    do: nil
+
+  defp normalize_align(type, align) when type in [:text, :choice] and align in [:center, :right],
+    do: align
+
+  defp normalize_align(type, align) when type in [:text, :choice],
+    do:
+      raise(
+        ArgumentError,
+        ":align must be :left, :center or :right, got: #{inspect(align)}"
+      )
+
+  defp normalize_align(_type, nil), do: nil
+
+  defp normalize_align(type, _align),
+    do: raise(ArgumentError, "#{type} fields do not take :align")
+
   # A choice field that is not editable can only hold one of its options: /V
   # names "the selected item, as given in the field dictionary's Opt array"
-  # (ISO 32000-1 12.7.4.4). Each option is its own export value. 0.4.0 draws
-  # /V into the field's appearance and refuses such a value; 0.3.10 warns.
-  defp warn_value_outside_options(%{type: :choice, value: value, options: options} = field)
+  # (ISO 32000-1 12.7.4.4), and the field's appearance draws it. Each option
+  # is its own export value. Warned in 0.3.10 (W8).
+  defp refuse_value_outside_options!(%{type: :choice, value: value, options: options} = field)
        when value != "" do
     editable = Bitwise.band(field.flags, @field_flag_edit) != 0
 
     unless editable or value in options do
-      IO.warn(
-        "choice field #{inspect(field.name)} has the value #{inspect(value)}, which is not " <>
-          "one of its options. A choice field that is not editable can only hold one of " <>
-          "its options: add it to options:, or pass editable: true. This will raise in 0.4.0."
-      )
+      raise ArgumentError,
+            "choice field #{inspect(field.name)} has the value #{inspect(value)}, which is not " <>
+              "one of its options. A choice field that is not editable can only hold one of " <>
+              "its options: add it to options:, or pass editable: true."
     end
 
     :ok
   end
 
-  defp warn_value_outside_options(_field), do: :ok
+  defp refuse_value_outside_options!(_field), do: :ok
 
-  # A standard-14 field font is written in /DR with /WinAnsiEncoding, so a
-  # generated appearance can only draw what WinAnsi encodes. 0.4.0 generates
-  # appearances and refuses such a value; 0.3.6 warns. The first character
-  # that cannot be drawn is named, from the value, then the options, then the
+  # A standard-14 field font is written in /DR with /WinAnsiEncoding, and the
+  # field's appearance draws its text in that encoding, so it can only hold
+  # what WinAnsi encodes. Warned since 0.3.6 (J4). The first character that
+  # cannot be drawn is named, from the value, then the options, then the
   # label. The one exemption is a line break in the value of a multiline text
   # field: its appearance breaks the line there rather than drawing a glyph.
   # Anywhere else - a single-line value, an option, a label - a line break is
   # checked like any other character.
-  defp warn_unencodable_field_text(%{type: type, font: font} = field)
+  defp refuse_unencodable_field_text!(%{type: type, font: font} = field)
        when type in [:text, :choice, :push_button] do
     texts =
       [checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)]
@@ -1562,18 +1585,17 @@ defmodule Tincture.PDF do
            |> Enum.find_value(&WinAnsi.first_unencodable/1) do
       unicode = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
 
-      IO.warn(
-        "#{Accessibility.field_kind(type)} #{inspect(field.name)} uses the standard font " <>
-          "#{inspect(font)}, which cannot draw #{inspect(<<codepoint::utf8>>)} (U+#{unicode}): " <>
-          "its encoding is WinAnsi. Register a TrueType or OpenType font that has the " <>
-          "character and use it for the field. This will raise in 0.4.0."
-      )
+      raise ArgumentError,
+            "#{Accessibility.field_kind(type)} #{inspect(field.name)} uses the standard font " <>
+              "#{inspect(font)}, which cannot draw #{inspect(<<codepoint::utf8>>)} " <>
+              "(U+#{unicode}): its encoding is WinAnsi. Register a TrueType or OpenType font " <>
+              "that has the character and use it for the field."
     end
 
     :ok
   end
 
-  defp warn_unencodable_field_text(_field), do: :ok
+  defp refuse_unencodable_field_text!(_field), do: :ok
 
   defp checked_value(%{type: :text, value: value, flags: flags}) when is_binary(value) do
     if Bitwise.band(flags, @field_flag_multiline) != 0,

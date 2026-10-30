@@ -32,10 +32,9 @@ covered by the test suite only)
    and `Layout.Box`, `/Tabs /S`, and an audit with PAC as well as veraPDF. See
    [1](#1-accessibility--tagged-pdf-pdfua) for what the audit found and what
    remains.
-3. **Forms completed** — appearance streams for text and choice fields, which
-   would also let signed and archival documents carry form fields. The same
-   machinery gives signature widgets an appearance, without which a signed
-   document cannot also be PDF/A.
+3. **Forms completed** — appearance streams for text and choice fields, now
+   written, and for signature widgets, without which a signed document cannot
+   also be PDF/A; then archival and tagged documents with form fields.
 
    This one is worth more than its own entry. An `/AP` stream is a form
    XObject: a nested content stream with its own resources, holding text laid
@@ -396,21 +395,26 @@ What remains:
 
 ## 6. Forms, completed
 
-**Status: the field set is complete; appearances are half done.** Text,
-checkbox, choice, radio group, push button and signature fields all exist, with
-reset, URL and submit actions.
+**Status: the field set is complete; every field but the signature has its
+appearance.** Text, checkbox, choice, radio group, push button and signature
+fields all exist, with reset, URL and submit actions.
 
-Button-like fields (checkbox, radio, push button) carry generated `/AP`
-appearance streams, so they render anywhere — printing, thumbnails,
-server-side rasterising — not only in an interactive viewer.
+Every field but the signature carries a generated `/AP` appearance stream, so
+it renders anywhere — printing, thumbnails, server-side rasterising — not only
+in an interactive viewer. Text and choice values are laid out and clipped by
+Tincture: single-line, wrapped multiline, aligned with `:align`, and list boxes
+scrolled to their selection. `/NeedAppearances` is not written. A signature
+field still has no appearance.
 
-Fields whose appearance is their typed value (text, choice) still rely on
-`/NeedAppearances true`. Every mainstream viewer honours it, but a *flattened*
-form — one converted to static content — needs those generated too, which means
-laying out and clipping the value at export time.
+A limitation that sits in the viewer: when someone types characters a field's
+font cannot encode, PDFium (Chrome, Edge) adds a font of its own, unembedded,
+even when the field's embedded font has the characters. pdf.js uses the field's
+font.
 
 Also missing: JavaScript actions for client-side validation, and per-field
-appearance customisation (`/MK` border and background colours).
+appearance customisation (border and background colours). A bordered text or
+choice field declares its border, in the black its appearance draws it in, as
+`/MK /BC` and `/BS /W`; nothing else from `/MK` is written for those fields.
 
 Text and choice fields may use a TrueType or OpenType font registered with
 `register_ttf_font/4` or `register_otf_font/4`. It is written as a `Type0` font

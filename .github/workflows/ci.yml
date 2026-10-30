@@ -343,3 +343,69 @@ jobs:
         run: mix examples
         env:
           TINCTURE_EXAMPLES_NO_FONTS: "1"
+
+  # Form fields carry their own appearance streams. This job checks them in
+  # two engines, PDFium (Chrome, Edge) and pdf.js (Firefox): that the page is
+  # drawn from the file's appearances rather than regenerated, and that a
+  # field the engine fills keeps the form's own font. What PDFium does with
+  # characters the field's font cannot encode is a known viewer limitation,
+  # and is not checked.
+  viewer:
+    name: Viewer (PDFium, pdf.js)
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-viewer-1.19.5-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-viewer-1.19.5-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Build the form and the field review document
+        run: |
+          mix run examples/form.exs
+          mix run scripts/viewer_fields.exs tmp/viewer/fields.pdf
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install PDFium and pikepdf
+        run: pip install pypdfium2==5.14.0 pikepdf==10.17.0 pillow==13.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pdf.js
+        run: npm ci --prefix scripts/viewer_pdfjs
+
+      - name: Check the field appearances in PDFium and pdf.js
+        run: python -I scripts/viewer_check.py tmp/viewer examples/output/form.pdf tmp/viewer/fields.pdf
+
+      - name: Upload the renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewer-renders
+          path: tmp/viewer

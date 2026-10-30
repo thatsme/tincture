@@ -73,11 +73,16 @@ defmodule Tincture.PDFAEnforcementTest do
   end
 
   describe "form fields" do
-    test "text fields are refused: their value is drawn by the viewer", %{font: font} do
+    test "text fields are refused: /DA and /DR are not yet written as PDF/A needs", %{
+      font: font
+    } do
       pdf = Tincture.text_field(archival(font), 50, 600, 200, 20, "name")
 
       assert :value_rendered_field in rules(pdf)
-      assert_raise ArgumentError, ~r/NeedAppearances/, fn -> Tincture.export(pdf) end
+
+      assert_raise ArgumentError,
+                   ~r/must be the field's own embedded font, and Tincture does not yet write \/DA and \/DR that way/,
+                   fn -> Tincture.export(pdf) end
     end
 
     test "choice fields are refused for the same reason", %{font: font} do

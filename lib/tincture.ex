@@ -431,9 +431,22 @@ defmodule Tincture do
   ## Options
 
     * `:value` — the initial value. Defaults to empty.
-    * `:size` — font size. Defaults to `0`, meaning auto-size: the viewer
-      fits the text to the box, which is usually what you want for a field
-      whose height you chose.
+    * `:size` — font size. Defaults to `0`, meaning auto-size, which is
+      usually what you want for a field whose height you chose. The field's
+      appearance then sizes the text by the field's kind. A single-line
+      field or a dropdown takes the size at which a line of the field's
+      font, with a small margin above and below, fills the box's height less
+      its border; when the value is too wide for the box, that size shrinks
+      until it fits, down to 4. A multiline field starts at 12 and steps down
+      by 0.5 until the wrapped lines fit the height, down to 4, below which
+      the text is clipped. A list box uses 12. A viewer fits the text again
+      when someone edits it. With an embedded
+      font, the field's `/DA` names the size computed for its initial value
+      instead of `0`, because Acrobat Reader does not redraw an auto-sized
+      embedded-font field after an edit. So in Acrobat Reader such a field
+      keeps that size: a longer value is not shrunk, and the field box clips
+      it. An explicit size gives full control.
+    * `:align` — `:left` (default), `:center` or `:right`, written as `/Q`.
     * `:font` — one of the standard 14, or a font registered with
       `register_ttf_font/4` or `register_otf_font/4`. Defaults to
       `"Helvetica"`. See "Embedded fonts" below.
@@ -442,8 +455,12 @@ defmodule Tincture do
       editable field with an embedded font, unless the font was registered
       with `subset: :none`. Ignored with a standard-14 font, which is never
       embedded.
-    * `:multiline` — allow line breaks. Defaults to `false`.
-    * `:password` — mask the value as it is typed. Defaults to `false`.
+    * `:multiline` — allow line breaks. Defaults to `false`. The appearance
+      breaks the value at each line break and wraps it at spaces to the
+      box's width.
+    * `:password` — mask the value as it is typed. Defaults to `false`. The
+      field's appearance draws nothing, but a `:value` is still written to the
+      file, where anyone who opens it can read it.
     * `:max_length` — maximum characters accepted.
     * `:read_only`, `:required`, `:no_export` — field flags, all `false` by
       default.
@@ -460,15 +477,29 @@ defmodule Tincture do
   tree. `export/2` warns for each field that breaks either rule, and 0.4.0
   raises. An untagged document is not checked.
 
+  ## Appearance
+
+  The field carries its own appearance stream, its value laid out by
+  Tincture, so it displays the same in every viewer, and when printed,
+  thumbnailed or rendered by a tool that does not regenerate fields. A viewer
+  that lets someone edit the field builds a new appearance from `/DA` and the
+  form's font resources.
+
+  When someone types characters the field's font cannot encode, PDFium
+  (Chrome, Edge) draws them with a font of its own, which it does not embed
+  and which depends on the fonts installed where the file is edited. This
+  happens even with an embedded font that has the characters. Tincture
+  cannot prevent it from inside the file.
+
   ## Characters a standard font can draw
 
-  A standard-14 font is written with WinAnsi encoding, so a field using one
-  can only hold characters WinAnsi encodes: Latin text such as `"Größe"`, but
-  not `"Ελλάδα"`. A value with any other character warns when the field is
-  created, and 0.4.0 raises, because 0.4.0 draws the value into the field's
-  appearance itself. A line break is fine in the value of a `multiline: true`
-  field, whose appearance breaks the line there; in a single-line value it
-  warns like any other character. For other characters, use an embedded font.
+  A standard-14 font is written with WinAnsi encoding, and the appearance
+  draws the value in it, so a field using one can only hold characters
+  WinAnsi encodes: Latin text such as `"Größe"`, but not `"Ελλάδα"`. A value
+  with any other character raises `ArgumentError` when the field is created.
+  A line break is fine in the value of a `multiline: true` field, whose
+  appearance breaks the line there; in a single-line value it raises like any
+  other character. For other characters, use an embedded font.
 
   ## Embedded fonts
 
@@ -549,7 +580,10 @@ defmodule Tincture do
     * `:allow_deselect` — let clicking the selected button turn it off again.
       Defaults to `false`, which is what a radio group usually means.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:font`, `:size` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:font` — as for `text_field/7`.
+    * `:size` — the font size written in the group's `/DA`. Defaults to `0`,
+      meaning auto-size. The ring and dot Tincture draws take their size from
+      each button's own `:size`, not from this option.
     * `:page` — the default page for buttons that do not name their own.
 
   In a tagged document, the group needs one `:tooltip` and must be created
@@ -584,12 +618,15 @@ defmodule Tincture do
       * `{:submit, url}` — submit the form's values to a URL.
     * `:label` — the caption drawn on the button face.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:font`, `:size`, `:page` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:font`, `:page` — as for `text_field/7`.
+    * `:size` — the caption's font size, also named in the button's `/DA`.
+      Defaults to `0`: the caption is then drawn at half the button's height,
+      at most 12.
 
   In a tagged document, a push button needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
   characters WinAnsi encodes, as a text field's value (`text_field/7`), and
-  a line break in it warns.
+  a line break in it raises.
 
   ## Examples
 
@@ -646,27 +683,42 @@ defmodule Tincture do
 
     * `:options` — **required**, the list of choices.
     * `:value` — the initially selected choice. Unless the field is
-      `editable: true`, it must be one of `:options`: any other value warns,
-      and 0.4.0 raises.
+      `editable: true`, it must be one of `:options`: any other value raises
+      `ArgumentError`.
     * `:dropdown` — `true` (default) for a combo box, `false` for a list box.
     * `:editable` — allow a value outside the list. Defaults to `false`.
     * `:sort` — write the options sorted, which is the order a viewer shows
       them in: alphabetically ignoring case, with the exact text breaking
       ties. Defaults to `false`, which keeps the order given.
     * `:read_only`, `:required`, `:no_export`, `:tooltip`, `:border`,
-      `:page`, `:font`, `:full_font`, `:size` — as for `text_field/7`.
+      `:page`, `:font`, `:full_font`, `:size`, `:align` — as for
+      `text_field/7`.
+
+  The field carries its own appearance, as a text field does
+  (`text_field/7`). A dropdown shows its value. A list box shows as many
+  options as fit, in the order written, with the selected one highlighted;
+  when the selection would fall below the box, the list is scrolled to show
+  it, and the first option shown is written as `/TI`.
 
   In a tagged document, a choice field needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. With a standard-14 font, its
   `:value` and every one of its `:options` may only use characters WinAnsi
   encodes, as a text field's value (`text_field/7`), and a line break in any
-  of them warns.
+  of them raises.
 
   A choice field may use an embedded font, as a text field may. It is
   editable when given `editable: true` and not `read_only: true`, and then its
   font must be embedded whole and licensed for editable embedding, as
   `text_field/7` describes. Otherwise its font is subset to its value and
   every one of its `:options`.
+
+  **Acrobat Reader and non-Latin dropdown options.** In Acrobat Reader, a
+  dropdown whose options use characters outside WinAnsi, such as Greek,
+  shows its options garbled whenever the list is open, and a newly selected
+  option garbled until the document is saved. At rest after saving, and in
+  the stored value, the option is correct: `/V` holds the option exactly as
+  given, and the appearance Reader saves draws it, in a font of Reader's own
+  rather than the field's.
 
   ## Examples
 

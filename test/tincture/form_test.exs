@@ -66,9 +66,16 @@ defmodule Tincture.FormTest do
       assert fields_id == annots_id
     end
 
-    test "NeedAppearances is set so viewers render values from the DA string" do
-      binary = Tincture.new() |> Tincture.text_field(0, 0, 10, 10, "f") |> export()
-      assert binary =~ "/NeedAppearances true"
+    test "NeedAppearances is never written: every field carries its own appearance" do
+      for pdf <- [
+            Tincture.new() |> Tincture.text_field(0, 0, 10, 10, "f", value: "x"),
+            Tincture.new() |> Tincture.choice_field(0, 0, 10, 10, "c", options: ["a"]),
+            Tincture.new()
+            |> Tincture.text_field(0, 0, 10, 10, "f")
+            |> Tincture.checkbox(0, 20, 10, "b")
+          ] do
+        refute export(pdf) =~ "NeedAppearances"
+      end
     end
 
     test "the AcroForm carries a resource dictionary for the DA font" do

@@ -31,8 +31,10 @@ defmodule Tincture.Font.Standard do
   @spec fetch_metrics(String.t()) ::
           {:ok,
            %{
-             widths_by_code: %{optional(integer()) => number()},
-             kern_by_code: %{optional({integer(), integer()}) => number()}
+             required(:widths_by_code) => %{optional(integer()) => number()},
+             required(:kern_by_code) => %{optional({integer(), integer()}) => number()},
+             optional(:descender) => integer(),
+             optional(:font_bbox) => {integer(), integer(), integer(), integer()}
            }}
           | :error
   def fetch_metrics(font_name) when is_binary(font_name) do
@@ -88,7 +90,13 @@ defmodule Tincture.Font.Standard do
                 "no longer accept silently. See .gitattributes."
       end
 
-      {:ok, {font_name, %{widths_by_code: widths, kern_by_code: kerns}}}
+      metrics =
+        Map.merge(
+          %{widths_by_code: widths, kern_by_code: kerns},
+          parse_vertical_metrics(contents)
+        )
+
+      {:ok, {font_name, metrics}}
     else
       _ -> :error
     end
@@ -109,6 +117,31 @@ defmodule Tincture.Font.Standard do
     |> Enum.reduce(%{}, fn [code, value], acc ->
       Map.put(acc, String.to_integer(code), String.to_integer(value))
     end)
+  end
+
+  # The AFM vertical metrics a field appearance lays text out with, in
+  # thousandths of the size: the descender and the font bounding box.
+  defp parse_vertical_metrics(contents) do
+    descender = Regex.run(~r/descender\(\)\s*->\s*(-?\d+)\./, contents, capture: :all_but_first)
+
+    bbox =
+      Regex.run(
+        ~r/fontBBox\(\)\s*->\s*\{(-?\d+),(-?\d+),(-?\d+),(-?\d+)\}\./,
+        contents,
+        capture: :all_but_first
+      )
+
+    case {descender, bbox} do
+      {[d], [x_min, y_min, x_max, y_max]} ->
+        %{
+          descender: String.to_integer(d),
+          font_bbox:
+            Enum.map([x_min, y_min, x_max, y_max], &String.to_integer/1) |> List.to_tuple()
+        }
+
+      _ ->
+        %{}
+    end
   end
 
   defp parse_kerns(contents) do
