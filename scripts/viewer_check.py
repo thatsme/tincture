@@ -32,6 +32,12 @@ if any fails.
    single-line text field that declares its border (/MK /BC, /BS /W) is
    filled, and the saved /AP must still paint a path outside its /Tx marked
    content. At least one file in the run must have such a field.
+6. Push buttons and visible signature fields, in each engine: each carries
+   an /AP /N stream whose fonts are /DR's objects under the same alias, and
+   page 1 rendered is identical to the same page rendered from a copy whose
+   push-button captions (/MK /CA) and signature /DA are changed, the entries
+   an engine would redraw them from. At least one file in the run must have
+   a push button.
 
 Renders and filled files are written to OUT_DIR.
 """
@@ -60,7 +66,7 @@ STANDARD_14 = {
     "/Courier", "/Courier-Bold", "/Courier-Oblique", "/Courier-BoldOblique",
     "/Symbol", "/ZapfDingbats",
 }
-FLAG_READ_ONLY, FLAG_MULTILINE, FLAG_PASSWORD = 1, 4096, 8192
+FLAG_READ_ONLY, FLAG_MULTILINE, FLAG_PASSWORD, FLAG_PUSHBUTTON = 1, 4096, 8192, 65536
 PDFJS = posixpath.join("scripts", "viewer_pdfjs", "pdfjs.mjs")
 
 failures = []
@@ -120,15 +126,65 @@ def render_pdfjs(source, png):
     node("render", source, png)
 
 
-def check_drawn_from_file(engine, render, path, copy, label, out_dir):
+def check_drawn_from_file(engine, render, path, copy, label, out_dir,
+                          suffix="novalues", what="the page"):
     original = posixpath.join(out_dir, f"{label}-{engine}.png")
-    stripped = posixpath.join(out_dir, f"{label}-{engine}-novalues.png")
+    stripped = posixpath.join(out_dir, f"{label}-{engine}-{suffix}.png")
     render(path, original)
     render(copy, stripped)
     a, b = Image.open(original).convert("RGB"), Image.open(stripped).convert("RGB")
     box = ImageChops.difference(a, b).getbbox() if a.size == b.size else (0, 0) + a.size
-    report(box is None, f"{label}: {engine} draws the page from the file's appearances, not regenerated",
+    report(box is None, f"{label}: {engine} draws {what} from the file's appearances, not regenerated",
            "" if box is None else f"differs within {box}")
+
+
+def button_and_signature_widgets(pdf):
+    """Push-button widgets, and signature widgets whose /Rect is not zero-size."""
+    for page in pdf.pages:
+        for annot in page.get("/Annots", []):
+            if annot.get("/Subtype") != "/Widget":
+                continue
+            if annot.get("/FT") == "/Btn" and int(annot.get("/Ff", 0)) & FLAG_PUSHBUTTON:
+                yield annot
+            elif annot.get("/FT") == "/Sig":
+                x1, y1, x2, y2 = (float(v) for v in annot.Rect)
+                if x1 != x2 or y1 != y2:
+                    yield annot
+
+
+def check_button_structure(path, label):
+    """Whether the file had a push button to check."""
+    with pikepdf.open(path) as pdf:
+        dr = pdf.Root.get("/AcroForm", {}).get("/DR", {}).get("/Font", {})
+        widgets = list(button_and_signature_widgets(pdf))
+        missing, not_dr = [], []
+        for widget in widgets:
+            normal = widget.get("/AP", {}).get("/N")
+            if not isinstance(normal, pikepdf.Stream):
+                missing.append(str(widget.T))
+                continue
+            for alias, font in normal.get("/Resources", {}).get("/Font", {}).items():
+                if not (font.is_indirect and alias in dr and dr[alias].objgen == font.objgen):
+                    not_dr.append(f"{widget.T} {alias}")
+        if widgets:
+            report(not missing and not not_dr,
+                   f"{label}: push buttons and visible signatures carry /AP /N, their fonts /DR's objects",
+                   f"{len(widgets)} widgets" + (f", missing: {missing}" if missing else "")
+                   + (f", not /DR's: {not_dr}" if not_dr else ""))
+        return any(widget.FT == "/Btn" for widget in widgets)
+
+
+def without_captions(path, out_dir, label):
+    """A copy whose push-button captions (/MK /CA) and signature /DA are
+    changed: the entries an engine would redraw those widgets from."""
+    copy = posixpath.join(out_dir, f"{label}-nocaptions.pdf")
+    with pikepdf.open(path) as pdf:
+        for widget in button_and_signature_widgets(pdf):
+            if "/CA" in widget.get("/MK", {}):
+                widget.MK.CA = pikepdf.String("XXXXXX")
+            widget.DA = pikepdf.String("/Helv 30 Tf 1 0 0 rg")
+        pdf.save(copy)
+    return copy
 
 
 def fill_target(path, wanted):
@@ -293,21 +349,27 @@ def main():
     print(f"pypdfium2 {PYPDFIUM_INFO}, PDFium {PDFIUM_INFO}, pikepdf {pikepdf.__version__}, "
           f"pdf.js {node('version')}")
 
-    bordered = False
+    bordered = buttons = False
     for path in paths:
         label = os.path.splitext(os.path.basename(path))[0]
         check_structure(path, label)
         copy = without_values(path, out_dir, label)
+        has_buttons = check_button_structure(path, label)
+        buttons = buttons or has_buttons
+        captions = without_captions(path, out_dir, label)
 
         for engine, render, fill in (("PDFium", render_pdfium, fill_pdfium),
                                      ("pdf.js", render_pdfjs, fill_pdfjs)):
             check_drawn_from_file(engine, render, path, copy, label, out_dir)
+            check_drawn_from_file(engine, render, path, captions, label, out_dir,
+                                  "nocaptions", "push buttons and signatures")
             check_fill(engine, fill, path, label, out_dir, "standard", WINANSI_FILL)
 
         check_fill("pdf.js", fill_pdfjs, path, label, out_dir, "type0", GREEK_FILL)
         bordered = check_border_fill(path, label, out_dir) or bordered
 
     report(bordered, "a bordered field was checked", "" if bordered else "no file has one")
+    report(buttons, "a push button was checked", "" if buttons else "no file has one")
 
     if failures:
         print(f"{len(failures)} check(s) failed")

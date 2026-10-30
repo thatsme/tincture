@@ -73,6 +73,18 @@ pdf =
     font: "Sans",
     full_font: true
   )
+  |> label.(282, "Push buttons: caption in the embedded font / in Helvetica")
+  |> Tincture.push_button(50, 252, 120, 26, "greek_button",
+    label: "Αποστολή",
+    font: "Sans",
+    action: :reset
+  )
+  |> Tincture.push_button(310, 252, 120, 26, "helvetica_button", label: "Send", action: :reset)
+  |> label.(230, "Signature field with a label, size 11")
+  |> Tincture.signature_field(50, 182, 240, 44, "signature",
+    label: "Signed by A. Lovelace",
+    size: 11
+  )
 
 File.mkdir_p!(Path.dirname(out))
 File.write!(out, Tincture.export(pdf))
