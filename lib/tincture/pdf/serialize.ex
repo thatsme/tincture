@@ -1363,7 +1363,9 @@ defmodule Tincture.PDF.Serialize do
 
     entries =
       quadding_entry(field) <>
-        top_index_entry(appearance.top_index) <> " /AP << /N #{appearance_id} 0 R >>"
+        top_index_entry(appearance.top_index) <>
+        border_declaration(field.border, appearance.border) <>
+        " /AP << /N #{appearance_id} 0 R >>"
 
     built = %{
       field_ref: id,
@@ -1388,6 +1390,25 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp default_appearance_size(field, _appearance), do: field
+
+  # A bordered field declares its border: /MK's /BC, the colour its appearance
+  # strokes the border in, and /BS's /W, the same width, for a viewer that
+  # draws a new appearance after an edit. /Border gives a width but no
+  # colour. Nothing else from /MK is written.
+  defp border_declaration({_horizontal, _vertical, width}, border_ops) when width > 0 do
+    color =
+      Enum.find_value(border_ops, fn
+        {:set_stroke_color, color} -> color
+        _op -> nil
+      end)
+
+    components = if is_tuple(color), do: Tuple.to_list(color), else: [color]
+
+    " /MK << /BC [#{Enum.map_join(components, " ", &Object.num/1)}] >>" <>
+      " /BS << /W #{Object.num(width)} >>"
+  end
+
+  defp border_declaration(_border, _border_ops), do: ""
 
   defp quadding_entry(%{align: :center}), do: " /Q 1"
   defp quadding_entry(%{align: :right}), do: " /Q 2"

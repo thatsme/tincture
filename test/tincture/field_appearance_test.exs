@@ -227,6 +227,46 @@ defmodule Tincture.FieldAppearanceTest do
     end
   end
 
+  describe "a bordered field declares its border" do
+    test "a text field: /MK's /BC in the colour the appearance strokes, /BS's /W its width" do
+      binary = single(value: "x", border: {0, 0, 2})
+
+      assert widget(binary, "f") =~
+               "/Border [0 0 2] /DA (/Helv 0 Tf 0 g) /V (x) /DV (x) " <>
+                 "/MK << /BC [0 0 0] >> /BS << /W 2 >> /AP << /N "
+
+      assert content(binary, "f") =~ ~r/\A0 0 0 RG\n2 w\n/
+    end
+
+    test "a combo box, with a fractional width" do
+      binary =
+        Tincture.new()
+        |> Tincture.choice_field(72, 700, 200, 24, "c",
+          options: ["a", "b"],
+          value: "a",
+          border: {0, 0, 1.5}
+        )
+        |> export()
+
+      assert widget(binary, "c") =~
+               "/Opt [(a) (b)] /MK << /BC [0 0 0] >> /BS << /W 1.5 >> /AP << /N "
+
+      assert content(binary, "c") =~ ~r/\A0 0 0 RG\n1.5 w\n/
+    end
+
+    test "an unbordered field has neither /MK nor /BS" do
+      for binary <- [single(value: "x"), single(value: "x", border: {0, 0, 0})] do
+        refute widget(binary, "f") =~ "/MK"
+        refute widget(binary, "f") =~ "/BS"
+      end
+    end
+
+    test "nothing else from /MK: no /BG, /R or /CA" do
+      [_, mk] = Regex.run(~r"/MK << (.*?) >>", widget(single(value: "x", border: {0, 0, 2}), "f"))
+      assert mk == "/BC [0 0 0]"
+    end
+  end
+
   describe "the auto size" do
     defp size_of(content) do
       [_, size] = Regex.run(~r/\/Helv (\S+) Tf/, content)

@@ -28,6 +28,10 @@ if any fails.
    object. PDFium is not held to this: for characters a field's font cannot
    encode, and for Greek even in an embedded font that has them, it adds an
    unembedded font of its own. That is a known viewer limitation.
+5. PDFium only: a fill keeps a bordered field's border. The first editable
+   single-line text field that declares its border (/MK /BC, /BS /W) is
+   filled, and the saved /AP must still paint a path outside its /Tx marked
+   content. At least one file in the run must have such a field.
 
 Renders and filled files are written to OUT_DIR.
 """
@@ -246,6 +250,42 @@ def drawn(content, encoded):
     return encoded in content or hexed in content.lower()
 
 
+def bordered_target(path):
+    """The first editable single-line text field that declares its border:
+    (name, /BS /W), or None."""
+    with pikepdf.open(path) as pdf:
+        for widget in variable_text_widgets(pdf):
+            flags = int(widget.get("/Ff", 0))
+            if widget.FT != "/Tx" or flags & (FLAG_READ_ONLY | FLAG_MULTILINE | FLAG_PASSWORD):
+                continue
+            width = float(widget.get("/BS", {}).get("/W", 0))
+            if "/BC" in widget.get("/MK", {}) and width > 0:
+                return str(widget.T), width
+    return None
+
+
+def check_border_fill(path, label, out_dir):
+    """Whether the file had a bordered field to check."""
+    target = bordered_target(path)
+    if target is None:
+        return False
+    name, width = target
+    saved = posixpath.join(out_dir, f"{label}-PDFium-filled-bordered.pdf")
+    fill_pdfium(path, saved, {name: WINANSI_FILL})
+    with pikepdf.open(saved) as pdf:
+        widget = next(w for w in variable_text_widgets(pdf) if str(w.T) == name)
+        normal = widget.get("/AP", {}).get("/N")
+        content = normal.read_bytes() if isinstance(normal, pikepdf.Stream) else b""
+    # The marked content a viewer replaces, taken out; what remains is drawn
+    # around it, and must paint a path. PDFium paints the border as a frame,
+    # two rectangles filled even-odd, rather than stroking it.
+    outside = re.sub(rb"/Tx\s+BMC.*?EMC", b"", content, flags=re.S)
+    painted = re.search(rb"(^|\s)(S|s|f\*?|F|B\*?|b\*?)(\s|$)", outside) is not None
+    report(painted, f"{label}: PDFium fill of {name!r} (border {width:g}) keeps a border in its /AP",
+           "" if painted else f"no path painted outside /Tx in the saved /AP ({len(content)} bytes)")
+    return True
+
+
 def main():
     out_dir, *paths = sys.argv[1:]
     os.makedirs(out_dir, exist_ok=True)
@@ -253,6 +293,7 @@ def main():
     print(f"pypdfium2 {PYPDFIUM_INFO}, PDFium {PDFIUM_INFO}, pikepdf {pikepdf.__version__}, "
           f"pdf.js {node('version')}")
 
+    bordered = False
     for path in paths:
         label = os.path.splitext(os.path.basename(path))[0]
         check_structure(path, label)
@@ -264,6 +305,9 @@ def main():
             check_fill(engine, fill, path, label, out_dir, "standard", WINANSI_FILL)
 
         check_fill("pdf.js", fill_pdfjs, path, label, out_dir, "type0", GREEK_FILL)
+        bordered = check_border_fill(path, label, out_dir) or bordered
+
+    report(bordered, "a bordered field was checked", "" if bordered else "no file has one")
 
     if failures:
         print(f"{len(failures)} check(s) failed")
