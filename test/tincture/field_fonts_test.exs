@@ -6,7 +6,8 @@ defmodule Tincture.FieldFontsTest do
   dictionary any page text in that font uses, over one font program. A field
   someone can type into needs its font embedded whole, covering every
   character of its cmap, and licensed for editable embedding. A form whose
-  fields use only the standard 14 is written exactly as before.
+  fields use only the standard 14 writes the same font dictionaries as before;
+  since 0.3.11 `/DR` references them as indirect objects.
   """
   use ExUnit.Case, async: true
 
