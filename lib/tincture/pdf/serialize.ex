@@ -33,7 +33,6 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.PDF.PathState
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
-  alias Tincture.PDF.WinAnsi
   alias Tincture.Telemetry
 
   @doc false
@@ -885,14 +884,16 @@ defmodule Tincture.PDF.Serialize do
   # What font embedding has to know about the fields: the text each embedded
   # field font must draw; that every such font is Type0, since /DA names it;
   # and, for editable fields, that the font is whole and covers its whole
-  # cmap. The text is each field's appearance stream, exactly what it draws,
+  # cmap. The text is each field's appearance stream, exactly what it draws -
+  # a text or choice value, a push button's caption, a signature's label -
   # plus, for a choice field, every option as an operation list keyed
   # {:field, name} that is never written: a viewer draws whichever option
   # someone picks. A standard-14 field contributes nothing.
   defp field_font_plan(%PDF{} = pdf, appearances) do
     fields =
       Enum.filter(pdf.form_fields, fn field ->
-        field.type in [:text, :choice] and Map.has_key?(pdf.embedded_fonts, field.font)
+        field.type in [:text, :choice, :push_button, :signature] and
+          Map.has_key?(pdf.embedded_fonts, field.font)
       end)
 
     editable = Enum.filter(fields, &PDF.editable_field?/1)
@@ -903,11 +904,11 @@ defmodule Tincture.PDF.Serialize do
           into: MapSet.new(),
           do: field.font
 
+    # An invisible signature field has no appearance, and draws nothing.
     drawn =
-      Enum.map(fields, fn field ->
-        appearance = Map.fetch!(appearances, field.name)
+      for field <- fields, appearance = Map.get(appearances, field.name), appearance != nil do
         {appearance.key, appearance.content}
-      end)
+      end
 
     options = for %{type: :choice} = field <- fields, do: field_options_stream(field)
 
@@ -1231,14 +1232,25 @@ defmodule Tincture.PDF.Serialize do
 
   # How many objects each field's builder below writes, by type: a radio group
   # its parent and, per button, a kid with an on and an off appearance; a
-  # checkbox the field and both states; a push button and a text or choice
-  # field the field and one appearance; anything else the field alone.
+  # checkbox the field and both states; a push button, a text or choice field
+  # and a visible signature field the field and one appearance; an invisible
+  # signature field the field alone.
   defp form_field_object_count(form_fields) do
     Enum.reduce(form_fields, 0, fn
-      %{type: :radio, widgets: widgets}, count -> count + 1 + 3 * length(widgets)
-      %{type: :checkbox}, count -> count + 3
-      %{type: type}, count when type in [:push_button, :text, :choice] -> count + 2
-      _field, count -> count + 1
+      %{type: :radio, widgets: widgets}, count ->
+        count + 1 + 3 * length(widgets)
+
+      %{type: :checkbox}, count ->
+        count + 3
+
+      %{type: :signature, rect: rect}, count ->
+        if Appearance.zero_size?(rect), do: count + 1, else: count + 2
+
+      %{type: type}, count when type in [:push_button, :text, :choice] ->
+        count + 2
+
+      _field, count ->
+        count + 1
     end)
   end
 
@@ -1252,8 +1264,8 @@ defmodule Tincture.PDF.Serialize do
         %{type: type} = field, id when type in [:text, :choice] ->
           build_variable_text_field(field, page_object_refs, id, context)
 
-        %{type: :push_button} = field, id ->
-          build_push_button(field, page_object_refs, id, context)
+        %{type: type} = field, id when type in [:push_button, :signature] ->
+          build_drawn_field(field, page_object_refs, id, context)
 
         field, id ->
           build_form_field(field, page_object_refs, id)
@@ -1345,21 +1357,41 @@ defmodule Tincture.PDF.Serialize do
   end
 
   # A push button's face is entirely appearance - it has no value to render -
-  # so without a stream there is nothing to see at all.
-  defp build_push_button(field, page_object_refs, id, context) do
-    appearance_id = id + 1
+  # so without a stream there is nothing to see at all. A visible signature
+  # field carries one too, empty or with its :label, as every annotation
+  # must (PDFA-2B 6.3.3-1); an invisible one, with a zero rectangle, carries
+  # none, which that rule exempts. An embedded font's /DA names the size the
+  # appearance draws at, as a text field's does.
+  defp build_drawn_field(field, page_object_refs, id, context) do
     page_ref = Map.fetch!(page_object_refs, field.page_number)
 
-    built = %{
-      field_ref: id,
-      widget_refs: [{id, field.page_number}],
-      objects: [
-        form_field_object_body(field, page_ref, " /AP << /N #{appearance_id} 0 R >>"),
-        push_button_appearance_object_body(field, context.stream_refs)
-      ]
-    }
+    case Map.fetch(context.appearances, field.name) do
+      {:ok, appearance} ->
+        appearance_id = id + 1
 
-    {built, id + 2}
+        built = %{
+          field_ref: id,
+          widget_refs: [{id, field.page_number}],
+          objects: [
+            form_field_object_body(
+              default_appearance_size(field, appearance),
+              page_ref,
+              " /AP << /N #{appearance_id} 0 R >>"
+            ),
+            drawn_appearance_object_body(
+              field,
+              appearance,
+              context.stream_refs,
+              context.dr_font_refs
+            )
+          ]
+        }
+
+        {built, id + 2}
+
+      :error ->
+        build_form_field(field, page_object_refs, id)
+    end
   end
 
   # A text or choice field's widget, then its appearance stream: the value as
@@ -1432,24 +1464,18 @@ defmodule Tincture.PDF.Serialize do
   # through Identity-H, as page text is. The border is drawn outside the /Tx
   # marked content, which a viewer regenerating the appearance replaces.
   defp appearance_object_body(field, appearance, refs, dr_font_refs) do
-    text_mode = if Font.standard_font?(field.font), do: :win_ansi
-
-    font = %{
-      name: field.font,
-      alias: acro_form_font_alias(field.font),
-      resource: "#{Map.fetch!(dr_font_refs, field.font)} 0 R",
-      text_mode: text_mode
-    }
-
     form_xobject(
       {0, 0, appearance.width, appearance.height},
-      widget_stream({:tx, appearance.border, appearance.content}, [font], refs)
+      widget_stream(
+        {:tx, appearance.border, appearance.content},
+        [widget_font(field, dr_font_refs)],
+        refs
+      )
     )
   end
 
   # A widget appearance's content and resources. Each font is named by the
-  # field's /DA alias and given as its resource value: the /DR object, or,
-  # in stage 6a only, the push button's inline caption dictionary. A text
+  # field's /DA alias and given as its resource value, the /DR object. A text
   # mode, when given, overrides how the font's strings are encoded. A
   # variable-text appearance, {:tx, border, content}, has its content inside
   # /Tx marked content and its border before it.
@@ -1693,56 +1719,32 @@ defmodule Tincture.PDF.Serialize do
     )
   end
 
-  defp push_button_appearance_object_body(field, refs) do
-    {x1, y1, x2, y2} = field.rect
-    width = x2 - x1
-    height = y2 - y1
+  # A push button's or a signature's appearance: its border, then its content
+  # (a face and caption, or a label), with no /Tx marking. When it draws text,
+  # its font is the /DR object under the field's /DA alias, as every widget
+  # appearance's is; with no text its resources are empty.
+  defp drawn_appearance_object_body(field, appearance, refs, dr_font_refs) do
+    fonts = if text_drawn?(appearance.content), do: [widget_font(field, dr_font_refs)], else: []
+    operations = appearance.border ++ appearance.content
 
-    face = [
-      {:set_fill_color, {0.93, 0.93, 0.94}},
-      {:rectangle, 0, 0, width, height, :fill},
-      # Stage 6a only: removed in stage 6b, which writes
-      # {:set_stroke_color, {0.55, 0.57, 0.6}}.
-      {:set_stroke_color_preformatted, "0.55 0.57 0.60"},
-      {:set_line_width, 0.75},
-      {:rectangle, 0.4, 0.4, width - 0.8, height - 0.8, :stroke}
-    ]
-
-    {caption, fonts} = push_button_caption(field, width, height)
-    form_xobject({0, 0, width, height}, widget_stream(face ++ caption, fonts, refs))
+    form_xobject(
+      {0, 0, appearance.width, appearance.height},
+      widget_stream(operations, fonts, refs)
+    )
   end
 
-  # The caption is centred, which needs its width - so it is measured with the
-  # same standard-font metrics the viewer will use.
-  #
-  # Stage 6a only: the caption font is the inline Type1 dictionary it has
-  # always been, named /Helv whatever the field's font, rather than /DR's
-  # object under the /DA alias. Removed in stage 6b.
-  defp push_button_caption(%{label: label} = field, width, height) when is_binary(label) do
-    size = if field.size == 0, do: min(height * 0.5, 12), else: field.size
-    text_width = Font.text_width(field.font, size, label)
-    x = max((width - text_width) / 2, 2)
-    y = (height - size * 0.72) / 2
+  defp text_drawn?(operations), do: Enum.any?(operations, &match?({:text_at, _, _, _, _}, &1))
 
-    inline_font = %{
+  # The field's font as a widget appearance names it: the /DA alias, and the
+  # /DR object. A standard font is drawn in WinAnsi, the encoding /DR gives
+  # it; an embedded one through Identity-H, as page text is.
+  defp widget_font(field, dr_font_refs) do
+    %{
       name: field.font,
-      alias: "/Helv",
-      resource:
-        "<< /Type /Font /Subtype /Type1 /BaseFont /#{Object.sanitize_name(field.font)}" <>
-          " /Encoding /WinAnsiEncoding >>",
-      text_mode: caption_text_mode(label)
+      alias: acro_form_font_alias(field.font),
+      resource: "#{Map.fetch!(dr_font_refs, field.font)} 0 R",
+      text_mode: if(Font.standard_font?(field.font), do: :win_ansi)
     }
-
-    {[{:set_fill_gray, 0}, {:text_at, x, y, label, {field.font, size}}], [inline_font]}
-  end
-
-  defp push_button_caption(_field, _width, _height), do: {[], []}
-
-  # The caption font's encoding is WinAnsi, so its bytes must be WinAnsi codes.
-  # A label WinAnsi cannot encode has warned since 0.3.6, and keeps the bytes
-  # it was always written with until 0.4.0 refuses it.
-  defp caption_text_mode(label) do
-    if WinAnsi.first_unencodable(label) == nil, do: :win_ansi, else: :pdf_text
   end
 
   # Every form XObject, public or a widget appearance: its bounding box, and
@@ -1770,8 +1772,10 @@ defmodule Tincture.PDF.Serialize do
 
   defp button_action_entry(_field), do: ""
 
-  # /MK /CA is the caption a viewer draws on the button face.
-  defp button_caption_entry(%{label: label}) when is_binary(label),
+  # /MK /CA is the caption a viewer draws on the button face. It is for
+  # button fields only (ISO 32000-1 Table 189), so a signature's :label,
+  # which its appearance draws, is not written there.
+  defp button_caption_entry(%{type: :push_button, label: label}) when is_binary(label),
     do: " /MK << /CA #{Object.format_text(label)} >>"
 
   defp button_caption_entry(_field), do: ""
@@ -2152,11 +2156,6 @@ defmodule Tincture.PDF.Serialize do
         |> String.trim_trailing("\n")
         |> String.replace("\n", " ")
         |> Kernel.<>("\n")
-
-      # Stage 6a only: the push-button face's stroke colour as it has always
-      # been written. Stage 6b writes it with :set_stroke_color.
-      {:set_stroke_color_preformatted, components} ->
-        "#{components} RG\n"
 
       {:move_to, x, y} ->
         "#{Object.num(x)} #{Object.num(y)} m\n"

@@ -441,8 +441,14 @@ defmodule Tincture.FormTest do
       assert shown == ~S"(Gr\366\337e)"
       assert binary =~ "/MK << /CA <FEFF0047007200F600DF0065> >>"
 
+      # The caption's font is /DR's object under the /DA alias, the
+      # WinAnsi-encoded Type1 dictionary, not an inline copy.
+      [_, id] = Regex.run(~r"/Resources << /Font << /Helv (\d+) 0 R >> >>", binary)
+      assert binary =~ "/DR << /Font << /Helv #{id} 0 R >> >>"
+
       assert binary =~
-               "/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+               "\n#{id} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica " <>
+                 "/Encoding /WinAnsiEncoding >>\nendobj"
     end
 
     test "an ASCII label is written as before" do

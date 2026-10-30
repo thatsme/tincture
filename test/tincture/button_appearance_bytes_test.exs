@@ -5,11 +5,16 @@ defmodule Tincture.ButtonAppearanceBytesTest do
 
   Pinned before the button builders moved from assembled strings to
   operation lists, so that the move is proved to write the same bytes: each
-  document's widget dictionaries and appearance streams, whole, as the
-  string builders wrote them. A push button's caption size is the float
-  `12.0` in a 24-point button and the integer `12` in a 26-point one, from
-  `min(height * 0.5, 12)`; its inline caption font is named `/Helv` whatever
-  the field's font.
+  document's widget dictionaries and appearance streams, whole. A push
+  button's caption size is the float `12.0` in a 24-point button and the
+  integer `12` in a 26-point one, from `min(height * 0.5, 12)`.
+
+  The checkbox and radio rows have not moved since. Stage 6b changed the
+  push-button and signature rows, and only these: a push button's caption
+  font is `/DR`'s object under the field's `/DA` alias, where it was an
+  inline Type1 dictionary always named `/Helv`; its face's stroke colour is
+  written `0.6`, where it was `0.60`; and a visible signature field carries
+  an empty appearance, where it had none.
   """
   use ExUnit.Case, async: true
 
@@ -154,12 +159,12 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Length 129 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv 7 0 R >> >> /Length 128 >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
              f
-             0.55 0.57 0.60 RG
+             0.55 0.57 0.6 RG
              0.75 w
              0.4 0.4 89.2 23.2 re
              S
@@ -187,12 +192,12 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 168 726] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 96 26] /Resources << /Font << /Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Length 127 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 96 26] /Resources << /Font << /Helv 7 0 R >> >> /Length 126 >>
              stream
              0.93 0.93 0.94 rg
              0 0 96 26 re
              f
-             0.55 0.57 0.60 RG
+             0.55 0.57 0.6 RG
              0.75 w
              0.4 0.4 95.2 25.2 re
              S
@@ -208,7 +213,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              """
     end
 
-    test "in Courier, whose inline caption font is still named /Helv" do
+    test "in Courier, whose caption font is /DR's Courier under its /DA alias" do
       pdf =
         Tincture.push_button(Tincture.new(), 72, 700, 90, 24, "send",
           label: "Send",
@@ -221,18 +226,18 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Courier 0 Tf 0 g) /A << /S /ResetForm >> /MK << /CA (Send) >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv << /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >> >> >> /Length 128 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Courier 7 0 R >> >> /Length 130 >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
              f
-             0.55 0.57 0.60 RG
+             0.55 0.57 0.6 RG
              0.75 w
              0.4 0.4 89.2 23.2 re
              S
              0 g
              BT
-             /Helv 12.0 Tf
+             /Courier 12.0 Tf
              30.6 7.68 Td
              (Send) Tj
              ET
@@ -250,12 +255,12 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /A << /S /ResetForm >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << >> /Length 81 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << >> /Length 80 >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
              f
-             0.55 0.57 0.60 RG
+             0.55 0.57 0.6 RG
              0.75 w
              0.4 0.4 89.2 23.2 re
              S
@@ -266,12 +271,18 @@ defmodule Tincture.ButtonAppearanceBytesTest do
     end
   end
 
-  test "a signature field, which carries no appearance" do
+  test "a visible signature field without a label, whose appearance is empty" do
     pdf = Tincture.signature_field(Tincture.new(), 72, 600, 200, 40, "sig")
 
     assert objects(pdf) == ~S"""
            5 0 obj
-           << /Type /Annot /Subtype /Widget /FT /Sig /T (sig) /Rect [72 600 272 640] /P 3 0 R /F 4 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) >>
+           << /Type /Annot /Subtype /Widget /FT /Sig /T (sig) /Rect [72 600 272 640] /P 3 0 R /F 4 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /AP << /N 6 0 R >> >>
+           endobj
+           6 0 obj
+           << /Type /XObject /Subtype /Form /BBox [0 0 200 40] /Resources << >> /Length 0 >>
+           stream
+
+           endstream
            endobj
            """
   end

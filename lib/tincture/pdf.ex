@@ -8,6 +8,7 @@ defmodule Tincture.PDF do
   alias Tincture.Font.TTF
   alias Tincture.PDF.Accessibility
   alias Tincture.PDF.FigureBounds
+  alias Tincture.PDF.Object
   alias Tincture.PDF.Page
   alias Tincture.PDF.Sign
   alias Tincture.PDF.Structure
@@ -1518,6 +1519,7 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:align, normalize_align(type, Keyword.get(opts, :align)))
       |> Map.put(:created_outside_structure, pdf.structure_stack == [])
 
+    refuse_invisible_signature!(field, {x1, y1, x2, y2}, Keyword.get(opts, :invisible))
     refuse_unusable_field_font!(pdf, field)
     refuse_unencodable_field_text!(field)
     refuse_value_outside_options!(field)
@@ -1544,6 +1546,39 @@ defmodule Tincture.PDF do
 
   defp normalize_align(type, _align),
     do: raise(ArgumentError, "#{type} fields do not take :align")
+
+  # An invisible signature field has a zero rectangle and no appearance, so it
+  # is stored as that rectangle and nothing else marks it: all four position
+  # arguments must be 0, and it can draw no :label. ISO 32000-1 12.7.4.5:
+  # "Signature fields that are not intended to be visible shall have an
+  # annotation rectangle that has zero height and width."
+  defp refuse_invisible_signature!(%{type: :signature} = field, {x1, y1, x2, y2}, true) do
+    if Map.has_key?(field, :label) do
+      raise ArgumentError,
+            "signature field #{inspect(field.name)} is invisible: true and has a :label. An " <>
+              "invisible signature has no appearance to draw the label in. Remove the :label, " <>
+              "or drop invisible: true."
+    end
+
+    unless {x1, y1, x2, y2} == {0, 0, 0, 0} do
+      raise ArgumentError,
+            "signature field #{inspect(field.name)} is invisible: true, but was given the " <>
+              "rectangle x #{Object.num(x1)}, y #{Object.num(y1)}, width " <>
+              "#{Object.num(x2 - x1)}, height #{Object.num(y2 - y1)}. An invisible " <>
+              "signature's rectangle is [0 0 0 0]: pass 0, 0, 0, 0, or drop invisible: true."
+    end
+
+    :ok
+  end
+
+  defp refuse_invisible_signature!(%{type: :signature}, _rect, invisible)
+       when invisible in [nil, false],
+       do: :ok
+
+  defp refuse_invisible_signature!(%{type: :signature}, _rect, other),
+    do: raise(ArgumentError, "invisible must be a boolean, got: #{inspect(other)}")
+
+  defp refuse_invisible_signature!(_field, _rect, _invisible), do: :ok
 
   # A choice field that is not editable can only hold one of its options: /V
   # names "the selected item, as given in the field dictionary's Opt array"
@@ -1574,7 +1609,7 @@ defmodule Tincture.PDF do
   # Anywhere else - a single-line value, an option, a label - a line break is
   # checked like any other character.
   defp refuse_unencodable_field_text!(%{type: type, font: font} = field)
-       when type in [:text, :choice, :push_button] do
+       when type in [:text, :choice, :push_button, :signature] do
     texts =
       [checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)]
 
@@ -1768,11 +1803,11 @@ defmodule Tincture.PDF do
   # "0.0 Tf" - both are legal, but the integer form is what every other
   # generator emits and what a human reading the PDF expects.
   # A field's value is rendered by the viewer from its /DA string, which
-  # resolves against the AcroForm resource dictionary. A text or choice field
-  # may name a registered font: /DR then references its embedded Type0
-  # dictionary. Every other field keeps the standard 14 - a push button's
-  # caption is drawn with standard metrics into an inline Type1 dictionary,
-  # which cannot name an embedded font.
+  # resolves against the AcroForm resource dictionary. A field that draws
+  # text - a text or choice field's value, a push button's caption, a
+  # signature's label - may name a registered font: /DR then references its
+  # embedded Type0 dictionary. A checkbox or radio button draws no text, and
+  # keeps the standard 14.
   defp normalize_field_font(%__MODULE__{} = pdf, type, name, font_name)
        when is_binary(font_name) do
     cond do
@@ -1784,14 +1819,16 @@ defmodule Tincture.PDF do
               "form field font #{inspect(font_name)} is neither one of the standard 14 fonts " <>
                 "nor a font registered with register_ttf_font/4 or register_otf_font/4."
 
-      type in [:text, :choice] ->
+      type in [:text, :choice, :push_button, :signature] ->
         font_name
 
       true ->
+        kind = Accessibility.field_kind(type)
+
         raise ArgumentError,
-              "#{Accessibility.field_kind(type)} #{inspect(name)} uses the embedded font " <>
-                "#{inspect(font_name)}, but only text and choice fields can use an embedded " <>
-                "font; other fields use one of the standard 14 fonts."
+              "#{kind} #{inspect(name)} uses the embedded font #{inspect(font_name)}, but a " <>
+                "#{kind} draws no text, so it has no use for one; checkboxes and radio " <>
+                "buttons use one of the standard 14 fonts."
     end
   end
 
@@ -1979,6 +2016,12 @@ defmodule Tincture.PDF do
 
   defp normalize_label(:push_button, other),
     do: raise(ArgumentError, "button :label must be a string, got: #{inspect(other)}")
+
+  defp normalize_label(:signature, nil), do: nil
+  defp normalize_label(:signature, label) when is_binary(label), do: label
+
+  defp normalize_label(:signature, other),
+    do: raise(ArgumentError, "signature :label must be a string, got: #{inspect(other)}")
 
   defp normalize_label(_type, nil), do: nil
 
