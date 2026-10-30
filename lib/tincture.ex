@@ -580,7 +580,10 @@ defmodule Tincture do
     * `:allow_deselect` — let clicking the selected button turn it off again.
       Defaults to `false`, which is what a radio group usually means.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:font`, `:size` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:font` — as for `text_field/7`.
+    * `:size` — the font size written in the group's `/DA`. Defaults to `0`,
+      meaning auto-size. The ring and dot Tincture draws take their size from
+      each button's own `:size`, not from this option.
     * `:page` — the default page for buttons that do not name their own.
 
   In a tagged document, the group needs one `:tooltip` and must be created
@@ -615,7 +618,10 @@ defmodule Tincture do
       * `{:submit, url}` — submit the form's values to a URL.
     * `:label` — the caption drawn on the button face.
     * `:read_only`, `:required`, `:no_export` — field flags.
-    * `:tooltip`, `:border`, `:font`, `:size`, `:page` — as for `text_field/7`.
+    * `:tooltip`, `:border`, `:font`, `:page` — as for `text_field/7`.
+    * `:size` — the caption's font size, also named in the button's `/DA`.
+      Defaults to `0`: the caption is then drawn at half the button's height,
+      at most 12.
 
   In a tagged document, a push button needs a `:tooltip` and must be created
   inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
