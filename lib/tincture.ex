@@ -519,6 +519,20 @@ defmodule Tincture do
   `enforce_embedding_permissions:` was given at registration. A read-only
   field's font is subset to its value, like page text.
 
+  A value with a character the embedded font has no glyph for raises
+  `ArgumentError`, naming each such character: the font would draw it as a
+  blank. A variation selector is not counted. The same holds for a choice
+  field's options (`choice_field/7`), a push button's caption
+  (`push_button/7`) and a signature field's label (`signature_field/7`).
+
+  ## In a PDF/A document
+
+  A document that declares PDF/A (`set_pdf_a/2`) requires every font a field
+  draws with to be embedded, so a text or choice field there must use a
+  registered font: `export/2` refuses one in a standard-14 font, naming the
+  field. The field's `/DA` names that font, and the form's `/DR` lists only
+  the fonts its fields draw with.
+
   ## Examples
 
       pdf
@@ -640,6 +654,11 @@ defmodule Tincture do
   (`text_field/7`); for other characters, use a registered font. A line break
   in a label raises.
 
+  A document that declares PDF/A refuses a push button at `export/2`: its
+  widget carries an action, which PDF/A forbids on a widget, and its
+  appearance is a single stream, where PDF/A requires a button's to be a
+  dictionary of states. See `set_pdf_a/2`.
+
   ## Examples
 
       pdf
@@ -667,8 +686,10 @@ defmodule Tincture do
   A visible field carries its own appearance stream: empty, or with `:label`
   one line of text, drawn the same in every viewer and in print. The
   appearance is written before the document is signed, so the label lies
-  inside the bytes the signature covers. A document that declares PDF/A
-  refuses to export with a signature field.
+  inside the bytes the signature covers. A signature field may be part of a
+  document that declares PDF/A (`set_pdf_a/2`); there, a `:label` must use a
+  registered font, and a field without a label writes no `/DA`, since it
+  draws no text.
 
   ## Options
 
@@ -2064,9 +2085,18 @@ defmodule Tincture do
 
     * a font that is not embedded, so the standard 14 are not usable, since
       they are referenced by name rather than embedded;
+    * a form field that draws text in a font that is not embedded: a text or
+      choice field, or a signature field with a `:label`, in one of the
+      standard 14, named in the message;
     * encryption;
-    * text and choice fields, signature fields and push buttons;
+    * push buttons;
     * at `:a2a` and `:a3a`, a document that is not tagged.
+
+  Text and choice fields, checkboxes, radio groups and signature fields are
+  allowed: each carries its own appearance. In such a document a field names
+  a font in its default appearance (`/DA`) only if it draws text with it, so
+  a checkbox, a radio group or a signature field without a label names none,
+  and the form names no font it does not embed.
 
   `pdf_a_violations/1` lists the same violations without exporting. See
   `Tincture.PDF.Archival`.

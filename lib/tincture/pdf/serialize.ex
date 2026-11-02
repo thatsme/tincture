@@ -53,6 +53,7 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp do_export(%PDF{} = pdf) do
+    pdf = mark_named_fonts(pdf)
     {page_width, page_height} = Page.media_box(pdf.page_size)
     page_numbers = PDF.page_numbers(pdf)
     page_count = length(page_numbers)
@@ -378,7 +379,8 @@ defmodule Tincture.PDF.Serialize do
       end
 
     "<< /Type /Catalog /Pages 2 0 R#{outlines}" <>
-      "#{acro_form_entry(form_field_refs, form_fields, dr_font_refs)}#{structure}#{language}" <>
+      "#{acro_form_entry(form_field_refs, form_fields, dr_font_refs, pdf.pdf_a)}" <>
+      "#{structure}#{language}" <>
       "#{metadata}#{viewer_preferences}#{output_intent} >>"
   end
 
@@ -811,9 +813,33 @@ defmodule Tincture.PDF.Serialize do
   defp bbox_entry({left, bottom, right, top}),
     do: "/BBox [#{Enum.map_join([left, bottom, right, top], " ", &Object.num/1)}]"
 
-  defp acro_form_entry([], _form_fields, _dr_font_refs), do: ""
+  # In a document that declares PDF/A, a field names a font in /DA, and that
+  # font enters /DR, only if its appearance draws text with it: a text or
+  # choice field, or a push button or signature field with a :label. A
+  # checkbox, a radio group and an unlabelled signature name none, so the
+  # document never names a font it does not embed: a viewer that redraws a
+  # field draws with its /DA font. Outside PDF/A every field writes /DA, as
+  # before.
+  defp mark_named_fonts(%PDF{pdf_a: nil} = pdf), do: pdf
 
-  defp acro_form_entry(form_field_refs, form_fields, dr_font_refs) do
+  defp mark_named_fonts(%PDF{} = pdf) do
+    %PDF{pdf | form_fields: Enum.map(pdf.form_fields, &Map.put(&1, :names_font, draws_text?(&1)))}
+  end
+
+  defp draws_text?(%{type: type}) when type in [:text, :choice], do: true
+  defp draws_text?(field), do: Map.has_key?(field, :label)
+
+  defp names_font?(field), do: Map.get(field, :names_font, true)
+
+  defp default_appearance_key(field) do
+    if names_font?(field),
+      do: " /DA #{Object.format_text(field_appearance_string(field))}",
+      else: ""
+  end
+
+  defp acro_form_entry([], _form_fields, _dr_font_refs, _pdf_a), do: ""
+
+  defp acro_form_entry(form_field_refs, form_fields, dr_font_refs, pdf_a) do
     fields = Enum.map_join(form_field_refs, " ", fn id -> "#{id} 0 R" end)
 
     # Every text and choice field carries its own appearance stream, and
@@ -833,19 +859,30 @@ defmodule Tincture.PDF.Serialize do
       if Enum.any?(form_fields, &(&1.type == :signature)), do: " /SigFlags 3", else: ""
 
     " /AcroForm << /Fields [#{fields}]#{signature_flags}" <>
-      default_appearance_entry(form_fields) <>
-      " /DR << /Font << #{acro_form_font_resources(dr_font_refs)} >> >> >>"
+      default_appearance_entry(form_fields, pdf_a) <>
+      default_resources_entry(dr_font_refs) <> " >>"
   end
 
   # The document-level default appearance. Its font must be one /DR holds
   # (ISO 32000-1 12.7.3.3), and /DR holds only the fields' own fonts, so it is
   # written only when some field uses Helvetica. Every widget carries its own
-  # /DA, so leaving it out loses nothing; the key is optional.
-  defp default_appearance_entry(form_fields) do
+  # /DA, so leaving it out loses nothing; the key is optional. A document
+  # that declares PDF/A writes none: every field that draws text names its
+  # own font, so nothing is left to default.
+  defp default_appearance_entry(form_fields, nil) do
     if Enum.any?(form_fields, &(&1.font == "Helvetica")),
       do: " /DA #{Object.format_text("/Helv 0 Tf 0 g")}",
       else: ""
   end
+
+  defp default_appearance_entry(_form_fields, _pdf_a), do: ""
+
+  # /DR is optional (ISO 32000-1 Table 218). It is empty only in a document
+  # that declares PDF/A whose fields draw no text, and is then left out.
+  defp default_resources_entry([]), do: ""
+
+  defp default_resources_entry(dr_font_refs),
+    do: " /DR << /Font << #{acro_form_font_resources(dr_font_refs)} >> >>"
 
   # Every /DR font is an object of its own, which /DR references. ISO 32000-1
   # 7.3.10 allows the dictionary inline as well - "the semantics are
@@ -856,7 +893,7 @@ defmodule Tincture.PDF.Serialize do
   # reference to the very Type0 dictionary page text uses: one dictionary, one
   # program.
   defp build_dr_font_objects(form_fields, embedded_font_refs, start_id) do
-    fonts = form_fields |> Enum.map(& &1.font) |> Enum.uniq()
+    fonts = form_fields |> Enum.filter(&names_font?/1) |> Enum.map(& &1.font) |> Enum.uniq()
     standard_fonts = Enum.reject(fonts, &Map.has_key?(embedded_font_refs, &1))
     standard_refs = Map.new(Enum.with_index(standard_fonts, start_id))
 
@@ -1582,7 +1619,7 @@ defmodule Tincture.PDF.Serialize do
       " /F 4" <>
       flags_entry(field.flags) <>
       annotation_border_entry_for(field.border) <>
-      " /DA #{Object.format_text(field_appearance_string(field))}" <>
+      default_appearance_key(field) <>
       field_value_entries(field) <>
       signature_value_entry(field) <>
       max_length_entry(field) <>
@@ -1663,7 +1700,7 @@ defmodule Tincture.PDF.Serialize do
     "<< /FT /Btn /T #{Object.format_text(field.name)}" <>
       flags_entry(field.flags) <>
       radio_value_entries(field.value) <>
-      " /DA #{Object.format_text(field_appearance_string(field))}" <>
+      default_appearance_key(field) <>
       tooltip_entry(field) <>
       " /Kids [#{kid_refs}] >>"
   end

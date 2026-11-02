@@ -73,36 +73,99 @@ defmodule Tincture.PDFAEnforcementTest do
   end
 
   describe "form fields" do
-    test "text fields are refused: /DA and /DR are not yet written as PDF/A needs", %{
-      font: font
-    } do
-      pdf = Tincture.text_field(archival(font), 50, 600, 200, 20, "name")
+    test "a text field in an embedded font exports", %{font: font} do
+      pdf =
+        Tincture.text_field(archival(font), 50, 600, 200, 20, "name",
+          font: "Body",
+          full_font: true,
+          value: "AB"
+        )
 
-      assert :value_rendered_field in rules(pdf)
-
-      assert_raise ArgumentError,
-                   ~r/must be the field's own embedded font, and Tincture does not yet write \/DA and \/DR that way/,
-                   fn -> Tincture.export(pdf) end
+      assert rules(pdf) == []
+      assert Tincture.export(pdf) =~ "/FT /Tx"
     end
 
-    test "choice fields are refused for the same reason", %{font: font} do
-      pdf = Tincture.choice_field(archival(font), 50, 600, 120, 20, "pick", options: ["a", "b"])
+    test "a choice field in an embedded font exports", %{font: font} do
+      pdf =
+        Tincture.choice_field(archival(font), 50, 600, 120, 20, "pick",
+          options: ["A", "B"],
+          value: "A",
+          font: "Body"
+        )
 
-      assert :value_rendered_field in rules(pdf)
+      assert rules(pdf) == []
+      assert Tincture.export(pdf) =~ "/FT /Ch"
     end
 
-    test "signature fields are refused: nothing to draw until signed", %{font: font} do
+    test "a visible signature field exports, with its appearance", %{font: font} do
       pdf = Tincture.signature_field(archival(font), 50, 600, 200, 40, "sig")
 
-      assert :signature_field in rules(pdf)
-      assert_raise ArgumentError, ~r/signature field/, fn -> Tincture.export(pdf) end
+      assert rules(pdf) == []
+      assert Tincture.export(pdf) =~ ~r|/FT /Sig /T \(sig\) [^\n]*/AP << /N \d+ 0 R >>|
     end
 
-    test "push buttons are refused: a widget may not carry an action", %{font: font} do
-      pdf = Tincture.push_button(archival(font), 50, 600, 80, 24, "b", label: "B", action: :reset)
+    test "an invisible signature field and a labelled one export", %{font: font} do
+      pdf =
+        archival(font)
+        |> Tincture.signature_field(0, 0, 0, 0, "approval", invisible: true)
+        |> Tincture.signature_field(50, 600, 200, 40, "sig", label: "AB", font: "Body")
 
-      assert :push_button in rules(pdf)
-      assert_raise ArgumentError, ~r|/A action|, fn -> Tincture.export(pdf) end
+      assert rules(pdf) == []
+      assert Tincture.export(pdf) =~ "/SigFlags 3"
+    end
+
+    test "a field that draws text in a standard-14 font is refused, naming the field", %{
+      font: font
+    } do
+      pdf =
+        archival(font)
+        |> Tincture.text_field(50, 600, 200, 20, "name")
+        |> Tincture.choice_field(50, 560, 120, 20, "pick", options: ["a", "b"])
+        |> Tincture.signature_field(50, 500, 200, 40, "sig", label: "Signed")
+
+      assert rules(pdf) == [:unembedded_font, :unembedded_font, :unembedded_font]
+
+      error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
+
+      for name <- ["name", "pick", "sig"] do
+        assert error.message =~
+                 ~s(field "#{name}" draws with "Helvetica", which is not embedded. PDF/A ) <>
+                   "requires every font a field draws with to be carried in the file, so a " <>
+                   "text, choice or labelled signature field cannot use the standard 14. " <>
+                   "Register a TrueType or OpenType font with register_ttf_font/4 or " <>
+                   "register_otf_font/4 and pass it as the field's :font. " <>
+                   "(ISO 19005-2 clause 6.2.11.4.1)"
+      end
+    end
+
+    test "a signature without a label draws no text, so its font is not checked", %{font: font} do
+      pdf = Tincture.signature_field(archival(font), 50, 600, 200, 40, "sig", font: "Courier")
+
+      assert rules(pdf) == []
+    end
+
+    test "push buttons are refused, for their action and their single appearance", %{
+      font: font
+    } do
+      pdf =
+        Tincture.push_button(archival(font), 50, 600, 80, 24, "b",
+          label: "AB",
+          font: "Body",
+          action: {:url, "https://example.com"}
+        )
+
+      assert rules(pdf) == [:push_button]
+
+      assert_raise ArgumentError,
+                   "this document declares PDF/A-2B but does not conform:\n" <>
+                     ~s{  * 1 push button(s) present ("b"). A push button cannot be part of a } <>
+                     "PDF/A document: its widget carries an /A action, which PDF/A forbids on " <>
+                     "a widget, and its appearance is a single stream, where PDF/A requires a " <>
+                     "button's to be a dictionary of states (ISO 19005-2 clause 6.3.3). " <>
+                     "(ISO 19005-2 clause 6.4.1)\n\nExporting would write a conformance claim " <>
+                     "into a file that does not meet it. Fix the above, drop set_pdf_a/2, or " <>
+                     "pass enforce: false to export regardless.",
+                   fn -> Tincture.export(pdf) end
     end
 
     test "checkboxes are allowed, carrying their own appearances", %{font: font} do
@@ -154,22 +217,21 @@ defmodule Tincture.PDFAEnforcementTest do
         |> Tincture.text_at(50, 600, "x")
         |> Tincture.encrypt(user_password: "secret")
         |> Tincture.text_field(50, 500, 200, 20, "name")
-        |> Tincture.signature_field(50, 450, 200, 40, "sig")
         |> Tincture.push_button(50, 400, 80, 24, "b", label: "B", action: :reset)
 
       assert Enum.sort(rules(pdf)) ==
                Enum.sort([
                  :unembedded_font,
+                 :unembedded_font,
+                 :unembedded_font,
                  :encrypted,
-                 :value_rendered_field,
-                 :signature_field,
                  :push_button,
                  :untagged
                ])
 
       error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
 
-      for clause <- ["6.2.11.4.1", "6.1.3", "6.4.1", "6.3.3", "6.8"] do
+      for clause <- ["6.2.11.4.1", "6.1.3", "6.4.1", "6.8"] do
         assert error.message =~ "ISO 19005-2 clause #{clause})"
       end
     end
@@ -280,8 +342,8 @@ defmodule Tincture.PDFAEnforcementTest do
 
       error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
 
-      assert error.message =~ "not embedded"
-      assert error.message =~ "text or choice field"
+      assert error.message =~ "these fonts are not embedded"
+      assert error.message =~ ~s(field "name" draws with "Helvetica")
       assert error.message =~ "requires a tagged document"
     end
 

@@ -1522,6 +1522,7 @@ defmodule Tincture.PDF do
     refuse_invisible_signature!(field, {x1, y1, x2, y2}, Keyword.get(opts, :invisible))
     refuse_unusable_field_font!(pdf, field)
     refuse_unencodable_field_text!(field)
+    refuse_missing_field_glyphs!(pdf, field)
     refuse_value_outside_options!(field)
 
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
@@ -1631,6 +1632,50 @@ defmodule Tincture.PDF do
   end
 
   defp refuse_unencodable_field_text!(_field), do: :ok
+
+  # An embedded font with no glyph for a character draws it as glyph 0, a
+  # blank: the field's value, an option, a caption or a label would show a
+  # gap. Fields with embedded fonts are new in 0.4.0, so this is refused from
+  # the start, with the message page text warns with in 0.3.13 (W9). A
+  # variation selector is not counted: it selects a form of the character
+  # before it, and is written as glyph 0 by design.
+  defp refuse_missing_field_glyphs!(%__MODULE__{} = pdf, %{font: font} = field) do
+    with %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
+           Map.get(pdf.embedded_fonts, font),
+         [_ | _] = missing <- missing_field_glyphs(field, cmap) do
+      raise ArgumentError, missing_glyph_message(font, missing)
+    end
+
+    :ok
+  end
+
+  defp missing_field_glyphs(field, cmap) do
+    ([checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)])
+    |> Enum.filter(&is_binary/1)
+    |> Enum.flat_map(&String.to_charlist/1)
+    |> Enum.reject(&(variation_selector?(&1) or Map.has_key?(cmap, &1)))
+    |> Enum.uniq()
+  end
+
+  defp variation_selector?(codepoint),
+    do: codepoint in 0xFE00..0xFE0F or codepoint in 0xE0100..0xE01EF
+
+  defp missing_glyph_message(font, [_one] = missing) do
+    "font #{inspect(font)} has no glyph for #{describe_characters(missing)}, which is drawn " <>
+      "as a blank. Register a font that covers it, or remove the character."
+  end
+
+  defp missing_glyph_message(font, missing) do
+    "font #{inspect(font)} has no glyph for #{describe_characters(missing)}, which are drawn " <>
+      "as blanks. Register a font that covers them, or remove the characters."
+  end
+
+  defp describe_characters(codepoints) do
+    Enum.map_join(codepoints, ", ", fn codepoint ->
+      hex = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
+      "#{inspect(<<codepoint::utf8>>, binaries: :as_strings)} (U+#{hex})"
+    end)
+  end
 
   defp checked_value(%{type: :text, value: value, flags: flags}) when is_binary(value) do
     if Bitwise.band(flags, @field_flag_multiline) != 0,
