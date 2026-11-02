@@ -315,6 +315,8 @@ jobs:
           2b archival
           2u archival
           2a archival
+          2b archival_form
+          2u archival_form
           ua1 archival
           ua1 linked/Main-report
           ua1 linked/Attached documents/Appendix-A

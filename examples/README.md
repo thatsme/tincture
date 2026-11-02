@@ -116,8 +116,9 @@ file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
     verapdf --flavour ua1 examples/output/accessible.pdf
 
 Of the other examples, `compliant.exs`, `archival.exs` and `remote_links.exs`
-are tagged and validated below. The rest are not tagged, claim no
-conformance, and are not validated.
+are tagged and validated below, and `archival_form.exs` is validated below
+without being tagged. The rest are not tagged, claim no conformance, and are
+not validated.
 
 ## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
 
@@ -183,6 +184,42 @@ PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
     verapdf --flavour 2u  examples/output/archival.pdf
     verapdf --flavour 2a  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf
+
+## [`archival_form.exs`](archival_form.exs) → [`output/archival_form.pdf`](output/archival_form.pdf)
+
+An instrument loan record: an interactive form in an archival document,
+claiming **PDF/A-2u**, which subsumes PDF/A-2b. It carries one of each field
+PDF/A allows — single-line and multiline text, a read-only text field, a combo
+box, a list box, a checkbox, a radio group and an unsigned signature field —
+and no push button, which a PDF/A document cannot carry.
+
+Shows:
+
+- **Fields in an archival document.** Every field carries its own appearance,
+  so it displays the same in every viewer and in print, and PDF/A requires
+  exactly that of every annotation.
+- **Fonts a field draws with are embedded.** The editable fields use a font
+  embedded whole (`full_font: true`), so a viewer can draw whatever someone
+  types; the read-only field uses a second font, subset to what it draws.
+  `export/2` refuses a field that draws text in one of the standard 14.
+- **Fields that draw no text name no font.** In a document that declares
+  PDF/A, a checkbox, a radio group and an unlabelled signature field carry no
+  default appearance (`/DA`), and the form names only the fonts its fields
+  draw with, all embedded.
+- **A form XObject** for the letterhead, drawn once and placed once.
+
+The script prints a checklist of each requirement and where it came from.
+
+**Validated.** Passes veraPDF 1.30.2 in CI on every commit. The example is new
+in 0.4.0, which is not yet released:
+
+| Profile | Rules | Checks |
+|---|---|---|
+| PDF/A-2b | 144 of 144 | 6075 of 6075 |
+| PDF/A-2u | 146 of 146 | 6237 of 6237 |
+
+    verapdf --flavour 2b examples/output/archival_form.pdf
+    verapdf --flavour 2u examples/output/archival_form.pdf
 
 ## [`signed.exs`](signed.exs) → [`output/signed.pdf`](output/signed.pdf)
 
