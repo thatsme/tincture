@@ -34,7 +34,9 @@ covered by the test suite only)
    remains.
 3. **Forms completed** — appearance streams for text and choice fields, now
    written, and for signature widgets, without which a signed document cannot
-   also be PDF/A; then archival and tagged documents with form fields.
+   also be PDF/A; archival documents with form fields, now allowed and
+   validated (`archival_form.pdf`, PDF/A-2b and 2u); then tagged documents
+   with form fields.
 
    This one is worth more than its own entry. An `/AP` stream is a form
    XObject: a nested content stream with its own resources, holding text laid
@@ -359,10 +361,9 @@ What remains:
 - **Incremental updates**, without which a document can carry only one
   signature and cannot be counter-signed or amended after signing.
 - **Signed archival documents** (PAdES over PDF/A). A visible signature
-  field now carries its own appearance, empty or with a `:label`, and an
-  invisible one has a zero rectangle, so the reason the PDF/A check gave for
-  rejecting a signature field no longer holds; the check itself still rejects
-  one until it is lifted.
+  field carries its own appearance, empty or with a `:label`, and an
+  invisible one has a zero rectangle, so the PDF/A check no longer rejects a
+  signature field. What remains is a validated signed archival example.
 - **PAdES subfilters.** `/adbe.pkcs7.detached` is the widely supported form;
   `/ETSI.CAdES.detached` is what the European regulation names.
 

@@ -91,8 +91,29 @@ them, and the eighth follows from them.
 - **`:align` on `text_field/7` and `choice_field/7`**: `:left` (the
   default), `:center` or `:right`, written as `/Q` and applied in the field's
   appearance.
+- **A field drawn with an embedded font that lacks a glyph raises.** A text
+  value, a choice option, a push-button caption or a signature label with a
+  character the field's embedded font has no glyph for raises at the call,
+  naming each such character: the font would draw it as a blank. Fields with
+  embedded fonts are new in this release, so no existing call is affected.
+- **`examples/archival_form.exs`**, an interactive form claiming PDF/A-2u:
+  validated by veraPDF in CI at PDF/A-2b and PDF/A-2u.
 
 ### Changed
+
+- **Text, choice and signature fields are allowed in PDF/A documents.**
+  `export/2` no longer refuses a document that declares PDF/A for carrying
+  them: each carries its own appearance. A field that draws text must use an
+  embedded font; a text, choice or labelled signature field in one of the
+  standard 14 is refused, naming the field. Push buttons are still refused,
+  and the message now gives both reasons: a widget may not carry an action,
+  and a button's appearance must be a dictionary of states.
+- **In a document that declares PDF/A, fields that draw no text name no
+  font.** A checkbox, a radio group or a signature field without a label
+  writes no `/DA`, the form writes no document-level `/DA`, and `/DR` lists
+  only the embedded fonts the fields draw with, or is left out when none
+  does. Such documents no longer name Helvetica, which they never drew with
+  and did not embed. Nothing they draw changes.
 
 - **Every text and choice field carries its own appearance.**
   `/NeedAppearances` is no longer written, and text and choice fields get a
