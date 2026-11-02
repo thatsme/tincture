@@ -18,6 +18,7 @@ defmodule Tincture.PDF.Ops do
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text)
       when is_number(x) and is_number(y) and is_binary(text) do
+    record_missing_glyphs(pdf, text)
     op = {:text_at, x, y, text, pdf.current_font}
     PDF.append_current_op(pdf, op)
   end
@@ -25,8 +26,130 @@ defmodule Tincture.PDF.Ops do
   @spec text_at_rotated(PDF.t(), number(), number(), number(), String.t()) :: PDF.t()
   def text_at_rotated(%PDF{} = pdf, x, y, angle_degrees, text)
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) do
+    record_missing_glyphs(pdf, text)
     op = {:text_at_rotated, x, y, angle_degrees, text, pdf.current_font}
     PDF.append_current_op(pdf, op)
+  end
+
+  @missing_glyphs_key {__MODULE__, :missing_glyphs}
+
+  # W9. A character an embedded font has no glyph for is written as glyph 0
+  # and drawn as a blank, which no validator reports. Every public function
+  # that draws text runs inside this scope; text_at/4 and text_at_rotated/5
+  # record into it what they draw, so text laid out word by word - a
+  # paragraph, a table, a fallback chain - is checked with the font each
+  # piece is actually drawn in. A scope opened inside another, as when a
+  # layout function calls text_at/4, adds to the outer one, so a call warns
+  # once. 0.4.0 raises.
+  @doc false
+  @spec check_missing_glyphs((-> result)) :: result when result: term()
+  def check_missing_glyphs(fun) when is_function(fun, 0) do
+    case Process.get(@missing_glyphs_key) do
+      nil ->
+        Process.put(@missing_glyphs_key, [])
+
+        try do
+          result = fun.()
+          @missing_glyphs_key |> Process.get([]) |> Enum.reverse() |> warn_missing_glyphs()
+          result
+        after
+          Process.delete(@missing_glyphs_key)
+        end
+
+      _open ->
+        fun.()
+    end
+  end
+
+  defp record_missing_glyphs(%PDF{current_font: {font_name, _size}} = pdf, text) do
+    with recorded when is_list(recorded) <- Process.get(@missing_glyphs_key),
+         %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
+           Map.get(pdf.embedded_fonts, font_name) do
+      # A code point with no cmap entry, or one mapped to glyph 0, is drawn
+      # with glyph 0 alike: a format 0 cmap lists every byte, with 0 for the
+      # ones the font lacks.
+      missing =
+        for codepoint <- String.to_charlist(text),
+            not default_ignorable?(codepoint),
+            Map.get(cmap, codepoint, 0) == 0,
+            do: {font_name, codepoint}
+
+      Process.put(@missing_glyphs_key, Enum.reverse(missing, recorded))
+    end
+
+    :ok
+  end
+
+  # A default-ignorable code point - a variation selector, a zero-width
+  # joiner or non-joiner, a zero-width space, a soft hyphen, a bidi control,
+  # a tag character - is a format or control character, not a letter to be
+  # drawn, so a font that lacks it is not reported. Whether such a character
+  # should be written at all, rather than as glyph 0, is left to 0.4.0.
+  #
+  # The set is Unicode's derived property, which the file derives from
+  # Other_Default_Ignorable_Code_Point, the format characters (Cf) and the
+  # variation selectors, less white space and a few exceptions.
+  #
+  # Default_Ignorable_Code_Point, from DerivedCoreProperties-17.0.0.txt
+  # (Unicode 17.0.0, dated 2025-07-30; the Unicode version Elixir 1.19 is
+  # built on), https://www.unicode.org/Public/17.0.0/ucd/, with adjacent
+  # entries merged: 4174 code points, the file's own total.
+  @default_ignorable [
+    0x00AD..0x00AD,
+    0x034F..0x034F,
+    0x061C..0x061C,
+    0x115F..0x1160,
+    0x17B4..0x17B5,
+    0x180B..0x180F,
+    0x200B..0x200F,
+    0x202A..0x202E,
+    0x2060..0x206F,
+    0x3164..0x3164,
+    0xFE00..0xFE0F,
+    0xFEFF..0xFEFF,
+    0xFFA0..0xFFA0,
+    0xFFF0..0xFFF8,
+    0x1BCA0..0x1BCA3,
+    0x1D173..0x1D17A,
+    0xE0000..0xE0FFF
+  ]
+
+  @doc false
+  @spec default_ignorable?(integer()) :: boolean()
+  def default_ignorable?(codepoint), do: Enum.any?(@default_ignorable, &(codepoint in &1))
+
+  defp warn_missing_glyphs([]), do: :ok
+
+  defp warn_missing_glyphs(recorded) do
+    missing = Enum.uniq(recorded)
+
+    fonts =
+      missing
+      |> Enum.map(fn {font_name, _codepoint} -> font_name end)
+      |> Enum.uniq()
+      |> Enum.map_join("; ", fn font_name ->
+        characters =
+          for {^font_name, codepoint} <- missing, do: describe_character(codepoint)
+
+        "font #{inspect(font_name)} has no glyph for #{Enum.join(characters, ", ")}"
+      end)
+
+    tail =
+      case missing do
+        [_one] ->
+          ", which is drawn as a blank. Register a font that covers it, or remove the character."
+
+        _several ->
+          ", which are drawn as blanks. Register a font that covers them, or remove the " <>
+            "characters."
+      end
+
+    IO.warn(fonts <> tail <> " This will raise in 0.4.0.")
+  end
+
+  defp describe_character(codepoint) do
+    hex = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
+    "#{inspect(<<codepoint::utf8>>, binaries: :as_strings)} (U+#{hex})"
   end
 
   @spec line(PDF.t(), number(), number(), number(), number(), PDF.paint()) :: PDF.t()

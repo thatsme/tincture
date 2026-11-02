@@ -359,7 +359,7 @@ defmodule Tincture do
   def text_link(%PDF{} = pdf, x, y, text, target) do
     PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/5")
     Ops.refuse_open_path(pdf, "Tincture.text_link/5", "the text")
-    draw_text_link(pdf, x, y, text, target, [])
+    Ops.check_missing_glyphs(fn -> draw_text_link(pdf, x, y, text, target, []) end)
   end
 
   @doc """
@@ -380,7 +380,7 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
     PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/6")
     Ops.refuse_open_path(pdf, "Tincture.text_link/6", "the text")
-    draw_text_link(pdf, x, y, text, target, opts)
+    Ops.check_missing_glyphs(fn -> draw_text_link(pdf, x, y, text, target, opts) end)
   end
 
   # text_link/5 and /6 refuse and warn under their own names, then draw here,
@@ -630,9 +630,14 @@ defmodule Tincture do
   ## Options
 
     * `:action` — required. One of:
-      * `:reset` — clear every field in the form.
+      * `:reset` — return every field to the value it was created with:
+        a field created with `:value` gets that value back, and a field
+        created without one is emptied. This is the form's reset action,
+        which restores each field's default value (`/DV`); Tincture writes
+        a field's initial value as its default.
       * `{:url, url}` — open a URL.
-      * `{:submit, url}` — submit the form's values to a URL.
+      * `{:submit, url}` — send the form's field values to `url`. See
+        "Submitting a form" below.
     * `:label` — the caption drawn on the button face.
     * `:font` — the caption's font: one of the standard 14, or a font
       registered with `register_ttf_font/4` or `register_otf_font/4`.
@@ -661,6 +666,31 @@ defmodule Tincture do
   widget carries an action, which PDF/A forbids on a widget, and its
   appearance is a single stream, where PDF/A requires a button's to be a
   dictionary of states. See `set_pdf_a/2`.
+
+  ## Submitting a form
+
+  A `{:submit, url}` button sends the form by HTTP POST, as
+  `application/x-www-form-urlencoded`: the HTML form format of ISO 32000-1,
+  `/Flags 4`. Each field is sent under its name with its current value: a
+  checkbox as its on-state name (`Yes`), a radio group as the selected
+  button's `:value`, a choice field as its selected option. A field with no
+  value is not sent, nor is a push button, nor a field created with
+  `no_export: true`.
+
+  Observed in Acrobat Reader 26.2:
+
+    * Reader asks before connecting to a host it does not trust; the host
+      can be allowed in its Trust Manager settings.
+    * An HTML reply from the server is reported as an error ("cannot
+      process content of type text/html"), after the values have been
+      received.
+    * A value outside ASCII is encoded in a Windows code page that can
+      represent it (Greek arrives as Windows-1253), and the request names no
+      charset. A server cannot determine the encoding from the request, so
+      only ASCII values arrive unambiguously.
+
+  PDFgear 2.1.16 does not run form actions: neither submit nor reset does
+  anything there.
 
   ## Examples
 
@@ -954,11 +984,20 @@ defmodule Tincture do
   `bezier/7` or a shape drawn with `paint: :none` and before the path is
   painted, raises `ArgumentError`: the text would be written inside the path,
   where PDF does not allow it.
+
+  Text in an embedded font that has no glyph for one of its characters warns,
+  naming each such character: the font draws it as a blank. The same holds
+  for every function that draws text, including `text_paragraph/6` and the
+  `Tincture.Layout` modules, which warn once per call. A default-ignorable
+  code point (Unicode's Default_Ignorable_Code_Point: a variation selector, a
+  zero-width joiner, non-joiner or space, a soft hyphen, a bidi control and
+  the like) is not counted, since it has no visible glyph of its own. From
+  0.4.0 it raises.
   """
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text) do
     Ops.refuse_open_path(pdf, "Tincture.text_at/4", "the text")
-    Ops.text_at(pdf, x, y, text)
+    Ops.check_missing_glyphs(fn -> Ops.text_at(pdf, x, y, text) end)
   end
 
   @doc """
@@ -971,7 +1010,7 @@ defmodule Tincture do
   def text_at_with_fallback(%PDF{} = pdf, x, y, text, fallback_fonts \\ [])
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) do
     Ops.refuse_open_path(pdf, "Tincture.text_at_with_fallback/5", "the text")
-    draw_fallback_text(pdf, x, y, text, fallback_fonts, [])
+    Ops.check_missing_glyphs(fn -> draw_fallback_text(pdf, x, y, text, fallback_fonts, []) end)
   end
 
   @doc """
@@ -1003,7 +1042,7 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) and
              is_list(opts) do
     Ops.refuse_open_path(pdf, "Tincture.text_at_with_fallback/6", "the text")
-    draw_fallback_text(pdf, x, y, text, fallback_fonts, opts)
+    Ops.check_missing_glyphs(fn -> draw_fallback_text(pdf, x, y, text, fallback_fonts, opts) end)
   end
 
   # Both arities warn under their own name, then draw here; the segments are
@@ -1054,7 +1093,10 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) do
     Ops.refuse_open_path(pdf, "Tincture.text_at_rotated_with_fallback/6", "the text")
-    draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, [])
+
+    Ops.check_missing_glyphs(fn ->
+      draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, [])
+    end)
   end
 
   @doc """
@@ -1084,7 +1126,10 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) and is_list(opts) do
     Ops.refuse_open_path(pdf, "Tincture.text_at_rotated_with_fallback/7", "the text")
-    draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, opts)
+
+    Ops.check_missing_glyphs(fn ->
+      draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, opts)
+    end)
   end
 
   # As draw_fallback_text/6, rotated.
@@ -1239,7 +1284,7 @@ defmodule Tincture do
   @spec text_at_rotated(PDF.t(), number(), number(), number(), String.t()) :: PDF.t()
   def text_at_rotated(%PDF{} = pdf, x, y, angle_degrees, text) do
     Ops.refuse_open_path(pdf, "Tincture.text_at_rotated/5", "the text")
-    Ops.text_at_rotated(pdf, x, y, angle_degrees, text)
+    Ops.check_missing_glyphs(fn -> Ops.text_at_rotated(pdf, x, y, angle_degrees, text) end)
   end
 
   @doc """
@@ -2343,19 +2388,22 @@ defmodule Tincture do
     # be resolved - its metrics live on this document. Re-measure before layout.
     rich_text = RichText.remeasure(rich_text, Context.from_pdf(pdf))
 
-    Typography.layout_paragraph(rich_text, max_width, layout_opts)
-    |> Enum.reduce(pdf, fn %Line{} = line, acc_pdf ->
-      render_line(
-        acc_pdf,
-        x + line.x,
-        y + line.y,
-        line.tokens,
-        rotate,
-        fallback_fonts,
-        bidi,
-        shaping,
-        kerning
-      )
+    lines = Typography.layout_paragraph(rich_text, max_width, layout_opts)
+
+    Ops.check_missing_glyphs(fn ->
+      Enum.reduce(lines, pdf, fn %Line{} = line, acc_pdf ->
+        render_line(
+          acc_pdf,
+          x + line.x,
+          y + line.y,
+          line.tokens,
+          rotate,
+          fallback_fonts,
+          bidi,
+          shaping,
+          kerning
+        )
+      end)
     end)
   end
 

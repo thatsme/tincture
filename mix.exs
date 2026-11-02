@@ -1,7 +1,7 @@
 defmodule Tincture.MixProject do
   use Mix.Project
 
-  @version "0.3.12"
+  @version "0.3.13"
   @source_url "https://github.com/thatsme/tincture"
 
   def project do
@@ -97,6 +97,8 @@ defmodule Tincture.MixProject do
         "format --check-formatted",
         "cmd elixir scripts/check_absolute_paths.exs --self-test",
         "cmd elixir scripts/check_absolute_paths.exs",
+        "cmd elixir scripts/check_line_endings.exs --self-test",
+        "cmd elixir scripts/check_line_endings.exs",
         "compile --force --warnings-as-errors",
         "credo --strict",
         "dialyzer",

@@ -43,6 +43,7 @@ defmodule Tincture.Layout.Box do
 
   alias Tincture.Font.Context
   alias Tincture.PDF
+  alias Tincture.PDF.Ops
   alias Tincture.Typography
   alias Tincture.Typography.LayoutResult
   alias Tincture.Typography.Line
@@ -98,10 +99,15 @@ defmodule Tincture.Layout.Box do
   """
   @spec flow_text(PDF.t(), number(), number(), number(), number(), RichText.t(), [option()]) ::
           {PDF.t(), LayoutResult.t()}
-  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(CyclomaticComplexity|FunctionArity)$/
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def flow_text(%PDF{} = pdf, x, y, width, height, %RichText{} = rich_text, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and width > 0 and is_number(height) and
              height > 0 and is_list(opts) do
+    Ops.check_missing_glyphs(fn -> draw_flow_text(pdf, x, y, width, height, rich_text, opts) end)
+  end
+
+  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(CyclomaticComplexity|FunctionArity)$/
+  defp draw_flow_text(pdf, x, y, width, height, rich_text, opts) do
     rotate = Keyword.get(opts, :rotate)
 
     if not is_nil(rotate) and not is_number(rotate) do
@@ -177,9 +183,13 @@ defmodule Tincture.Layout.Box do
   `ArgumentError` for a malformed box tuple.
   """
   @spec flow_across_boxes(PDF.t(), RichText.t(), [box()], [option()]) :: {PDF.t(), FlowResult.t()}
-  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def flow_across_boxes(%PDF{} = pdf, %RichText{} = rich_text, boxes, opts \\ [])
       when is_list(boxes) and is_list(opts) do
+    Ops.check_missing_glyphs(fn -> draw_flow_across_boxes(pdf, rich_text, boxes, opts) end)
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
+  defp draw_flow_across_boxes(pdf, rich_text, boxes, opts) do
     {final_pdf, final_rich, box_results, boxes_used} =
       Enum.reduce_while(boxes, {pdf, rich_text, [], 0}, fn box,
                                                            {acc_pdf, current_rich, results, used} ->

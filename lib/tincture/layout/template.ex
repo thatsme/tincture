@@ -36,6 +36,7 @@ defmodule Tincture.Layout.Template do
   alias Tincture.Layout.Box
   alias Tincture.Layout.Box.FlowResult
   alias Tincture.PDF
+  alias Tincture.PDF.Ops
   alias Tincture.PDF.Page
   alias Tincture.Typography.RichText
 
@@ -268,9 +269,13 @@ defmodule Tincture.Layout.Template do
       `:page_number`.
   """
   @spec render(PDF.t(), t(), RichText.t(), [Box.option()]) :: {PDF.t(), RenderResult.t()}
-  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
+    Ops.check_missing_glyphs(fn -> draw_page(pdf, template, rich_text, opts) end)
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
+  defp draw_page(pdf, template, rich_text, opts) do
     page_number = normalize_positive_integer(Keyword.get(opts, :page_number, 1), :page_number)
 
     page_total =
@@ -371,9 +376,13 @@ defmodule Tincture.Layout.Template do
   """
   @spec render_document(PDF.t(), t(), RichText.t(), [document_option()]) ::
           {PDF.t(), DocumentResult.t()}
-  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render_document(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
+    Ops.check_missing_glyphs(fn -> draw_document(pdf, template, rich_text, opts) end)
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
+  defp draw_document(pdf, template, rich_text, opts) do
     page_number_start =
       normalize_positive_integer(
         Keyword.get(opts, :page_number_start, pdf.current_page),

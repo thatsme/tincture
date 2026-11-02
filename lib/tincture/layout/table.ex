@@ -26,6 +26,7 @@ defmodule Tincture.Layout.Table do
 
   alias Tincture.Font.Context
   alias Tincture.PDF
+  alias Tincture.PDF.Ops
 
   @type row :: [term()]
 
@@ -97,9 +98,13 @@ defmodule Tincture.Layout.Table do
   """
   @spec render(PDF.t(), number(), number(), [number()] | :auto, [row()], [option()]) ::
           {PDF.t(), RenderResult.t()}
-  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def render(%PDF{} = pdf, x, y, column_spec, rows, opts \\ [])
       when is_number(x) and is_number(y) and is_list(rows) and is_list(opts) do
+    Ops.check_missing_glyphs(fn -> draw_table(pdf, x, y, column_spec, rows, opts) end)
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
+  defp draw_table(pdf, x, y, column_spec, rows, opts) do
     {normalized_rows, column_count} = normalize_rows(rows)
     padding = resolve_padding(opts)
     font_size = resolve_font_size(opts)
