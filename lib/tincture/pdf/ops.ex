@@ -18,6 +18,7 @@ defmodule Tincture.PDF.Ops do
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text)
       when is_number(x) and is_number(y) and is_binary(text) do
+    record_missing_glyphs(pdf, text)
     op = {:text_at, x, y, text, pdf.current_font}
     PDF.append_current_op(pdf, op)
   end
@@ -25,8 +26,95 @@ defmodule Tincture.PDF.Ops do
   @spec text_at_rotated(PDF.t(), number(), number(), number(), String.t()) :: PDF.t()
   def text_at_rotated(%PDF{} = pdf, x, y, angle_degrees, text)
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) do
+    record_missing_glyphs(pdf, text)
     op = {:text_at_rotated, x, y, angle_degrees, text, pdf.current_font}
     PDF.append_current_op(pdf, op)
+  end
+
+  @missing_glyphs_key {__MODULE__, :missing_glyphs}
+
+  # W9. A character an embedded font has no glyph for is written as glyph 0
+  # and drawn as a blank, which no validator reports. Every public function
+  # that draws text runs inside this scope; text_at/4 and text_at_rotated/5
+  # record into it what they draw, so text laid out word by word - a
+  # paragraph, a table, a fallback chain - is checked with the font each
+  # piece is actually drawn in. A scope opened inside another, as when a
+  # layout function calls text_at/4, adds to the outer one, so a call warns
+  # once. 0.4.0 raises.
+  @doc false
+  @spec check_missing_glyphs((-> result)) :: result when result: term()
+  def check_missing_glyphs(fun) when is_function(fun, 0) do
+    case Process.get(@missing_glyphs_key) do
+      nil ->
+        Process.put(@missing_glyphs_key, [])
+
+        try do
+          result = fun.()
+          @missing_glyphs_key |> Process.get([]) |> Enum.reverse() |> warn_missing_glyphs()
+          result
+        after
+          Process.delete(@missing_glyphs_key)
+        end
+
+      _open ->
+        fun.()
+    end
+  end
+
+  defp record_missing_glyphs(%PDF{current_font: {font_name, _size}} = pdf, text) do
+    with recorded when is_list(recorded) <- Process.get(@missing_glyphs_key),
+         %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
+           Map.get(pdf.embedded_fonts, font_name) do
+      missing =
+        for codepoint <- String.to_charlist(text),
+            not variation_selector?(codepoint),
+            not Map.has_key?(cmap, codepoint),
+            do: {font_name, codepoint}
+
+      Process.put(@missing_glyphs_key, Enum.reverse(missing, recorded))
+    end
+
+    :ok
+  end
+
+  # A variation selector picks a form of the character before it, and is
+  # written as glyph 0 by design (FontEmbed's CIDToGIDMap): it draws nothing
+  # of its own.
+  defp variation_selector?(codepoint),
+    do: codepoint in 0xFE00..0xFE0F or codepoint in 0xE0100..0xE01EF
+
+  defp warn_missing_glyphs([]), do: :ok
+
+  defp warn_missing_glyphs(recorded) do
+    missing = Enum.uniq(recorded)
+
+    fonts =
+      missing
+      |> Enum.map(fn {font_name, _codepoint} -> font_name end)
+      |> Enum.uniq()
+      |> Enum.map_join("; ", fn font_name ->
+        characters =
+          for {^font_name, codepoint} <- missing, do: describe_character(codepoint)
+
+        "font #{inspect(font_name)} has no glyph for #{Enum.join(characters, ", ")}"
+      end)
+
+    tail =
+      case missing do
+        [_one] ->
+          ", which is drawn as a blank. Register a font that covers it, or remove the character."
+
+        _several ->
+          ", which are drawn as blanks. Register a font that covers them, or remove the " <>
+            "characters."
+      end
+
+    IO.warn(fonts <> tail <> " This will raise in 0.4.0.")
+  end
+
+  defp describe_character(codepoint) do
+    hex = codepoint |> Integer.to_string(16) |> String.pad_leading(4, "0")
+    "#{inspect(<<codepoint::utf8>>, binaries: :as_strings)} (U+#{hex})"
   end
 
   @spec line(PDF.t(), number(), number(), number(), number(), PDF.paint()) :: PDF.t()

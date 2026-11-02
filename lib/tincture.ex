@@ -352,7 +352,7 @@ defmodule Tincture do
           PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target) do
     Ops.warn_open_path(pdf, "Tincture.text_link/5", "the text")
-    draw_text_link(pdf, x, y, text, target, [])
+    Ops.check_missing_glyphs(fn -> draw_text_link(pdf, x, y, text, target, []) end)
   end
 
   @doc """
@@ -372,7 +372,7 @@ defmodule Tincture do
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
     Ops.warn_open_path(pdf, "Tincture.text_link/6", "the text")
-    draw_text_link(pdf, x, y, text, target, opts)
+    Ops.check_missing_glyphs(fn -> draw_text_link(pdf, x, y, text, target, opts) end)
   end
 
   # text_link/5 and /6 warn under their own names, then draw here, so a call
@@ -777,11 +777,18 @@ defmodule Tincture do
   `bezier/7` or a shape drawn with `paint: :none` and before the path is
   painted, warns: the text would be written inside the path, where PDF does
   not allow it. From 0.4.0 it raises.
+
+  Text in an embedded font that has no glyph for one of its characters warns,
+  naming each such character: the font draws it as a blank. The same holds
+  for every function that draws text, including `text_paragraph/6` and the
+  `Tincture.Layout` modules, which warn once per call. A variation selector
+  is not counted, since it selects a form of the character before it. From
+  0.4.0 it raises.
   """
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text) do
     Ops.warn_open_path(pdf, "Tincture.text_at/4", "the text")
-    Ops.text_at(pdf, x, y, text)
+    Ops.check_missing_glyphs(fn -> Ops.text_at(pdf, x, y, text) end)
   end
 
   @doc """
@@ -794,7 +801,7 @@ defmodule Tincture do
   def text_at_with_fallback(%PDF{} = pdf, x, y, text, fallback_fonts \\ [])
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) do
     Ops.warn_open_path(pdf, "Tincture.text_at_with_fallback/5", "the text")
-    draw_fallback_text(pdf, x, y, text, fallback_fonts, [])
+    Ops.check_missing_glyphs(fn -> draw_fallback_text(pdf, x, y, text, fallback_fonts, []) end)
   end
 
   @doc """
@@ -826,7 +833,7 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) and
              is_list(opts) do
     Ops.warn_open_path(pdf, "Tincture.text_at_with_fallback/6", "the text")
-    draw_fallback_text(pdf, x, y, text, fallback_fonts, opts)
+    Ops.check_missing_glyphs(fn -> draw_fallback_text(pdf, x, y, text, fallback_fonts, opts) end)
   end
 
   # Both arities warn under their own name, then draw here; the segments are
@@ -877,7 +884,10 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) do
     Ops.warn_open_path(pdf, "Tincture.text_at_rotated_with_fallback/6", "the text")
-    draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, [])
+
+    Ops.check_missing_glyphs(fn ->
+      draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, [])
+    end)
   end
 
   @doc """
@@ -907,7 +917,10 @@ defmodule Tincture do
       when is_number(x) and is_number(y) and is_number(angle_degrees) and is_binary(text) and
              is_list(fallback_fonts) and is_list(opts) do
     Ops.warn_open_path(pdf, "Tincture.text_at_rotated_with_fallback/7", "the text")
-    draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, opts)
+
+    Ops.check_missing_glyphs(fn ->
+      draw_rotated_fallback_text(pdf, x, y, angle_degrees, text, fallback_fonts, opts)
+    end)
   end
 
   # As draw_fallback_text/6, rotated.
@@ -1062,7 +1075,7 @@ defmodule Tincture do
   @spec text_at_rotated(PDF.t(), number(), number(), number(), String.t()) :: PDF.t()
   def text_at_rotated(%PDF{} = pdf, x, y, angle_degrees, text) do
     Ops.warn_open_path(pdf, "Tincture.text_at_rotated/5", "the text")
-    Ops.text_at_rotated(pdf, x, y, angle_degrees, text)
+    Ops.check_missing_glyphs(fn -> Ops.text_at_rotated(pdf, x, y, angle_degrees, text) end)
   end
 
   @doc """
@@ -1991,19 +2004,22 @@ defmodule Tincture do
     # be resolved - its metrics live on this document. Re-measure before layout.
     rich_text = RichText.remeasure(rich_text, Context.from_pdf(pdf))
 
-    Typography.layout_paragraph(rich_text, max_width, layout_opts)
-    |> Enum.reduce(pdf, fn %Line{} = line, acc_pdf ->
-      render_line(
-        acc_pdf,
-        x + line.x,
-        y + line.y,
-        line.tokens,
-        rotate,
-        fallback_fonts,
-        bidi,
-        shaping,
-        kerning
-      )
+    lines = Typography.layout_paragraph(rich_text, max_width, layout_opts)
+
+    Ops.check_missing_glyphs(fn ->
+      Enum.reduce(lines, pdf, fn %Line{} = line, acc_pdf ->
+        render_line(
+          acc_pdf,
+          x + line.x,
+          y + line.y,
+          line.tokens,
+          rotate,
+          fallback_fonts,
+          bidi,
+          shaping,
+          kerning
+        )
+      end)
     end)
   end
 

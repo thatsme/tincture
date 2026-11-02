@@ -199,8 +199,13 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
+      # W9: an example that draws a character its font cannot draw warns, and
+      # the warning would scroll past in the log, so it fails the job here.
       - name: Run examples with an embedded font
-        run: mix examples
+        run: |
+          set -o pipefail
+          mix examples 2>&1 | tee examples.log
+          if grep -n "has no glyph" examples.log; then exit 1; fi
 
       # veraPDF below validates the documents this job just regenerated. The
       # README says it validates the committed ones, which is true only while
