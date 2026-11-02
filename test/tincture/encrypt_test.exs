@@ -581,9 +581,9 @@ defmodule Tincture.EncryptTest do
   # field, the embedded_* sites, which J4 does not cover; but a control byte
   # has no glyph in the embedded font either, and a field drawn with an
   # embedded font that lacks a glyph is refused (W9's message), so the
-  # embedded sites refuse the control bytes too. A push button takes only the
-  # standard 14 until stage 6 of 0.4.0 gives its caption embedded fonts, so
-  # button_label stays refused until then.
+  # embedded sites refuse the control bytes too. The button_label site draws
+  # its caption in the default Helvetica, a standard-14 font, so J4 refuses
+  # the same inputs there as for field_value.
   @refused %{
     bookmark: [:empty],
     language: [:empty],
