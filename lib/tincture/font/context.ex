@@ -133,10 +133,52 @@ defmodule Tincture.Font.Context do
     end
   end
 
+  # The text as drawn in `font_name`: without the default-ignorable code
+  # points an embedded font with cmap data lacks. Such a character - a
+  # zero-width joiner, a soft hyphen, a bidi control - has no visible glyph,
+  # so it is left out of the content stream rather than written as glyph 0;
+  # it is measured as left out, too. One the font has is drawn as any other
+  # character, and so is a variation selector the font's format 14 subtable
+  # lists. A standard-14 font, and an embedded font with no cmap data, draw
+  # the text unchanged.
+  @doc false
+  def drawn_text(%__MODULE__{embedded: embedded}, font_name, text) when is_binary(text) do
+    case Map.get(embedded, font_name) do
+      %{ttf_metrics: ttf_metrics} ->
+        if Font.font_available?(font_name),
+          do: text,
+          else: without_missing_default_ignorables(ttf_metrics, text)
+
+      _other ->
+        text
+    end
+  end
+
+  defp without_missing_default_ignorables(%{cmap_by_code: cmap} = ttf_metrics, text)
+       when map_size(cmap) > 0 do
+    codepoints = String.to_charlist(text)
+    selectors = Map.get(ttf_metrics, :cmap_var_selectors, [])
+
+    missing? = fn codepoint ->
+      Unicode.default_ignorable?(codepoint) and Map.get(cmap, codepoint, 0) == 0 and
+        not (Unicode.variation_selector_codepoint?(codepoint) and codepoint in selectors)
+    end
+
+    if Enum.any?(codepoints, missing?),
+      do: codepoints |> Enum.reject(missing?) |> List.to_string(),
+      else: text
+  end
+
+  defp without_missing_default_ignorables(_ttf_metrics, text), do: text
+
   defp measure_embedded(context, font_name, size, text, on_unknown) do
     case embedded_metrics(context, font_name) do
       {:ok, ttf_metrics} ->
-        embedded_text_width(ttf_metrics, size, text)
+        embedded_text_width(
+          ttf_metrics,
+          size,
+          without_missing_default_ignorables(ttf_metrics, text)
+        )
 
       :error when on_unknown == :estimate ->
         String.length(text) * size * @estimated_advance_ratio

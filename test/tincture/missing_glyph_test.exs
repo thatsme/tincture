@@ -184,11 +184,50 @@ defmodule Tincture.MissingGlyphTest do
     end
 
     test "the exempt set is Unicode 17.0.0's Default_Ignorable_Code_Point: 4174 code points" do
-      exempt = Enum.filter(0..0x10FFFF, &Tincture.PDF.Ops.default_ignorable?/1)
+      exempt = Enum.filter(0..0x10FFFF, &Tincture.Unicode.default_ignorable?/1)
 
       assert length(exempt) == 4174
       assert 0x00AD in exempt and 0x200D in exempt and 0xFE0F in exempt and 0xE01EF in exempt
       refute 0x0301 in exempt or 0x2713 in exempt or 0x0020 in exempt
+    end
+  end
+
+  describe "drawing a default-ignorable code point" do
+    # Liberation Sans maps U+00AD (soft hyphen) and U+200D (ZWJ), and has no
+    # glyph for U+2060 (word joiner) or U+FEFF (zero-width no-break space).
+
+    test "one the font lacks is not drawn, and is measured as not there" do
+      pdf = Tincture.text_at(sans(), 50, 700, "a⁠b﻿c")
+
+      assert [{:text_at, 50, 700, "abc", {"Sans", 12}}] = pdf.operations
+
+      context = Tincture.Font.Context.from_pdf(pdf)
+
+      assert Tincture.Font.Context.text_width(context, "Sans", 12, "a⁠b﻿c") ==
+               Tincture.Font.Context.text_width(context, "Sans", 12, "abc")
+    end
+
+    test "one the font has is drawn as any other character" do
+      pdf = Tincture.text_at(sans(), 50, 700, "a­b‍c")
+
+      assert [{:text_at, 50, 700, "a­b‍c", {"Sans", 12}}] = pdf.operations
+    end
+
+    test "a field's appearance leaves out one the font lacks, and its value keeps it" do
+      pdf =
+        Tincture.text_field(sans(), 50, 700, 200, 20, "name",
+          value: "a⁠b",
+          font: "Sans",
+          full_font: true
+        )
+
+      [field] = pdf.form_fields
+      assert field.value == "a⁠b"
+
+      %{content: content} = Tincture.PDF.Appearance.build_all(pdf)["name"]
+
+      assert [{:text_at, _x, _y, "ab", {"Sans", _size}}] =
+               for({:text_at, _, _, _, _} = op <- content, do: op)
     end
   end
 

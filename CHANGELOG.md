@@ -122,6 +122,15 @@ follows from them.
   only the embedded fonts the fields draw with, or is left out when none
   does. Such documents no longer name Helvetica, which they never drew with
   and did not embed. Nothing they draw changes.
+- **A default-ignorable character the font lacks is not drawn.** A zero-width
+  joiner, a word joiner, a soft hyphen, a bidi control or another of
+  Unicode's Default_Ignorable_Code_Point characters that an embedded font has
+  no glyph for is left out of the text drawn, on a page and in a field's
+  appearance, rather than written as glyph 0; it is measured as left out,
+  too. So it no longer appears in the page's `ToUnicode` map, and text
+  extracted from the page does not contain it. A field's value keeps it. One
+  the font has is drawn as before, and so is a variation selector the font's
+  format 14 cmap lists.
 
 - **Every text and choice field carries its own appearance.**
   `/NeedAppearances` is no longer written, and text and choice fields get a
@@ -160,6 +169,16 @@ follows from them.
   `encrypt/2` refuse to be combined, naming the combination, at the call
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
+
+### Fixed
+
+- **A fallback chain falls back for a character the font maps to glyph 0.**
+  `text_at_with_fallback/5,6` and `text_at_rotated_with_fallback/6,7` took a
+  font whose cmap lists a character with glyph 0, the font's placeholder, as
+  supporting it, so the character stayed in that font and was drawn as a
+  blank instead of in a later font that has it. Such a font, typically one
+  with a format 0 cmap, now counts as lacking the character, as the
+  missing-glyph check does.
 
 ## [0.3.13] — 2026-11-02
 

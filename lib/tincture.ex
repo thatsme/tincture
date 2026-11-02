@@ -523,7 +523,8 @@ defmodule Tincture do
   `ArgumentError`, naming each such character: the font would draw it as a
   blank. A default-ignorable code point (Unicode's
   Default_Ignorable_Code_Point: a variation selector, a zero-width joiner,
-  non-joiner or space, a soft hyphen and the like) is not counted. The same
+  non-joiner or space, a soft hyphen and the like) is not counted; one the
+  font lacks is left out of the appearance, and kept in the value. The same
   holds for a choice
   field's options (`choice_field/7`), a push button's caption
   (`push_button/7`) and a signature field's label (`signature_field/7`).
@@ -992,8 +993,10 @@ defmodule Tincture do
   call, naming every such character in it. A default-ignorable code point
   (Unicode's Default_Ignorable_Code_Point: a variation selector, a zero-width
   joiner, non-joiner or space, a soft hyphen, a bidi control and the like) is
-  not counted, since it has no visible glyph of its own. 0.3.13 warned
-  instead.
+  not counted, since it has no visible glyph of its own: one the font lacks
+  is left out of the text drawn, and measured as left out, so it is not in
+  the page's `ToUnicode` map either. 0.3.13 warned instead of raising, and
+  wrote a default-ignorable code point the font lacks as glyph 0.
   """
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
   def text_at(%PDF{} = pdf, x, y, text) do
@@ -2947,7 +2950,9 @@ defmodule Tincture do
          codepoint
        )
        when is_map(cmap_by_code) and map_size(cmap_by_code) > 0 do
-    Map.has_key?(cmap_by_code, codepoint)
+    # Glyph 0 is the font's placeholder, as W9 counts it: a format 0 cmap
+    # lists every byte, with 0 for the ones the font lacks.
+    Map.get(cmap_by_code, codepoint, 0) != 0
   end
 
   defp embedded_font_supports_codepoint?(

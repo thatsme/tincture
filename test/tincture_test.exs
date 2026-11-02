@@ -1314,19 +1314,20 @@ defmodule TinctureTest do
     File.rm(path)
   end
 
-  test "text_at/4 refuses unmapped characters rather than writing them in a ToUnicode bfrange" do
-    path = write_test_ttf_with_cmap!()
+  test "register_ttf_font/3 compacts ToUnicode contiguous mappings into bfrange" do
+    # The format 13 font maps U+2603-U+2605 to one glyph, so the three code
+    # points are covered and contiguous: one bfrange, not three bfchars.
+    path = write_test_ttf_with_cmap_format13!()
 
-    message =
-      ~s[font "DemoUnicodeToUnicodeCompact" has no glyph for "A" (U+0041), "C" (U+0043), "☃" (U+2603)] <>
-        ", which are drawn as blanks. Register a font that covers them, or remove the characters."
-
-    assert_raise ArgumentError, message, fn ->
+    pdf_binary =
       Tincture.new()
       |> Tincture.register_ttf_font("DemoUnicodeToUnicodeCompact", path)
       |> Tincture.set_font("DemoUnicodeToUnicodeCompact", 12)
-      |> Tincture.text_at(50, 700, "ABC☃")
-    end
+      |> Tincture.text_at(50, 700, "☃☄★")
+      |> Tincture.export()
+
+    assert pdf_binary =~ "beginbfrange"
+    assert pdf_binary =~ "<2603> <2605> <2603>"
 
     File.rm(path)
   end
@@ -1499,7 +1500,7 @@ defmodule TinctureTest do
     File.rm(path)
   end
 
-  test "register_ttf_font/3 emits CIDToGID zero mapping for unmapped ZWJ codepoints" do
+  test "text_at/4 leaves out a ZWJ the font lacks: it has no code in the text, nor in ToUnicode" do
     path = write_test_ttf_with_cmap_format4!()
 
     pdf_binary =
@@ -1509,8 +1510,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃‍★")
       |> Tincture.export()
 
-    refute pdf_binary =~ "/CIDToGIDMap /Identity"
-    assert extract_cid_to_gid_value(pdf_binary, 8205) == 0
+    # The text is written as "☃★": the ZWJ is not drawn as glyph 0, so text
+    # extracted from the page no longer contains it.
+    assert pdf_binary =~ "<26032605> Tj"
+    refute pdf_binary =~ "<200D>"
 
     File.rm(path)
   end
@@ -1532,7 +1535,7 @@ defmodule TinctureTest do
     File.rm(path)
   end
 
-  test "register_ttf_font/3 emits zero CID width for unmapped ZWJ codepoints in Type0 widths" do
+  test "text_at/4 leaves out a ZWJ the font lacks, so it has no CID width" do
     path = write_test_ttf_with_cmap_format4!()
 
     pdf_binary =
@@ -1542,7 +1545,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃‍★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [8205 [0] 9731 [700] 9733 [700]]"
+    assert pdf_binary =~ "/W [9731 [700] 9733 [700]]"
 
     File.rm(path)
   end
@@ -1907,6 +1910,52 @@ defmodule TinctureTest do
     File.rm(fallback_path)
   end
 
+  test "text_at_with_fallback/5 falls back for a character the primary maps to glyph 0" do
+    # PrimaryASCII's format 0 cmap lists "A" with glyph 0, its placeholder:
+    # the character is unsupported there, so the fallback font that has it
+    # draws it, and nothing is refused. "B" is the primary's own glyph 1.
+    primary_path = write_test_ttf_primary_ascii!()
+    fallback_path = Tincture.Test.MeasurableFont.write!()
+
+    pdf =
+      Tincture.new()
+      |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
+      |> Tincture.register_ttf_font("FallbackAB", fallback_path)
+      |> Tincture.set_font("PrimaryASCII", 12)
+      |> Tincture.text_at_with_fallback(50, 700, "AB", ["FallbackAB"])
+
+    assert [
+             {:text_at, x1, 700, "A", {"FallbackAB", 12}},
+             {:text_at, x2, 700, "B", {"PrimaryASCII", 12}}
+           ] = pdf.operations
+
+    assert_in_delta x1, 50.0, 0.001
+    assert_in_delta x2, 50.0 + Tincture.Test.MeasurableFont.expected_width("A", 12), 0.001
+
+    File.rm(primary_path)
+    File.rm(fallback_path)
+  end
+
+  test "text_at_with_fallback/5 still refuses a character no font in the chain has" do
+    primary_path = write_test_ttf_primary_ascii!()
+    fallback_path = write_test_ttf_fallback_snowman!()
+
+    message =
+      ~s[font "PrimaryASCII" has no glyph for "A" (U+0041), which is drawn as a blank. ] <>
+        "Register a font that covers it, or remove the character."
+
+    assert_raise ArgumentError, message, fn ->
+      Tincture.new()
+      |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
+      |> Tincture.register_ttf_font("FallbackSnowman", fallback_path)
+      |> Tincture.set_font("PrimaryASCII", 12)
+      |> Tincture.text_at_with_fallback(50, 700, "A☃", ["FallbackSnowman"])
+    end
+
+    File.rm(primary_path)
+    File.rm(fallback_path)
+  end
+
   test "text_at_with_fallback/5 keeps a single run when primary supports all glyphs" do
     primary_path = write_test_ttf_primary_ascii!()
     fallback_path = write_test_ttf_fallback_snowman!()
@@ -1937,7 +1986,7 @@ defmodule TinctureTest do
       |> Tincture.text_at_with_fallback(50, 700, "B‍B☃", ["FallbackSnowman"])
 
     assert [
-             {:text_at, 50.0, 700, "B‍B", {"PrimaryASCII", 12}},
+             {:text_at, 50.0, 700, "BB", {"PrimaryASCII", 12}},
              {:text_at, x2, 700, "☃", {"FallbackSnowman", 12}}
            ] = pdf.operations
 
@@ -2036,7 +2085,7 @@ defmodule TinctureTest do
       |> Tincture.set_font("PrimaryASCII", 12)
       |> Tincture.text_at_with_fallback(50, 700, "☃‍★", ["FallbackSymbols"])
 
-    assert [{:text_at, 50.0, 700, "☃‍★", {"FallbackSymbols", 12}}] = pdf.operations
+    assert [{:text_at, 50.0, 700, "☃★", {"FallbackSymbols", 12}}] = pdf.operations
 
     File.rm(primary_path)
     File.rm(fallback_path)
@@ -2590,14 +2639,9 @@ defmodule TinctureTest do
     primary_path = write_test_ttf_primary_ascii!()
     ligature_path = write_test_ttf_ligature_st_with_gsub_liga_without_lookup!()
 
-    # Unshaped, the text stays in PrimaryASCII, which has no glyph for
-    # either letter, so the refusal names that font: had the ligature been
-    # applied, the fallback font would draw it and nothing would be refused.
-    message =
-      ~s[font "PrimaryASCII" has no glyph for "s" (U+0073), "t" (U+0074)] <>
-        ", which are drawn as blanks. Register a font that covers them, or remove the characters."
-
-    assert_raise ArgumentError, message, fn ->
+    # PrimaryASCII maps "s" and "t" to glyph 0, so the text falls back to
+    # the font that has them, and is drawn there unshaped: "st", not "ﬆ".
+    pdf =
       Tincture.new()
       |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
       |> Tincture.register_ttf_font("FallbackLigatureSTNoLigaLookup", ligature_path)
@@ -2605,7 +2649,9 @@ defmodule TinctureTest do
       |> Tincture.text_at_with_fallback(50, 700, "st", ["FallbackLigatureSTNoLigaLookup"],
         shaping: :latin_ligatures
       )
-    end
+
+    assert [{:text_at, x, 700, "st", {"FallbackLigatureSTNoLigaLookup", 12}}] = pdf.operations
+    assert_in_delta x, 50.0, 0.001
 
     File.rm(primary_path)
     File.rm(ligature_path)
@@ -2615,14 +2661,9 @@ defmodule TinctureTest do
     primary_path = write_test_ttf_primary_ascii!()
     ligature_path = write_test_ttf_ligature_st_with_gsub_default_langsys_without_lookup!()
 
-    # Unshaped, the text stays in PrimaryASCII, which has no glyph for
-    # either letter, so the refusal names that font: had the ligature been
-    # applied, the fallback font would draw it and nothing would be refused.
-    message =
-      ~s[font "PrimaryASCII" has no glyph for "s" (U+0073), "t" (U+0074)] <>
-        ", which are drawn as blanks. Register a font that covers them, or remove the characters."
-
-    assert_raise ArgumentError, message, fn ->
+    # PrimaryASCII maps "s" and "t" to glyph 0, so the text falls back to
+    # the font that has them, and is drawn there unshaped: "st", not "ﬆ".
+    pdf =
       Tincture.new()
       |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
       |> Tincture.register_ttf_font("FallbackLigatureSTDefaultLangSys", ligature_path)
@@ -2630,7 +2671,9 @@ defmodule TinctureTest do
       |> Tincture.text_at_with_fallback(50, 700, "st", ["FallbackLigatureSTDefaultLangSys"],
         shaping: :latin_ligatures
       )
-    end
+
+    assert [{:text_at, x, 700, "st", {"FallbackLigatureSTDefaultLangSys", 12}}] = pdf.operations
+    assert_in_delta x, 50.0, 0.001
 
     File.rm(primary_path)
     File.rm(ligature_path)
@@ -3343,14 +3386,9 @@ defmodule TinctureTest do
     primary_path = write_test_ttf_primary_ascii!()
     ligature_path = write_test_ttf_ligature_st_with_gsub_liga_only_on_arab_script!()
 
-    # Unshaped, the text stays in PrimaryASCII, which has no glyph for
-    # either letter, so the refusal names that font: had the ligature been
-    # applied, the fallback font would draw it and nothing would be refused.
-    message =
-      ~s[font "PrimaryASCII" has no glyph for "s" (U+0073), "t" (U+0074)] <>
-        ", which are drawn as blanks. Register a font that covers them, or remove the characters."
-
-    assert_raise ArgumentError, message, fn ->
+    # PrimaryASCII maps "s" and "t" to glyph 0, so the text falls back to
+    # the font that has them, and is drawn there unshaped: "st", not "ﬆ".
+    pdf =
       Tincture.new()
       |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
       |> Tincture.register_ttf_font("FallbackLigatureSTArabOnly", ligature_path)
@@ -3358,7 +3396,9 @@ defmodule TinctureTest do
       |> Tincture.text_at_with_fallback(50, 700, "st", ["FallbackLigatureSTArabOnly"],
         shaping: :latin_ligatures
       )
-    end
+
+    assert [{:text_at, x, 700, "st", {"FallbackLigatureSTArabOnly", 12}}] = pdf.operations
+    assert_in_delta x, 50.0, 0.001
 
     File.rm(primary_path)
     File.rm(ligature_path)
@@ -3468,14 +3508,9 @@ defmodule TinctureTest do
     primary_path = write_test_ttf_primary_ascii!()
     ligature_path = write_test_ttf_ligature_st_with_gsub_liga_without_lookup!()
 
-    # Unshaped, the text stays in PrimaryASCII, which has no glyph for
-    # either letter, so the refusal names that font: had the ligature been
-    # applied, the fallback font would draw it and nothing would be refused.
-    message =
-      ~s[font "PrimaryASCII" has no glyph for "s" (U+0073), "t" (U+0074)] <>
-        ", which are drawn as blanks. Register a font that covers them, or remove the characters."
-
-    assert_raise ArgumentError, message, fn ->
+    # PrimaryASCII maps "s" and "t" to glyph 0, so the text falls back to
+    # the font that has them, and is drawn there unshaped: "st", not "ﬆ".
+    pdf =
       Tincture.new()
       |> Tincture.register_ttf_font("PrimaryASCII", primary_path)
       |> Tincture.register_ttf_font("FallbackLigatureSTNoLigaLookup", ligature_path)
@@ -3483,7 +3518,9 @@ defmodule TinctureTest do
       |> Tincture.text_at_with_fallback(50, 700, "st", ["FallbackLigatureSTNoLigaLookup"],
         shaping: :gsub_ligatures
       )
-    end
+
+    assert [{:text_at, x, 700, "st", {"FallbackLigatureSTNoLigaLookup", 12}}] = pdf.operations
+    assert_in_delta x, 50.0, 0.001
 
     File.rm(primary_path)
     File.rm(ligature_path)
