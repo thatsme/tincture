@@ -65,10 +65,13 @@ defmodule Tincture.PDF.Ops do
     with recorded when is_list(recorded) <- Process.get(@missing_glyphs_key),
          %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
            Map.get(pdf.embedded_fonts, font_name) do
+      # A code point with no cmap entry, or one mapped to glyph 0, is drawn
+      # with glyph 0 alike: a format 0 cmap lists every byte, with 0 for the
+      # ones the font lacks.
       missing =
         for codepoint <- String.to_charlist(text),
-            not variation_selector?(codepoint),
-            not Map.has_key?(cmap, codepoint),
+            not default_ignorable?(codepoint),
+            Map.get(cmap, codepoint, 0) == 0,
             do: {font_name, codepoint}
 
       Process.put(@missing_glyphs_key, Enum.reverse(missing, recorded))
@@ -77,11 +80,43 @@ defmodule Tincture.PDF.Ops do
     :ok
   end
 
-  # A variation selector picks a form of the character before it, and is
-  # written as glyph 0 by design (FontEmbed's CIDToGIDMap): it draws nothing
-  # of its own.
-  defp variation_selector?(codepoint),
-    do: codepoint in 0xFE00..0xFE0F or codepoint in 0xE0100..0xE01EF
+  # A default-ignorable code point - a variation selector, a zero-width
+  # joiner or non-joiner, a zero-width space, a soft hyphen, a bidi control,
+  # a tag character - is a format or control character, not a letter to be
+  # drawn, so a font that lacks it is not reported. Whether such a character
+  # should be written at all, rather than as glyph 0, is left to 0.4.0.
+  #
+  # The set is Unicode's derived property, which the file derives from
+  # Other_Default_Ignorable_Code_Point, the format characters (Cf) and the
+  # variation selectors, less white space and a few exceptions.
+  #
+  # Default_Ignorable_Code_Point, from DerivedCoreProperties-17.0.0.txt
+  # (Unicode 17.0.0, dated 2025-07-30; the Unicode version Elixir 1.19 is
+  # built on), https://www.unicode.org/Public/17.0.0/ucd/, with adjacent
+  # entries merged: 4174 code points, the file's own total.
+  @default_ignorable [
+    0x00AD..0x00AD,
+    0x034F..0x034F,
+    0x061C..0x061C,
+    0x115F..0x1160,
+    0x17B4..0x17B5,
+    0x180B..0x180F,
+    0x200B..0x200F,
+    0x202A..0x202E,
+    0x2060..0x206F,
+    0x3164..0x3164,
+    0xFE00..0xFE0F,
+    0xFEFF..0xFEFF,
+    0xFFA0..0xFFA0,
+    0xFFF0..0xFFF8,
+    0x1BCA0..0x1BCA3,
+    0x1D173..0x1D17A,
+    0xE0000..0xE0FFF
+  ]
+
+  @doc false
+  @spec default_ignorable?(integer()) :: boolean()
+  def default_ignorable?(codepoint), do: Enum.any?(@default_ignorable, &(codepoint in &1))
 
   defp warn_missing_glyphs([]), do: :ok
 

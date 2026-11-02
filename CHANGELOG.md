@@ -29,7 +29,10 @@ This warns now and raises in 0.4.0:
   character and its code point: `font "Sans" has no glyph for "✓" (U+2713),
   which is drawn as a blank.` `text_paragraph/6` and the `Tincture.Layout`
   functions, which draw word by word, warn once for the whole call. A
-  variation selector is not counted. The standard 14 fonts are not checked.
+  default-ignorable code point (Unicode's Default_Ignorable_Code_Point, such
+  as a variation selector, a zero-width joiner or space, or a soft hyphen) is
+  not counted: it has no visible glyph of its own. The standard 14 fonts are
+  not checked.
   *Migration:* register a font that covers the character, or remove it.
 
 ### Documentation

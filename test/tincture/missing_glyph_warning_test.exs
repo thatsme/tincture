@@ -120,6 +120,63 @@ defmodule Tincture.MissingGlyphWarningTest do
     assert warnings(fn -> Tincture.text_at(sans(), 50, 700, "a️ b") end) == []
   end
 
+  describe "a default-ignorable code point" do
+    # The fixture font maps only "A", "B" and space, so it has no glyph for any
+    # of these: the test would pass without the exemption only if the font
+    # covered them, and it does not.
+    setup do
+      path = Tincture.Test.MeasurableFont.write!()
+      on_exit(fn -> File.rm(path) end)
+
+      pdf =
+        Tincture.new()
+        |> Tincture.register_ttf_font("Probe", path)
+        |> Tincture.set_font("Probe", 12)
+
+      {:ok, pdf: pdf}
+    end
+
+    test "ZWJ, ZWNJ, ZWSP and a soft hyphen are not missing characters", %{pdf: pdf} do
+      for {name, character} <- [
+            zwj: "‍",
+            zwnj: "‌",
+            zwsp: "​",
+            soft_hyphen: "­"
+          ] do
+        text = "A" <> character <> "B"
+        assert warnings(fn -> Tincture.text_at(pdf, 50, 700, text) end) == [], "#{name}"
+      end
+    end
+
+    test "beside a character that is really missing, only that one is named", %{pdf: pdf} do
+      text = "A‍B‌ A​C­B"
+
+      assert warnings(fn -> Tincture.text_at(pdf, 50, 700, text) end) == [
+               ~s[font "Probe" has no glyph for "C" (U+0043), which is drawn as a blank. ] <>
+                 "Register a font that covers it, or remove the character. This will raise " <>
+                 "in 0.4.0."
+             ]
+    end
+
+    test "a character the cmap maps to glyph 0 is missing, as one it does not list", %{pdf: pdf} do
+      # The fixture's cmap is format 0: it lists every byte, "C" among them,
+      # with glyph 0 for the ones the font lacks.
+      assert warnings(fn -> Tincture.text_at(pdf, 50, 700, "AC") end) == [
+               ~s[font "Probe" has no glyph for "C" (U+0043), which is drawn as a blank. ] <>
+                 "Register a font that covers it, or remove the character. This will raise " <>
+                 "in 0.4.0."
+             ]
+    end
+
+    test "the exempt set is Unicode 17.0.0's Default_Ignorable_Code_Point: 4174 code points" do
+      exempt = Enum.filter(0..0x10FFFF, &Tincture.PDF.Ops.default_ignorable?/1)
+
+      assert length(exempt) == 4174
+      assert 0x00AD in exempt and 0x200D in exempt and 0xFE0F in exempt and 0xE01EF in exempt
+      refute 0x0301 in exempt or 0x2713 in exempt or 0x0020 in exempt
+    end
+  end
+
   test "a character missing from two fonts in one call is listed under each" do
     pdf =
       Tincture.register_ttf_font(sans(), "Serif", "examples/fonts/LiberationSerif-Regular.ttf")

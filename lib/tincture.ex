@@ -811,8 +811,10 @@ defmodule Tincture do
   Text in an embedded font that has no glyph for one of its characters warns,
   naming each such character: the font draws it as a blank. The same holds
   for every function that draws text, including `text_paragraph/6` and the
-  `Tincture.Layout` modules, which warn once per call. A variation selector
-  is not counted, since it selects a form of the character before it. From
+  `Tincture.Layout` modules, which warn once per call. A default-ignorable
+  code point (Unicode's Default_Ignorable_Code_Point: a variation selector, a
+  zero-width joiner, non-joiner or space, a soft hyphen, a bidi control and
+  the like) is not counted, since it has no visible glyph of its own. From
   0.4.0 it raises.
   """
   @spec text_at(PDF.t(), number(), number(), String.t()) :: PDF.t()
