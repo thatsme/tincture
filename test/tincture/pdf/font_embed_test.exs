@@ -11,10 +11,8 @@ defmodule Tincture.PDF.FontEmbedTest do
   PDF that a viewer renders with the wrong substitute font when the embedded
   one is unavailable.
   """
-  # Not async: one test captures stderr, which is shared by the whole VM.
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  import ExUnit.CaptureIO
   import ExUnit.CaptureLog
 
   # -- font builders ---------------------------------------------------------
@@ -272,18 +270,17 @@ defmodule Tincture.PDF.FontEmbedTest do
       refute pdf =~ "/Type0"
     end
 
-    test "a codepoint outside the BMP is encoded as a surrogate pair" do
-      # The probe font's cmap does not give U+1F600 a glyph, so drawing it
-      # warns (W9); the warning is asserted rather than left in the output.
-      {pdf, stderr} =
-        with_io(:stderr, fn ->
-          render(font(chars: [{0x1F600, 1}], num_glyphs: 4), text: <<0x1F600::utf8>>)
-        end)
+    test "a codepoint outside the BMP that the probe font does not map is refused" do
+      # The probe font's cmap does not give U+1F600 a glyph, so drawing it is
+      # refused (W9). A surrogate pair for a mapped one is tested in
+      # TinctureTest, with an OpenType font's format 12 cmap.
+      message =
+        ~s[font "Probe" has no glyph for "😀" (U+1F600), which is drawn as a blank. ] <>
+          "Register a font that covers it, or remove the character."
 
-      assert stderr =~ ~s[font "Probe" has no glyph for "😀" (U+1F600), which is drawn as a blank.]
-      assert pdf =~ "/Type0"
-      # UTF-16BE surrogate pair for U+1F600 is D83D DE00.
-      assert pdf =~ "D83D" or pdf =~ "/ToUnicode"
+      assert_raise ArgumentError, message, fn ->
+        render(font(chars: [{0x1F600, 1}], num_glyphs: 4), text: <<0x1F600::utf8>>)
+      end
     end
   end
 

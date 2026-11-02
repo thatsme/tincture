@@ -34,13 +34,16 @@ defmodule Tincture.PDF.Ops do
   @missing_glyphs_key {__MODULE__, :missing_glyphs}
 
   # W9. A character an embedded font has no glyph for is written as glyph 0
-  # and drawn as a blank, which no validator reports. Every public function
-  # that draws text runs inside this scope; text_at/4 and text_at_rotated/5
-  # record into it what they draw, so text laid out word by word - a
-  # paragraph, a table, a fallback chain - is checked with the font each
-  # piece is actually drawn in. A scope opened inside another, as when a
-  # layout function calls text_at/4, adds to the outer one, so a call warns
-  # once. 0.4.0 raises.
+  # and drawn as a blank, which no validator reports. Warned in 0.3.13;
+  # refused since 0.4.0. Every public function that draws text runs inside
+  # this scope; text_at/4 and text_at_rotated/5 record into it what they
+  # draw, so text laid out word by word - a paragraph, a table, a fallback
+  # chain - is checked with the font each piece is actually drawn in. A scope
+  # opened inside another, as when a layout function calls text_at/4, adds to
+  # the outer one, so a call raises once, naming every such character. The
+  # raise comes after the call has built its result and before it is
+  # returned: the document is a value, so the refused call adds nothing to
+  # the one the caller holds.
   @doc false
   @spec check_missing_glyphs((-> result)) :: result when result: term()
   def check_missing_glyphs(fun) when is_function(fun, 0) do
@@ -50,7 +53,7 @@ defmodule Tincture.PDF.Ops do
 
         try do
           result = fun.()
-          @missing_glyphs_key |> Process.get([]) |> Enum.reverse() |> warn_missing_glyphs()
+          @missing_glyphs_key |> Process.get([]) |> Enum.reverse() |> refuse_missing_glyphs()
           result
         after
           Process.delete(@missing_glyphs_key)
@@ -62,29 +65,40 @@ defmodule Tincture.PDF.Ops do
   end
 
   defp record_missing_glyphs(%PDF{current_font: {font_name, _size}} = pdf, text) do
-    with recorded when is_list(recorded) <- Process.get(@missing_glyphs_key),
-         %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
-           Map.get(pdf.embedded_fonts, font_name) do
-      # A code point with no cmap entry, or one mapped to glyph 0, is drawn
-      # with glyph 0 alike: a format 0 cmap lists every byte, with 0 for the
-      # ones the font lacks.
-      missing =
-        for codepoint <- String.to_charlist(text),
-            not default_ignorable?(codepoint),
-            Map.get(cmap, codepoint, 0) == 0,
-            do: {font_name, codepoint}
-
+    with recorded when is_list(recorded) <- Process.get(@missing_glyphs_key) do
+      missing = missing_glyphs(pdf, font_name, text)
       Process.put(@missing_glyphs_key, Enum.reverse(missing, recorded))
     end
 
     :ok
   end
 
+  # The one check, for page text and for fields alike: the characters of
+  # `text` that the embedded font `font_name` draws as glyph 0, as
+  # `{font_name, codepoint}` in the order they occur. A code point with no
+  # cmap entry, or one mapped to glyph 0, is drawn with glyph 0 alike: a
+  # format 0 cmap lists every byte, with 0 for the ones the font lacks. A
+  # standard-14 font, and an embedded font with no cmap, are not checked.
+  @doc false
+  @spec missing_glyphs(PDF.t(), String.t(), String.t()) :: [{String.t(), non_neg_integer()}]
+  def missing_glyphs(%PDF{} = pdf, font_name, text) do
+    case Map.get(pdf.embedded_fonts, font_name) do
+      %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 ->
+        for codepoint <- String.to_charlist(text),
+            not default_ignorable?(codepoint),
+            Map.get(cmap, codepoint, 0) == 0,
+            do: {font_name, codepoint}
+
+      _other ->
+        []
+    end
+  end
+
   # A default-ignorable code point - a variation selector, a zero-width
   # joiner or non-joiner, a zero-width space, a soft hyphen, a bidi control,
   # a tag character - is a format or control character, not a letter to be
-  # drawn, so a font that lacks it is not reported. Whether such a character
-  # should be written at all, rather than as glyph 0, is left to 0.4.0.
+  # drawn, so a font that lacks it is not reported. It is still written, as
+  # glyph 0; whether it should be written at all is not decided here.
   #
   # The set is Unicode's derived property, which the file derives from
   # Other_Default_Ignorable_Code_Point, the format characters (Cf) and the
@@ -118,9 +132,15 @@ defmodule Tincture.PDF.Ops do
   @spec default_ignorable?(integer()) :: boolean()
   def default_ignorable?(codepoint), do: Enum.any?(@default_ignorable, &(codepoint in &1))
 
-  defp warn_missing_glyphs([]), do: :ok
+  defp refuse_missing_glyphs([]), do: :ok
 
-  defp warn_missing_glyphs(recorded) do
+  defp refuse_missing_glyphs(recorded), do: raise(ArgumentError, missing_glyph_message(recorded))
+
+  # The one message, for page text and for fields alike: every character
+  # once, grouped by font, in the order first drawn.
+  @doc false
+  @spec missing_glyph_message([{String.t(), non_neg_integer()}, ...]) :: String.t()
+  def missing_glyph_message([_ | _] = recorded) do
     missing = Enum.uniq(recorded)
 
     fonts =
@@ -144,7 +164,7 @@ defmodule Tincture.PDF.Ops do
             "characters."
       end
 
-    IO.warn(fonts <> tail <> " This will raise in 0.4.0.")
+    fonts <> tail
   end
 
   defp describe_character(codepoint) do

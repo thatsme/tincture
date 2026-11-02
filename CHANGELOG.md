@@ -47,11 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A choice field that is not `editable: true` raises when its `:value` is
   not one of its `:options`.** *Migration:* add the value to `:options`, or
   pass `editable: true`.
+- **Text in an embedded font that the font cannot draw raises.** Every
+  function that draws text, `text_paragraph/6` and the `Tincture.Layout`
+  functions included, raises `ArgumentError` once per call, naming each
+  character the font has no glyph for and its code point: `font "Sans" has
+  no glyph for "✓" (U+2713), which is drawn as a blank.` A default-ignorable
+  code point is still not counted, and the standard 14 fonts are not checked.
+  *Migration:* register a font that covers the character, or remove it.
 
 The first four have warned since 0.3.4, the next two since 0.3.8, the
-seventh since 0.3.9, the standard-14 field text since 0.3.6 and the choice
-value since 0.3.10, so code that runs without those warnings is unaffected by
-them, and the eighth follows from them.
+seventh since 0.3.9, the standard-14 field text since 0.3.6, the choice
+value since 0.3.10 and the text an embedded font cannot draw since 0.3.13, so
+code that runs without those warnings is unaffected by them, and the eighth
+follows from them.
 
 ### Added
 
