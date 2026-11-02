@@ -23,13 +23,19 @@ gates, but a failure discovered after tagging costs a version number.
        mix check
 
    That alias is `format --check-formatted`, the absolute-path self-test and
-   scan, `compile --force --warnings-as-errors`, `credo --strict`, `dialyzer`,
-   and `coveralls`. The coverage floor lives in `coveralls.json`. The
-   absolute-path check is a script rather than a Mix task; the alias runs it
-   through `mix cmd`, and it can also be run on its own:
+   scan, the line-ending self-test and scan, `compile --force
+   --warnings-as-errors`, `credo --strict`, `dialyzer`, and `coveralls`. The
+   coverage floor lives in `coveralls.json`. The two checks are scripts
+   rather than Mix tasks; the alias runs them through `mix cmd`, and they can
+   also be run on their own:
 
        elixir scripts/check_absolute_paths.exs --self-test
        elixir scripts/check_absolute_paths.exs
+       elixir scripts/check_line_endings.exs --self-test
+       elixir scripts/check_line_endings.exs
+
+   The line-ending check reads the working tree, not the index: a tool that
+   writes CRLF on Windows leaves the file that way until it is committed.
 
    The Examples job's gates are steps 2 and 3.
 
