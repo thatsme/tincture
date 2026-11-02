@@ -193,6 +193,7 @@ mix examples
 | [`accessible.exs`](https://github.com/thatsme/tincture/blob/main/examples/accessible.exs) | A tagged report — headings, table scope, alt text |
 | [`compliant.exs`](https://github.com/thatsme/tincture/blob/main/examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
 | [`archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
+| [`archival_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival_form.exs) | An interactive form in a PDF/A-2u document |
 | [`signed.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed.exs) | A digitally signed agreement |
 | [`remote_links.exs`](https://github.com/thatsme/tincture/blob/main/examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
 | [`telemetry.exs`](https://github.com/thatsme/tincture/blob/main/examples/telemetry.exs) | The telemetry spans, printed as a document is built |

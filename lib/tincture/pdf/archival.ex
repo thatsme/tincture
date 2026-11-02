@@ -22,12 +22,15 @@ defmodule Tincture.PDF.Archival do
 
   ## What is allowed that you might expect not to be
 
-  Checkboxes, radio buttons and links are not refused. Links are validated: CI
-  runs veraPDF on an archival example that carries one. No validated document
-  carries a checkbox or a radio button. They were not always allowed: links
-  lacked the `/F` key every annotation needs, and `/NeedAppearances` was set
-  whenever a document had any form field at all. Both were fixed rather than
-  forbidden, because a rule that bans working features is a bug in the rule.
+  Form fields are not refused, except push buttons. Text and choice fields,
+  checkboxes, radio groups and signature fields each carry their own
+  appearance, and a field that draws text must use an embedded font. CI runs
+  veraPDF on an archival form that carries one of each (`archival_form.pdf`),
+  and on an archival example that carries a link. Neither was always
+  allowed: links lacked the `/F` key every annotation needs, and
+  `/NeedAppearances` was set whenever a document had any form field at all.
+  Both were fixed rather than forbidden, because a rule that bans working
+  features is a bug in the rule.
   """
 
   alias Tincture.PDF
@@ -52,9 +55,8 @@ defmodule Tincture.PDF.Archival do
     Enum.flat_map(
       [
         &unembedded_fonts/1,
+        &unembedded_field_fonts/1,
         &encryption/1,
-        &value_rendered_fields/1,
-        &signature_fields/1,
         &push_buttons/1,
         &untagged_for_level/1
       ],
@@ -84,11 +86,8 @@ defmodule Tincture.PDF.Archival do
       end)
       |> Enum.uniq()
 
-    # Only fonts that actually draw something count. A form field's /DA font
-    # renders its value, so it matters for text and choice fields - but those
-    # are rejected outright below, and a checkbox or radio button draws from
-    # its appearance streams and never uses the font at all. Flagging those
-    # would reject documents veraPDF accepts.
+    # The pages and the form XObjects. A field's font is checked per field,
+    # below: its appearance is built only when the document is written.
     unembedded = Enum.reject(used, &Map.has_key?(pdf.embedded_fonts, &1))
 
     case Enum.uniq(unembedded) do
@@ -109,6 +108,32 @@ defmodule Tincture.PDF.Archival do
     end
   end
 
+  # ISO 19005-2 clause 6.2.11.4.1, for form fields. A field whose appearance
+  # draws text - a text or choice field, or a push button or signature with a
+  # :label - draws it with the field's one font, and names that font in /DA,
+  # which a viewer that redraws the field draws with too. So the font must be
+  # embedded. A checkbox, a radio group and an unlabelled signature draw no
+  # text and, in a document that declares PDF/A, name no font.
+  defp unembedded_field_fonts(%PDF{} = pdf) do
+    for field <- pdf.form_fields,
+        draws_text?(field),
+        not Map.has_key?(pdf.embedded_fonts, field.font) do
+      %{
+        rule: :unembedded_font,
+        clause: "6.2.11.4.1",
+        message:
+          "field #{inspect(field.name)} draws with #{inspect(field.font)}, which is not " <>
+            "embedded. PDF/A requires every font a field draws with to be carried in the " <>
+            "file, so a text, choice or labelled signature field cannot use the standard 14. " <>
+            "Register a TrueType or OpenType font with register_ttf_font/4 or " <>
+            "register_otf_font/4 and pass it as the field's :font."
+      }
+    end
+  end
+
+  defp draws_text?(%{type: type}) when type in [:text, :choice], do: true
+  defp draws_text?(field), do: Map.has_key?(field, :label)
+
   # ISO 19005-2 clause 6.1.3. An encrypted file cannot be read without a
   # secret, which defeats the point of archiving it.
   defp encryption(%PDF{encryption: nil}), do: []
@@ -125,69 +150,28 @@ defmodule Tincture.PDF.Archival do
     ]
   end
 
-  # Text and choice fields carry their own appearances, but a viewer that lets
-  # someone edit one draws with the font its /DA names, from /DR. Under PDF/A
-  # that must be the field's own embedded font, with no other font in /DR and
-  # no document-level /DA, and Tincture does not write them that way yet. So
-  # they stay refused until it does.
-  defp value_rendered_fields(%PDF{} = pdf) do
-    case Enum.filter(pdf.form_fields, &(&1.type in [:text, :choice])) do
-      [] ->
-        []
-
-      fields ->
-        [
-          %{
-            rule: :value_rendered_field,
-            clause: "6.4.1",
-            message:
-              "#{length(fields)} text or choice field(s) present " <>
-                "(#{fields |> Enum.map(& &1.name) |> Enum.take(3) |> Enum.map_join(", ", &inspect/1)}). " <>
-                "A document that declares PDF/A cannot carry them yet: a viewer that lets " <>
-                "someone edit a field draws with the font its /DA names, which under PDF/A " <>
-                "must be the field's own embedded font, and Tincture does not yet write /DA " <>
-                "and /DR that way. Checkboxes and radio buttons draw no text and are fine."
-          }
-        ]
-    end
-  end
-
-  # ISO 19005-2 clause 6.3.3. Every annotation needs an appearance stream, and
-  # an unsigned signature field has nothing to draw.
-  defp signature_fields(%PDF{} = pdf) do
-    case Enum.filter(pdf.form_fields, &(&1.type == :signature)) do
-      [] ->
-        []
-
-      fields ->
-        [
-          %{
-            rule: :signature_field,
-            clause: "6.3.3",
-            message:
-              "#{length(fields)} signature field(s) present. Every annotation needs an " <>
-                "appearance stream, and an unsigned signature field has none."
-          }
-        ]
-    end
-  end
-
-  # ISO 19005-2 clauses 6.4.1 and 6.5.1. A push button is nothing but an
-  # action, and a widget carrying /A is forbidden outright - ResetForm doubly
-  # so.
+  # ISO 19005-2 clauses 6.4.1 and 6.3.3. A push button is nothing but an
+  # action, and a widget carrying /A is forbidden outright (6.4.1), ResetForm
+  # doubly so (6.5.1). Its appearance is a single stream, and a button
+  # widget's must be a dictionary of states (6.3.3): veraPDF fails both, even
+  # for a URL action, which 6.5.1 permits.
   defp push_buttons(%PDF{} = pdf) do
     case Enum.filter(pdf.form_fields, &(&1.type == :push_button)) do
       [] ->
         []
 
       fields ->
+        names = fields |> Enum.map(& &1.name) |> Enum.take(3) |> Enum.map_join(", ", &inspect/1)
+
         [
           %{
             rule: :push_button,
             clause: "6.4.1",
             message:
-              "#{length(fields)} push button(s) present. A widget annotation may not carry " <>
-                "an /A action, and a push button is nothing but an action."
+              "#{length(fields)} push button(s) present (#{names}). A push button cannot be " <>
+                "part of a PDF/A document: its widget carries an /A action, which PDF/A " <>
+                "forbids on a widget, and its appearance is a single stream, where PDF/A " <>
+                "requires a button's to be a dictionary of states (ISO 19005-2 clause 6.3.3)."
           }
         ]
     end

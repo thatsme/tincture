@@ -578,9 +578,12 @@ defmodule Tincture.EncryptTest do
   # another file that is not ASCII; and a standard-14 field's value, option or
   # label that WinAnsi cannot encode (J4), since its appearance draws it. The
   # same text and choice inputs are round-tripped through an embedded-font
-  # field, the embedded_* sites, which J4 does not cover. A push button takes
-  # only the standard 14 until stage 6 of 0.4.0 gives its caption embedded
-  # fonts, so button_label stays refused until then.
+  # field, the embedded_* sites, which J4 does not cover; but a control byte
+  # has no glyph in the embedded font either, and a field drawn with an
+  # embedded font that lacks a glyph is refused (W9's message), so the
+  # embedded sites refuse the control bytes too. The button_label site draws
+  # its caption in the default Helvetica, a standard-14 font, so J4 refuses
+  # the same inputs there as for field_value.
   @refused %{
     bookmark: [:empty],
     language: [:empty],
@@ -590,6 +593,9 @@ defmodule Tincture.EncryptTest do
     field_value: [:control_bytes, :non_ascii],
     choice_option: [:control_bytes, :non_ascii],
     choice_value: [:control_bytes, :non_ascii],
+    embedded_field_value: [:control_bytes],
+    embedded_choice_option: [:control_bytes],
+    embedded_choice_value: [:control_bytes],
     button_label: [:control_bytes, :non_ascii]
   }
 
