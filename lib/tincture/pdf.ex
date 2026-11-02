@@ -1636,9 +1636,10 @@ defmodule Tincture.PDF do
   # An embedded font with no glyph for a character draws it as glyph 0, a
   # blank: the field's value, an option, a caption or a label would show a
   # gap. Fields with embedded fonts are new in 0.4.0, so this is refused from
-  # the start, with the message page text warns with in 0.3.13 (W9). A
-  # variation selector is not counted: it selects a form of the character
-  # before it, and is written as glyph 0 by design.
+  # the start, with the message page text warns with in 0.3.13 (W9), and on
+  # W9's condition: a code point the cmap does not list, or lists with glyph
+  # 0 (a format 0 cmap lists every byte, with 0 for the ones the font lacks),
+  # is missing; a default-ignorable code point is not counted.
   defp refuse_missing_field_glyphs!(%__MODULE__{} = pdf, %{font: font} = field) do
     with %{ttf_metrics: %{cmap_by_code: cmap}} when map_size(cmap) > 0 <-
            Map.get(pdf.embedded_fonts, font),
@@ -1653,12 +1654,41 @@ defmodule Tincture.PDF do
     ([checked_value(field) | Map.get(field, :options, [])] ++ [Map.get(field, :label)])
     |> Enum.filter(&is_binary/1)
     |> Enum.flat_map(&String.to_charlist/1)
-    |> Enum.reject(&(variation_selector?(&1) or Map.has_key?(cmap, &1)))
+    |> Enum.reject(&(default_ignorable?(&1) or Map.get(cmap, &1, 0) != 0))
     |> Enum.uniq()
   end
 
-  defp variation_selector?(codepoint),
-    do: codepoint in 0xFE00..0xFE0F or codepoint in 0xE0100..0xE01EF
+  # A default-ignorable code point - a variation selector, a zero-width
+  # joiner or non-joiner, a zero-width space, a soft hyphen, a bidi control,
+  # a tag character - is a format or control character, not a letter to be
+  # drawn, so a font that lacks it is not reported. The same set W9 exempts
+  # in 0.3.13 (Tincture.PDF.Ops); the two are one when 0.3.13 is merged in.
+  #
+  # Default_Ignorable_Code_Point, from DerivedCoreProperties-17.0.0.txt
+  # (Unicode 17.0.0, dated 2025-07-30; the Unicode version Elixir 1.19 is
+  # built on), https://www.unicode.org/Public/17.0.0/ucd/, with adjacent
+  # entries merged: 4174 code points, the file's own total.
+  @default_ignorable [
+    0x00AD..0x00AD,
+    0x034F..0x034F,
+    0x061C..0x061C,
+    0x115F..0x1160,
+    0x17B4..0x17B5,
+    0x180B..0x180F,
+    0x200B..0x200F,
+    0x202A..0x202E,
+    0x2060..0x206F,
+    0x3164..0x3164,
+    0xFE00..0xFE0F,
+    0xFEFF..0xFEFF,
+    0xFFA0..0xFFA0,
+    0xFFF0..0xFFF8,
+    0x1BCA0..0x1BCA3,
+    0x1D173..0x1D17A,
+    0xE0000..0xE0FFF
+  ]
+
+  defp default_ignorable?(codepoint), do: Enum.any?(@default_ignorable, &(codepoint in &1))
 
   defp missing_glyph_message(font, [_one] = missing) do
     "font #{inspect(font)} has no glyph for #{describe_characters(missing)}, which is drawn " <>

@@ -521,7 +521,10 @@ defmodule Tincture do
 
   A value with a character the embedded font has no glyph for raises
   `ArgumentError`, naming each such character: the font would draw it as a
-  blank. A variation selector is not counted. The same holds for a choice
+  blank. A default-ignorable code point (Unicode's
+  Default_Ignorable_Code_Point: a variation selector, a zero-width joiner,
+  non-joiner or space, a soft hyphen and the like) is not counted. The same
+  holds for a choice
   field's options (`choice_field/7`), a push button's caption
   (`push_button/7`) and a signature field's label (`signature_field/7`).
 

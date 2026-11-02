@@ -239,6 +239,50 @@ defmodule Tincture.PDFAFormsTest do
       end
     end
 
+    # The fixture font maps only "A", "B" and space, and its format 0 cmap
+    # lists every other byte with glyph 0, so it lacks every character below.
+    defp probe do
+      path = Tincture.Test.MeasurableFont.write!()
+      on_exit(fn -> File.rm(path) end)
+      Tincture.register_ttf_font(Tincture.new(), "Probe", path)
+    end
+
+    test "is refused for a character the cmap maps to glyph 0, as for one it does not list" do
+      assert_raise ArgumentError,
+                   ~s[font "Probe" has no glyph for "C" (U+0043), which is drawn as a blank. ] <>
+                     "Register a font that covers it, or remove the character.",
+                   fn ->
+                     Tincture.text_field(probe(), 50, 700, 200, 20, "t",
+                       value: "AC",
+                       font: "Probe",
+                       read_only: true
+                     )
+                   end
+    end
+
+    test "is not refused for ZWJ, ZWNJ, ZWSP or a soft hyphen, the font lacking them all" do
+      pdf =
+        Tincture.text_field(probe(), 50, 700, 200, 20, "t",
+          value: "A‍B‌A​B­A",
+          font: "Probe",
+          read_only: true
+        )
+
+      assert [%{name: "t"}] = pdf.form_fields
+    end
+
+    test "names only the really missing character beside default-ignorable ones" do
+      assert_raise ArgumentError,
+                   ~r/^font "Probe" has no glyph for "C" \(U\+0043\), which is drawn/,
+                   fn ->
+                     Tincture.text_field(probe(), 50, 700, 200, 20, "t",
+                       value: "A‍B‌ A​C­B",
+                       font: "Probe",
+                       read_only: true
+                     )
+                   end
+    end
+
     test "is not refused when the font covers every character" do
       pdf =
         Tincture.text_field(base(nil), 50, 700, 200, 20, "t",
