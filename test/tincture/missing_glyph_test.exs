@@ -1,5 +1,5 @@
-defmodule Tincture.MissingGlyphWarningTest do
-  # Not async: these tests capture stderr, which is shared by the whole VM, and
+defmodule Tincture.MissingGlyphTest do
+  # Not async: one test captures stderr, which is shared by the whole VM, and
   # a test running alongside that writes to it would land in the capture.
   use ExUnit.Case, async: false
 
@@ -11,18 +11,18 @@ defmodule Tincture.MissingGlyphWarningTest do
   alias Tincture.Typography.RichText
 
   # W9. Text drawn in an embedded font that has no glyph for one of its
-  # characters is written as glyph 0 and drawn as a blank. Every public
-  # function that draws text warns once per call, listing each such
-  # character once. Liberation Sans has no "✓" (U+2713) and no "★" (U+2605).
+  # characters would be written as glyph 0 and drawn as a blank. 0.3.13
+  # warned; every public function that draws text now raises, once per call,
+  # listing each such character once. Liberation Sans has no "✓" (U+2713)
+  # and no "★" (U+2605).
 
   @font "examples/fonts/LiberationSans-Regular.ttf"
 
   @one ~s[font "Sans" has no glyph for "✓" (U+2713), which is drawn as a blank. ] <>
-         "Register a font that covers it, or remove the character. This will raise in 0.4.0."
+         "Register a font that covers it, or remove the character."
 
   @several ~s[font "Sans" has no glyph for "✓" (U+2713), "★" (U+2605), which are drawn as ] <>
-             "blanks. Register a font that covers them, or remove the characters. This will " <>
-             "raise in 0.4.0."
+             "blanks. Register a font that covers them, or remove the characters."
 
   defp sans do
     Tincture.new()
@@ -48,7 +48,8 @@ defmodule Tincture.MissingGlyphWarningTest do
 
   # Each public function that draws text, as a function of the text it draws.
   # The layout functions break the text into words, so the characters arrive
-  # in several text operations, and the call must still warn once.
+  # in several text operations, and the call must still raise once, naming
+  # all of them.
   defp drawers do
     [
       {"text_at/4", &Tincture.text_at(&1, 50, 700, &2)},
@@ -84,40 +85,58 @@ defmodule Tincture.MissingGlyphWarningTest do
     ]
   end
 
-  defp warnings(fun) do
-    {_pdf, stderr} = with_io(:stderr, fun)
-    Regex.scan(~r/warning: (.*?)\n/, stderr, capture: :all_but_first) |> List.flatten()
+  # The message the call raises with, or nil when it does not raise.
+  defp refusal(fun) do
+    fun.()
+    nil
+  rescue
+    error in ArgumentError -> error.message
   end
 
-  test "every function that draws text warns once, with the full message, for one character" do
+  test "every function that draws text raises, with the full message, for one character" do
     for {name, draw} <- drawers() do
       text = "one ✓ two three ✓ four"
-      assert warnings(fn -> draw.(sans(), text) end) == [@one], name
+      assert refusal(fn -> draw.(sans(), text) end) == @one, name
     end
   end
 
-  test "every function that draws text warns once, listing several characters once each" do
+  test "every function that draws text raises, listing several characters once each" do
     for {name, draw} <- drawers() do
       text = "one ✓ two ★ three ✓ four ★"
-      assert warnings(fn -> draw.(sans(), text) end) == [@several], name
+      assert refusal(fn -> draw.(sans(), text) end) == @several, name
     end
   end
 
-  test "text the font covers does not warn, in any function" do
+  test "a refused call warns nothing, and leaves nothing behind" do
+    # The document is a value, so the one the caller holds is unchanged; and
+    # the scope that collects missing characters is closed, so the next call,
+    # and the exported bytes, are as if the refused call had not been made.
+    pdf = sans()
+    expected = pdf |> Tincture.text_at(50, 700, "Ada") |> Tincture.export()
+
     for {name, draw} <- drawers() do
-      assert warnings(fn -> draw.(sans(), "Ada Lovelace, № 1843") end) == [], name
+      stderr = capture_io(:stderr, fn -> assert refusal(fn -> draw.(pdf, "✓") end) == @one end)
+
+      assert stderr == "", name
+      assert pdf |> Tincture.text_at(50, 700, "Ada") |> Tincture.export() == expected, name
     end
   end
 
-  test "a standard-14 font does not warn, whatever the text" do
+  test "text the font covers does not raise, in any function" do
+    for {name, draw} <- drawers() do
+      assert refusal(fn -> draw.(sans(), "Ada Lovelace, № 1843") end) == nil, name
+    end
+  end
+
+  test "a standard-14 font does not raise, whatever the text" do
     pdf = Tincture.set_font(Tincture.new(), "Helvetica", 12)
 
-    assert warnings(fn -> Tincture.text_at(pdf, 50, 700, "plain text") end) == []
-    assert warnings(fn -> Tincture.text_at(pdf, 50, 700, "★") end) == []
+    assert refusal(fn -> Tincture.text_at(pdf, 50, 700, "plain text") end) == nil
+    assert refusal(fn -> Tincture.text_at(pdf, 50, 700, "★") end) == nil
   end
 
   test "a variation selector is not a missing character" do
-    assert warnings(fn -> Tincture.text_at(sans(), 50, 700, "a️ b") end) == []
+    assert refusal(fn -> Tincture.text_at(sans(), 50, 700, "a️ b") end) == nil
   end
 
   describe "a default-ignorable code point" do
@@ -144,36 +163,71 @@ defmodule Tincture.MissingGlyphWarningTest do
             soft_hyphen: "­"
           ] do
         text = "A" <> character <> "B"
-        assert warnings(fn -> Tincture.text_at(pdf, 50, 700, text) end) == [], "#{name}"
+        assert refusal(fn -> Tincture.text_at(pdf, 50, 700, text) end) == nil, "#{name}"
       end
     end
 
     test "beside a character that is really missing, only that one is named", %{pdf: pdf} do
       text = "A‍B‌ A​C­B"
 
-      assert warnings(fn -> Tincture.text_at(pdf, 50, 700, text) end) == [
+      assert refusal(fn -> Tincture.text_at(pdf, 50, 700, text) end) ==
                ~s[font "Probe" has no glyph for "C" (U+0043), which is drawn as a blank. ] <>
-                 "Register a font that covers it, or remove the character. This will raise " <>
-                 "in 0.4.0."
-             ]
+                 "Register a font that covers it, or remove the character."
     end
 
     test "a character the cmap maps to glyph 0 is missing, as one it does not list", %{pdf: pdf} do
       # The fixture's cmap is format 0: it lists every byte, "C" among them,
       # with glyph 0 for the ones the font lacks.
-      assert warnings(fn -> Tincture.text_at(pdf, 50, 700, "AC") end) == [
+      assert refusal(fn -> Tincture.text_at(pdf, 50, 700, "AC") end) ==
                ~s[font "Probe" has no glyph for "C" (U+0043), which is drawn as a blank. ] <>
-                 "Register a font that covers it, or remove the character. This will raise " <>
-                 "in 0.4.0."
-             ]
+                 "Register a font that covers it, or remove the character."
     end
 
     test "the exempt set is Unicode 17.0.0's Default_Ignorable_Code_Point: 4174 code points" do
-      exempt = Enum.filter(0..0x10FFFF, &Tincture.PDF.Ops.default_ignorable?/1)
+      exempt = Enum.filter(0..0x10FFFF, &Tincture.Unicode.default_ignorable?/1)
 
       assert length(exempt) == 4174
       assert 0x00AD in exempt and 0x200D in exempt and 0xFE0F in exempt and 0xE01EF in exempt
       refute 0x0301 in exempt or 0x2713 in exempt or 0x0020 in exempt
+    end
+  end
+
+  describe "drawing a default-ignorable code point" do
+    # Liberation Sans maps U+00AD (soft hyphen) and U+200D (ZWJ), and has no
+    # glyph for U+2060 (word joiner) or U+FEFF (zero-width no-break space).
+
+    test "one the font lacks is not drawn, and is measured as not there" do
+      pdf = Tincture.text_at(sans(), 50, 700, "a⁠b﻿c")
+
+      assert [{:text_at, 50, 700, "abc", {"Sans", 12}}] = pdf.operations
+
+      context = Tincture.Font.Context.from_pdf(pdf)
+
+      assert Tincture.Font.Context.text_width(context, "Sans", 12, "a⁠b﻿c") ==
+               Tincture.Font.Context.text_width(context, "Sans", 12, "abc")
+    end
+
+    test "one the font has is drawn as any other character" do
+      pdf = Tincture.text_at(sans(), 50, 700, "a­b‍c")
+
+      assert [{:text_at, 50, 700, "a­b‍c", {"Sans", 12}}] = pdf.operations
+    end
+
+    test "a field's appearance leaves out one the font lacks, and its value keeps it" do
+      pdf =
+        Tincture.text_field(sans(), 50, 700, 200, 20, "name",
+          value: "a⁠b",
+          font: "Sans",
+          full_font: true
+        )
+
+      [field] = pdf.form_fields
+      assert field.value == "a⁠b"
+
+      %{content: content} = Tincture.PDF.Appearance.build_all(pdf)["name"]
+
+      assert [{:text_at, _x, _y, "ab", {"Sans", _size}}] =
+               for({:text_at, _, _, _, _} = op <- content, do: op)
     end
   end
 
@@ -187,18 +241,10 @@ defmodule Tincture.MissingGlyphWarningTest do
         %{text: " two ★", font: "Serif", size: 12}
       ])
 
-    assert warnings(fn -> Tincture.text_paragraph(pdf, 50, 700, rich, 300) end) == [
+    assert refusal(fn -> Tincture.text_paragraph(pdf, 50, 700, rich, 300) end) ==
              ~s[font "Sans" has no glyph for "✓" (U+2713); font "Serif" has no glyph for ] <>
                ~s["★" (U+2605), which are drawn as blanks. Register a font that covers ] <>
-               "them, or remove the characters. This will raise in 0.4.0."
-           ]
-  end
-
-  test "the text is written as before: the missing character keeps its code" do
-    {binary, _stderr} =
-      with_io(:stderr, fn -> sans() |> Tincture.text_at(50, 700, "a ✓ b") |> Tincture.export() end)
-
-    assert binary =~ "<00610020271300200062> Tj"
+               "them, or remove the characters."
   end
 
   describe "our own documents" do
@@ -210,7 +256,7 @@ defmodule Tincture.MissingGlyphWarningTest do
             fn -> Tincture.Showcase.MarketingPoster.build_document() end,
             fn -> Tincture.Showcase.MultiFontReport.build_document() end
           ] do
-        refute capture_io(:stderr, build) =~ "has no glyph"
+        assert refusal(build) == nil
       end
     end
   end

@@ -181,6 +181,7 @@ defmodule Tincture.PDF.Appearance do
         label ->
           x = max((width - measure(context, field, size, label)) / 2, 2)
           y = (height - size * 0.72) / 2
+          label = Context.drawn_text(context, field.font, label)
           [{:set_fill_gray, 0}, {:text_at, x, y, label, {field.font, size}}]
       end
 
@@ -273,7 +274,7 @@ defmodule Tincture.PDF.Appearance do
   defp single_line(field, text, box, context, size) do
     %{line: line, descent: descent} = box.metrics
     y = (box.h - line * size) / 2 + descent * size
-    inked([text_op(field, text, size, x(field, text, size, box, context), y)])
+    inked([text_op(field, context, text, size, x(field, text, size, box, context), y)])
   end
 
   # The size whose line box, with Acrobat's margin above and below, fills the
@@ -301,7 +302,14 @@ defmodule Tincture.PDF.Appearance do
     |> Enum.with_index()
     |> Enum.reject(fn {line, _index} -> line == "" end)
     |> Enum.map(fn {line, index} ->
-      text_op(field, line, size, x(field, line, size, box, context), first - index * leading)
+      text_op(
+        field,
+        context,
+        line,
+        size,
+        x(field, line, size, box, context),
+        first - index * leading
+      )
     end)
     |> inked()
   end
@@ -378,7 +386,7 @@ defmodule Tincture.PDF.Appearance do
 
     for {{option, _index}, slot} <- visible, option != "" do
       y = row_bottom(box, row, slot) + box.metrics.descent * size
-      text_op(field, option, size, x(field, option, size, box, context), y)
+      text_op(field, context, option, size, x(field, option, size, box, context), y)
     end
   end
 
@@ -412,8 +420,12 @@ defmodule Tincture.PDF.Appearance do
     end
   end
 
-  defp text_op(field, text, size, x, y),
-    do: {:text_at, tidy(x), tidy(y), text, {field.font, tidy(size)}}
+  # The text as drawn: a default-ignorable code point the field's embedded
+  # font lacks is left out, as on a page (Context.drawn_text/3).
+  defp text_op(field, context, text, size, x, y),
+    do:
+      {:text_at, tidy(x), tidy(y), Context.drawn_text(context, field.font, text),
+       {field.font, tidy(size)}}
 
   defp measure(context, field, size, text),
     do: Context.text_width(context, field.font, size, text, on_unknown: :estimate)
