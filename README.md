@@ -133,7 +133,7 @@ shrink.
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-At 0.3.13: 1,578 tests · coverage: CI fails below 80%; 90.5% in CI at 0.3.13
+At 0.3.13: 1,582 tests · coverage: CI fails below 80%; 90.5% in CI at 0.3.13
 · Credo `--strict` clean,
 with pre-existing findings in `lib/` exempted inline one by one and `test/` and
 `scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir
