@@ -126,7 +126,7 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.3.12"}
+{:tincture, "~> 0.3.13"}
 ```
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
