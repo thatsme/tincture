@@ -128,6 +128,49 @@ them, and the eighth follows from them.
   that creates it. Before, `export/2` failed with an internal message. The
   combination never produced a file in any release.
 
+## [0.3.13] — 2026-11-02
+
+**Text in an embedded font that the font cannot draw was drawn as blanks,
+silently.** A character the font has no glyph for was written as glyph 0,
+the font's placeholder, and drawn as a blank. This affected every release
+from 0.1.0 to 0.3.12, and a validator does not name it: veraPDF's PDF/A-2b
+profile passed one such file, and failed another only on a glyph width
+(clause 6.2.11.5). 0.3.13 warns, naming each such character, and 0.4.0 will
+refuse it. No output byte changes.
+
+The release also corrects the documentation of the reset action, and
+documents what a submit action sends.
+
+### Deprecated
+
+This warns now and raises in 0.4.0:
+
+- **Text in an embedded font that has no glyph for one of its characters.**
+  Every function that draws text warns once per call, naming each such
+  character and its code point: `font "Sans" has no glyph for "✓" (U+2713),
+  which is drawn as a blank.` `text_paragraph/6` and the `Tincture.Layout`
+  functions, which draw word by word, warn once for the whole call. A
+  default-ignorable code point (Unicode's Default_Ignorable_Code_Point, such
+  as a variation selector, a zero-width joiner or space, or a soft hyphen) is
+  not counted: it has no visible glyph of its own. The standard 14 fonts are
+  not checked.
+  *Migration:* register a font that covers the character, or remove it.
+
+### Documentation
+
+- **`:reset` restores each field's initial value.** `push_button/7`
+  documented it as clearing every field. A reset sets each field to its
+  default value, and Tincture writes a field's initial value as its default,
+  so a field created with `:value` gets that value back, and only a field
+  created without one is emptied.
+- **What a submit sends.** `push_button/7` gains a section on
+  `{:submit, url}`: an HTTP POST in HTML form format, with each field's name
+  and value, leaving out fields with no value, push buttons and fields
+  created with `no_export: true`. It records what Acrobat Reader 26.2 was
+  observed to do: it asks before connecting to an untrusted host, it reports
+  an HTML reply as an error, and it sends a value outside ASCII in a Windows
+  code page with no charset. PDFgear 2.1.16 runs no form actions.
+
 ## [0.3.12] — 2026-10-30
 
 **A page that used no fonts, images or other resources was written without
@@ -1127,7 +1170,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.12...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.13...HEAD
+[0.3.13]: https://github.com/thatsme/tincture/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/thatsme/tincture/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/thatsme/tincture/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/thatsme/tincture/compare/v0.3.9...v0.3.10
