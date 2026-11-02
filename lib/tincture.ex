@@ -548,9 +548,14 @@ defmodule Tincture do
   ## Options
 
     * `:action` — required. One of:
-      * `:reset` — clear every field in the form.
+      * `:reset` — return every field to the value it was created with:
+        a field created with `:value` gets that value back, and a field
+        created without one is emptied. This is the form's reset action,
+        which restores each field's default value (`/DV`); Tincture writes
+        a field's initial value as its default.
       * `{:url, url}` — open a URL.
-      * `{:submit, url}` — submit the form's values to a URL.
+      * `{:submit, url}` — send the form's field values to `url`. See
+        "Submitting a form" below.
     * `:label` — the caption drawn on the button face.
     * `:read_only`, `:required`, `:no_export` — field flags.
     * `:tooltip`, `:border`, `:font`, `:size`, `:page` — as for `text_field/7`.
@@ -559,6 +564,31 @@ defmodule Tincture do
   inside a `tag/4` scope, as for `text_field/7`. Its `:label` may only use
   characters WinAnsi encodes, as a text field's value (`text_field/7`), and
   a line break in it warns.
+
+  ## Submitting a form
+
+  A `{:submit, url}` button sends the form by HTTP POST, as
+  `application/x-www-form-urlencoded`: the HTML form format of ISO 32000-1,
+  `/Flags 4`. Each field is sent under its name with its current value: a
+  checkbox as its on-state name (`Yes`), a radio group as the selected
+  button's `:value`, a choice field as its selected option. A field with no
+  value is not sent, nor is a push button, nor a field created with
+  `no_export: true`.
+
+  Observed in Acrobat Reader 26.2:
+
+    * Reader asks before connecting to a host it does not trust; the host
+      can be allowed in its Trust Manager settings.
+    * An HTML reply from the server is reported as an error ("cannot
+      process content of type text/html"), after the values have been
+      received.
+    * A value outside ASCII is encoded in a Windows code page that can
+      represent it (Greek arrives as Windows-1253), and the request names no
+      charset. A server cannot determine the encoding from the request, so
+      only ASCII values arrive unambiguously.
+
+  PDFgear 2.1.16 does not run form actions: neither submit nor reset does
+  anything there.
 
   ## Examples
 
