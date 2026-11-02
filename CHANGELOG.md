@@ -141,6 +141,10 @@ them, and the eighth follows from them.
   rather than `0`. Acrobat Reader draws a button anew from these entries when
   it loses focus or the form is reset; without them it drew the button with
   no face, no frame and a caption of its own size.
+- **A bordered signature field declares its border.** As a bordered text
+  field does: `/MK << /BC [0 0 0] >>` and `/BS << /W w >>`, beside the
+  existing `/Border`, for a viewer or signing tool that draws a new
+  appearance.
 - **A list box scrolls to its selected option.** `/TI` is written when the
   selected option would otherwise be below the visible rows.
 
