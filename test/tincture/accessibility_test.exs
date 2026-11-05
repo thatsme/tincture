@@ -237,6 +237,18 @@ defmodule Tincture.AccessibilityTest do
       assert [%{rule: :language_missing}] = Tincture.pdf_ua_violations(pdf)
     end
 
+    test "element-level :lang does not stand in for set_language/2" do
+      pdf =
+        Tincture.new()
+        |> Tincture.set_font("Helvetica", 12)
+        |> Tincture.tag(:document, [lang: "en-GB"], fn doc ->
+          Tincture.tag(doc, :p, [lang: "en-GB"], &Tincture.text_at(&1, 50, 700, "Text"))
+        end)
+
+      assert [%{rule: :language_missing, message: message}] = Tincture.pdf_ua_violations(pdf)
+      assert message =~ "Call set_language/2"
+    end
+
     test "set_language/2 clears it" do
       pdf = Tincture.new() |> Tincture.set_language("en-GB") |> text_document()
       assert Tincture.pdf_ua_violations(pdf) == []

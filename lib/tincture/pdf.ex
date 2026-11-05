@@ -137,6 +137,10 @@ defmodule Tincture.PDF do
   A radio group is a single field with several on-page widgets, one per choice.
   `export_value` is the value the field takes when that button is the selected
   one, and is what appears in the filled document.
+
+  `annotation_id` is set by Tincture, never by a caller: when `radio_group/4`
+  is called inside a `tag/4` scope, each button's widget gets one, and export
+  writes the `Form` structure element that owns the widget through it.
   """
   @type radio_widget ::
           %{
@@ -148,6 +152,15 @@ defmodule Tincture.PDF do
             # owns the widget through that id.
             optional(:annotation_id) => pos_integer()
           }
+  @typedoc """
+  A form field as the document records it, one per field call.
+
+  Built by the field functions from their arguments and options. The keys
+  marked internal are set by Tincture, never by a caller: `annotation_id` is
+  given to the field's widget when the field is created inside a `tag/4`
+  scope, and export writes the `Form` structure element that owns the widget
+  through it; a radio group's ids are on its widgets.
+  """
   @type form_field ::
           %{
             required(:type) => form_field_type(),

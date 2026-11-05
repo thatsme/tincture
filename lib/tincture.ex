@@ -1829,6 +1829,8 @@ defmodule Tincture do
     * `:actual_text` — the text this content really represents, for when the
       glyphs are not the words (a ligature, a decorative capital).
     * `:lang` — a BCP 47 tag, when this element differs from the document.
+      It refines the document's language and does not replace it: a tagged
+      document needs `set_language/2` whatever its elements set.
     * `:title` — a human-readable title for the element.
     * `:scope` — `:row`, `:column` or `:both`. Only valid on `:th`, and what
       tells a reader which cells a header governs.
@@ -2064,7 +2066,10 @@ defmodule Tincture do
   Without it a screen reader has to guess which language to pronounce the text
   as, so this is a requirement for an accessible document rather than a nicety.
   A tagged document claims PDF/UA, and `export/2` refuses one with no language
-  (`:language_missing`), following `:enforce`.
+  (`:language_missing`), following `:enforce`. An element's `:lang` (see
+  `tag/4`) refines the language for that element only and does not replace
+  this: a tagged document needs `set_language/2` even when every element sets
+  `:lang`.
   """
   @spec set_language(PDF.t(), String.t()) :: PDF.t()
   def set_language(%PDF{} = pdf, language) do
