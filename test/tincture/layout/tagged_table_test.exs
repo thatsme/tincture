@@ -144,11 +144,12 @@ defmodule Tincture.Layout.TaggedTableTest do
 
   describe ":tag explicitly" do
     test "true tags a table in an otherwise untagged document" do
-      binary =
-        render(
-          Tincture.new()
-          |> Tincture.set_language("en-GB")
-          |> Tincture.set_metadata(title: "Test document"), header_rows: 1, tag: true)
+      pdf =
+        Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
+
+      binary = render(pdf, header_rows: 1, tag: true)
 
       assert binary =~ "/StructTreeRoot"
       assert count_elements(binary, "Table") == 1
