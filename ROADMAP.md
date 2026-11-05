@@ -279,9 +279,9 @@ What remains:
   of inline elements at block level are now written automatically, so neither
   is left to the caller. Three rules are checked as violations: a `:figure`
   without `:alt`, a link outside a `:link` element, and a link with no
-  `/Contents`. 0.4.0 adds three: a form field with no `:tooltip`, a form
-  field outside every `tag/4` scope, and a tagged document with no
-  language. Heading-level order and table header association are the
+  `/Contents`. 0.4.0 adds four: a form field with no `:tooltip`, a form
+  field outside every `tag/4` scope, and a tagged document with no language
+  or no title. Heading-level order and table header association are the
   candidates left; whether an alternative text is *accurate* is not one a
   library can settle.
 

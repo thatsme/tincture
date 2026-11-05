@@ -31,6 +31,7 @@ defmodule Tincture.TaggedPDFTest do
   defp simple_tagged do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.set_font("Helvetica", 12)
     |> Tincture.tag(:document, fn pdf ->
       pdf
@@ -64,6 +65,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("fr")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.text_at(10, 10, "bonjour")
         |> export()
 
@@ -86,6 +88,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:table, fn pdf ->
           Tincture.tag(pdf, :tr, fn pdf ->
@@ -103,6 +106,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "page one"))
         |> Tincture.add_page()
@@ -117,6 +121,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -138,6 +143,7 @@ defmodule Tincture.TaggedPDFTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -236,6 +242,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:figure, [alt: "Bar chart of revenue"], fn pdf ->
           Tincture.rectangle(pdf, 10, 10, 50, 50, :fill)
         end)
@@ -248,6 +255,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:th, [scope: :row], &Tincture.text_at(&1, 10, 10, "Total"))
         |> export()
@@ -262,6 +270,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:span, [actual_text: "ffi"], &Tincture.text_at(&1, 10, 10, "ﬃ"))
         |> export()
@@ -273,6 +282,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, [lang: "cy"], &Tincture.text_at(&1, 10, 10, "Croeso"))
         |> export()
@@ -285,6 +295,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:section, [title: "Appendix"], fn pdf ->
           Tincture.tag(pdf, :p, &Tincture.text_at(&1, 10, 10, "text"))

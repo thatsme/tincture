@@ -29,6 +29,7 @@ defmodule Tincture.FormDeprecationsTest do
   defp tagged(fun) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> fun.()
   end
 

@@ -83,6 +83,7 @@ defmodule Tincture.ContentStreamStateTest do
     pdf =
       Tincture.new()
       |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Test document")
       |> Tincture.tag(:document, fn pdf ->
         pdf |> Box.flow_text(72, 700, 300, 200, rich) |> elem(0)
       end)
@@ -102,6 +103,7 @@ defmodule Tincture.ContentStreamStateTest do
     {pdf, result} =
       Tincture.new()
       |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Test document")
       |> Tincture.PDF.begin_structure(:document)
       |> Template.render_document(template, rich)
 

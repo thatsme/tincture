@@ -14,6 +14,7 @@ defmodule Tincture.AccessibilityTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, [], fn doc ->
           Tincture.tag(doc, :p, [], fn p ->
             p
@@ -44,6 +45,7 @@ defmodule Tincture.AccessibilityTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, [], fn doc ->
           {flowed, _result} = Box.flow_text(doc, 50, 700, 200, 100, rich())
           flowed
@@ -62,7 +64,15 @@ defmodule Tincture.AccessibilityTest do
 
     test "tag: true tags even when the document is not otherwise tagged" do
       {pdf, _result} =
-        Box.flow_text(Tincture.set_language(Tincture.new(), "en-GB"), 50, 700, 200, 100, rich(),
+        Box.flow_text(
+          Tincture.new()
+          |> Tincture.set_language("en-GB")
+          |> Tincture.set_metadata(title: "Test document"),
+          50,
+          700,
+          200,
+          100,
+          rich(),
           tag: true
         )
 
@@ -73,6 +83,7 @@ defmodule Tincture.AccessibilityTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, [], fn doc ->
           {flowed, _result} = Box.flow_text(doc, 50, 700, 200, 100, rich(), tag: false)
           flowed
@@ -84,7 +95,15 @@ defmodule Tincture.AccessibilityTest do
 
     test "tag_as picks the structure element" do
       {pdf, _result} =
-        Box.flow_text(Tincture.set_language(Tincture.new(), "en-GB"), 50, 700, 200, 100, rich(),
+        Box.flow_text(
+          Tincture.new()
+          |> Tincture.set_language("en-GB")
+          |> Tincture.set_metadata(title: "Test document"),
+          50,
+          700,
+          200,
+          100,
+          rich(),
           tag: true,
           tag_as: :h2
         )
@@ -125,6 +144,7 @@ defmodule Tincture.AccessibilityTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, [], fn doc ->
           {rendered, _result} = Template.render(doc, template, rich(), page_number: 1)
           rendered
@@ -151,6 +171,7 @@ defmodule Tincture.AccessibilityTest do
     defp figure_document(figure_opts) do
       Tincture.new()
       |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Test document")
       |> Tincture.tag(:document, [], fn doc ->
         Tincture.tag(doc, :figure, figure_opts, fn fig ->
           Tincture.rectangle(fig, 50, 600, 100, 80, :fill)
@@ -203,8 +224,10 @@ defmodule Tincture.AccessibilityTest do
                         "to pronounce them. Call set_language/2, for example " <>
                         ~s{set_language(pdf, "en-GB")}
 
+    # Titled, so that the language is the only thing missing.
     defp text_document(pdf) do
       pdf
+      |> Tincture.set_metadata(title: "Test document")
       |> Tincture.set_font("Helvetica", 12)
       |> Tincture.tag(:document, fn doc ->
         Tincture.tag(doc, :p, &Tincture.text_at(&1, 50, 700, "Text"))
@@ -240,6 +263,7 @@ defmodule Tincture.AccessibilityTest do
     test "element-level :lang does not stand in for set_language/2" do
       pdf =
         Tincture.new()
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, [lang: "en-GB"], fn doc ->
           Tincture.tag(doc, :p, [lang: "en-GB"], &Tincture.text_at(&1, 50, 700, "Text"))
@@ -262,6 +286,70 @@ defmodule Tincture.AccessibilityTest do
 
     test "enforce: false exports it anyway" do
       assert is_binary(Tincture.export(text_document(Tincture.new()), enforce: false))
+    end
+  end
+
+  # A tagged document declares PDF/UA-1, and veraPDF fails one whose XMP has
+  # no dc:title on rule 7.1-9, and on nothing else once it has a language.
+  describe "a tagged document with no title" do
+    @title_message "the document has no title. A tagged document claims PDF/UA, which " <>
+                     "needs its metadata to carry a title that identifies the document " <>
+                     "(veraPDF rule 7.1-9, dc:title), so a reader can announce what it is. " <>
+                     "Call set_metadata/2 with title:, for example " <>
+                     ~s{set_metadata(pdf, title: "Annual report")}
+
+    # In a language, so that the title is the only thing missing.
+    defp untitled(pdf \\ Tincture.new()) do
+      pdf
+      |> Tincture.set_language("en-GB")
+      |> Tincture.set_font("Helvetica", 12)
+      |> Tincture.tag(:document, fn doc ->
+        Tincture.tag(doc, :p, &Tincture.text_at(&1, 50, 700, "Text"))
+      end)
+    end
+
+    test "is a violation, once for the document" do
+      assert Tincture.pdf_ua_violations(untitled()) == [
+               %{rule: :title_missing, clause: "7.1", message: @title_message}
+             ]
+    end
+
+    test "is refused at export, with the full message" do
+      error = assert_raise ArgumentError, fn -> Tincture.export(untitled()) end
+      assert error.message =~ @title_message <> " (ISO 14289-1 clause 7.1)"
+    end
+
+    test "a blank title counts as none" do
+      pdf = untitled(Tincture.set_metadata(Tincture.new(), title: "   "))
+      assert [%{rule: :title_missing}] = Tincture.pdf_ua_violations(pdf)
+    end
+
+    test "metadata without a title counts as none" do
+      pdf = untitled(Tincture.set_metadata(Tincture.new(), author: "A. Lovelace"))
+      assert [%{rule: :title_missing}] = Tincture.pdf_ua_violations(pdf)
+    end
+
+    test "set_metadata/2 with a title clears it" do
+      pdf = untitled(Tincture.set_metadata(Tincture.new(), title: "Annual report"))
+      assert Tincture.pdf_ua_violations(pdf) == []
+    end
+
+    test "with neither a language nor a title, both are reported" do
+      pdf =
+        Tincture.new()
+        |> Tincture.tag(:document, fn doc -> Tincture.tag(doc, :section, & &1) end)
+
+      assert pdf |> Tincture.pdf_ua_violations() |> Enum.map(& &1.rule) ==
+               [:language_missing, :title_missing]
+    end
+
+    test "an untagged document needs no title: it claims nothing" do
+      pdf = Tincture.new() |> Tincture.set_font("Helvetica", 12) |> Tincture.text_at(50, 700, "x")
+      assert Tincture.pdf_ua_violations(pdf) == []
+    end
+
+    test "enforce: false exports it anyway" do
+      assert is_binary(Tincture.export(untitled(), enforce: false))
     end
   end
 

@@ -130,6 +130,12 @@ defmodule Tincture do
 
   @doc """
   Set document metadata fields (for example: `:title`, `:author`, `:keywords`).
+
+  Each call replaces the metadata set before, so pass every field at once.
+
+  A tagged document claims PDF/UA, which needs a title that identifies the
+  document, and `export/2` refuses one without a `:title` (`:title_missing`),
+  following `:enforce`. A blank title counts as none.
   """
   @spec set_metadata(PDF.t(), map() | keyword()) :: PDF.t()
   def set_metadata(%PDF{} = pdf, metadata) when is_map(metadata) or is_list(metadata) do

@@ -23,11 +23,13 @@ defmodule Tincture.PDF.Accessibility do
     * a form field created outside every `Tincture.tag/4` scope, which leaves
       its widget with no Form element (clause 7.18.4);
     * a document with no language, set with `Tincture.set_language/2`
-      (clause 7.2).
+      (clause 7.2);
+    * a document with no title, set with `Tincture.set_metadata/2` (clause
+      7.1).
 
   Clause numbers are those of the matching rules in veraPDF 1.30.2's PDF/UA-1
-  profile (7.3-1, 7.18.5-1, 7.18.5-2, 7.18.1-3, 7.18.4-1, and 7.2-34, 7.2-25
-  and 7.2-33).
+  profile (7.3-1, 7.18.5-1, 7.18.5-2, 7.18.1-3, 7.18.4-1, 7.2-34, 7.2-25 and
+  7.2-33, and 7.1-9).
 
   ## What this can and cannot tell you
 
@@ -66,7 +68,8 @@ defmodule Tincture.PDF.Accessibility do
           &links_without_description/1,
           &fields_without_description/1,
           &fields_outside_structure/1,
-          &language_missing/1
+          &language_missing/1,
+          &title_missing/1
         ],
         fn check -> check.(pdf) end
       )
@@ -191,6 +194,30 @@ defmodule Tincture.PDF.Accessibility do
   end
 
   defp language_missing(%PDF{}), do: []
+
+  # PDF/UA also requires the metadata to carry a title that identifies the
+  # document (veraPDF rule 7.1-9, dc:title in the XMP), which a reader
+  # announces in place of a file name: a tagged document asks the viewer to
+  # show it (/DisplayDocTitle). set_metadata/2's :title writes it. A blank
+  # title counts as none. One violation for the document.
+  defp title_missing(%PDF{metadata: metadata}) do
+    if blank?(Map.get(metadata, :title)) do
+      [
+        %{
+          rule: :title_missing,
+          clause: "7.1",
+          message:
+            "the document has no title. A tagged document claims PDF/UA, which needs " <>
+              "its metadata to carry a title that identifies the document (veraPDF rule " <>
+              "7.1-9, dc:title), so a reader can announce what it is. Call " <>
+              "set_metadata/2 with title:, for example " <>
+              "set_metadata(pdf, title: \"Annual report\")"
+        }
+      ]
+    else
+      []
+    end
+  end
 
   # A field's tooltip is written as /TU, the name a screen reader announces for
   # it; without one, a reader reaches the field and can say only that a field

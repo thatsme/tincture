@@ -11,6 +11,7 @@ defmodule Tincture.LayoutAttributesTest do
   defp tagged(fun) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fun)
   end
 
@@ -158,6 +159,7 @@ defmodule Tincture.LayoutAttributesTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 10)
         |> Tincture.tag(:document, &figure(&1, fun))
 
@@ -375,6 +377,7 @@ defmodule Tincture.LayoutAttributesTest do
         binary =
           Tincture.new()
           |> Tincture.set_language("en-GB")
+          |> Tincture.set_metadata(title: "Test document")
           |> Tincture.tag(container, &Tincture.tag(&1, :link, fn pdf -> link(pdf) end))
           |> Tincture.export()
 

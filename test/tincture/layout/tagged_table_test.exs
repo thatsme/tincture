@@ -27,6 +27,7 @@ defmodule Tincture.Layout.TaggedTableTest do
   defp tagged_document(opts) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fn pdf ->
       {rendered, _result} = Table.render(pdf, 50, 700, [200, 120], @rows, opts)
       rendered
@@ -100,6 +101,7 @@ defmodule Tincture.Layout.TaggedTableTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], @rows, [])
           rendered
@@ -128,6 +130,7 @@ defmodule Tincture.Layout.TaggedTableTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "before"))
         |> then(fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], @rows, header_rows: 1)
@@ -141,7 +144,11 @@ defmodule Tincture.Layout.TaggedTableTest do
 
   describe ":tag explicitly" do
     test "true tags a table in an otherwise untagged document" do
-      binary = render(Tincture.set_language(Tincture.new(), "en-GB"), header_rows: 1, tag: true)
+      binary =
+        render(
+          Tincture.new()
+          |> Tincture.set_language("en-GB")
+          |> Tincture.set_metadata(title: "Test document"), header_rows: 1, tag: true)
 
       assert binary =~ "/StructTreeRoot"
       assert count_elements(binary, "Table") == 1
@@ -202,6 +209,7 @@ defmodule Tincture.Layout.TaggedTableTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], rows, header_rows: 1)
           rendered

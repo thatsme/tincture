@@ -87,8 +87,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata, and without `set_language/2` it has no catalog `/Lang`: veraPDF
   fails it on rule 7.2-34 as soon as it draws text, on 7.2-25 for a form
   field's tooltip and on 7.2-33 for a metadata title, and a screen reader
-  guesses which language to pronounce it in. *Migration:* call
+  guesses which language to pronounce it in. An element's `:lang` refines
+  the document's language and does not replace it. *Migration:* call
   `set_language/2`.
+- **A tagged document with no title is refused at export,** as
+  `:title_missing` (clause 7.1). A tagged document claims PDF/UA-1 in its
+  metadata, and without a `:title` from `set_metadata/2` its XMP has no
+  `dc:title`: veraPDF fails it on rule 7.1-9, and a reader has no title to
+  announce in place of a file name. A blank title counts as none.
+  *Migration:* pass `title:` to `set_metadata/2`.
 
 The first four have warned since 0.3.4, the next two since 0.3.8, the
 seventh since 0.3.9, the standard-14 field text since 0.3.6, the choice
@@ -104,9 +111,10 @@ and no correct output was found. Every case measured draws wrong, no example
 uses such a font, and 0.3.x releases have stopped except for data-corrupting
 defects.
 
-The refusal of a tagged document with no language has no warning release
-first either, for the same reason: such a file claims a PDF/UA conformance
-it does not have, so there is no correct output to protect.
+The refusals of a tagged document with no language and of one with no title
+have no warning release first either, for the same reason: such a file
+claims a PDF/UA conformance it does not have, so there is no correct output
+to protect.
 
 ### Added
 

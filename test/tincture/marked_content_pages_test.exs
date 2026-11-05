@@ -12,6 +12,7 @@ defmodule Tincture.MarkedContentPagesTest do
   defp document(fun) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fun)
   end
 

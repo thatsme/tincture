@@ -90,6 +90,7 @@ defmodule Tincture.LinkStructureTest do
   defp two_tagged_links do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fn doc ->
       doc
       |> Tincture.tag(:link, fn page ->
@@ -214,6 +215,7 @@ defmodule Tincture.LinkStructureTest do
       tagged =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :link, fn page ->
             Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"})
@@ -273,6 +275,7 @@ defmodule Tincture.LinkStructureTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
             page
@@ -297,6 +300,7 @@ defmodule Tincture.LinkStructureTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
             Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"},
@@ -314,6 +318,7 @@ defmodule Tincture.LinkStructureTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
             Tincture.text_link(page, 72, 700, "target", {:url, "https://example.org"},
@@ -369,6 +374,7 @@ defmodule Tincture.LinkStructureTest do
       pdf =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
             page

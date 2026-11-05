@@ -108,6 +108,7 @@ defmodule Tincture.FormStructureTest do
   defp tagged(fun) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fun)
     |> Tincture.export()
   end
@@ -213,6 +214,7 @@ defmodule Tincture.FormStructureTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.add_page()
         |> Tincture.set_page(1)
         |> Tincture.tag(:document, fn pdf ->
@@ -304,6 +306,7 @@ defmodule Tincture.FormStructureTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.add_page()
         |> Tincture.set_page(1)
         |> Tincture.tag(:document, fn pdf ->

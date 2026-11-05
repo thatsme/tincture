@@ -101,6 +101,7 @@ defmodule Tincture.PDFATest do
         |> Tincture.register_ttf_font("Body", font)
         |> Tincture.set_pdf_a(:a2a)
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Body", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "AB"))
         |> export()
@@ -114,6 +115,7 @@ defmodule Tincture.PDFATest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "tagged"))
         |> export()

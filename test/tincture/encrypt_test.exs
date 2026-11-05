@@ -698,6 +698,7 @@ defmodule Tincture.EncryptTest do
   defp document_with(:figure_alt, value) do
     Tincture.new()
     |> Tincture.set_language("en")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:figure, [alt: value], &Tincture.rectangle(&1, 0, 0, 10, 10, :fill))
   end
 
@@ -706,12 +707,14 @@ defmodule Tincture.EncryptTest do
 
     Tincture.new()
     |> Tincture.set_language("en")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:p, [{option, value}], &Tincture.text_at(&1, 0, 0, "x"))
   end
 
   defp document_with(site, value) when site in [:note_id, :note_id_tree] do
     Tincture.new()
     |> Tincture.set_language("en")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:note, [id: value], &Tincture.text_at(&1, 0, 0, "x"))
   end
 

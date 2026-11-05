@@ -185,6 +185,7 @@ defmodule Tincture.RemoteLinkTest do
     defp tagged_remote(opts) do
       Tincture.new()
       |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Test document")
       |> Tincture.tag(:document, fn doc ->
         Tincture.tag(doc, :link, fn page ->
           page
