@@ -177,7 +177,8 @@ defmodule Tincture.PDF do
             # widgets.
             optional(:annotation_id) => pos_integer(),
             # Internal: whether the field was created with no structure
-            # element open. Read only by the 0.3.6 warnings; never written.
+            # element open, which export refuses in a tagged document
+            # (:field_outside_structure). Never written.
             optional(:created_outside_structure) => boolean()
           }
   @type op ::

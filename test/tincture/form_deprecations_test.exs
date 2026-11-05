@@ -2,9 +2,11 @@ defmodule Tincture.FormDeprecationsTest do
   @moduledoc """
   The form deprecations and the refusals they became:
 
-    * J1, a form field with no tooltip in a tagged document, at export, and
+    * J1, a form field with no tooltip in a tagged document, and
     * J2, a form field created outside every tag/4 scope in a tagged
-      document, at export: both still warn, and carry on;
+      document: both warned at export from 0.3.6, and are refused at export
+      in 0.4.0, as `:field_without_description` and `:field_outside_structure`,
+      following `:enforce`; nothing warns first;
     * J4, a standard-14 field value that WinAnsi cannot encode, and
     * W8, a non-editable choice value that is not one of its options: both
       raise at the field call, as 0.4.0 draws the value into the field's
@@ -39,8 +41,36 @@ defmodule Tincture.FormDeprecationsTest do
     )
   end
 
-  describe "J1, a field without a tooltip in a tagged document" do
-    test "warns once per field at export, a radio group once" do
+  @no_tooltip "In a tagged document every form field needs one: it is written as /TU, " <>
+                "the name a screen reader announces for the field. Pass tooltip: \"...\""
+
+  @outside "In a tagged document a form field must be created inside a tag(...) scope " <>
+             "so a reader can reach it"
+
+  defp field_violations(pdf) do
+    pdf
+    |> Tincture.pdf_ua_violations()
+    |> Enum.filter(&(&1.rule in [:field_without_description, :field_outside_structure]))
+  end
+
+  # Export refuses, naming each violation, and nothing is written to stderr
+  # first: no 0.3.6 warning is left.
+  defp assert_refused(pdf, messages) do
+    stderr =
+      capture_io(:stderr, fn ->
+        error = assert_raise ArgumentError, fn -> Tincture.export(pdf) end
+
+        assert error.message =~
+                 "this document is tagged, which claims PDF/UA structure, but does not meet it:"
+
+        for message <- messages, do: assert(error.message =~ message)
+      end)
+
+    assert stderr == ""
+  end
+
+  describe "J1, a field without a tooltip in a tagged document, is refused at export" do
+    test "once per field, a radio group once" do
       pdf =
         tagged(fn pdf ->
           Tincture.tag(pdf, :section, fn doc ->
@@ -48,10 +78,24 @@ defmodule Tincture.FormDeprecationsTest do
           end)
         end)
 
-      assert warnings(fn -> Tincture.export(pdf) end) == [
-               ~s(a text field "full_name" on page 1 has no tooltip. In a tagged document every form field needs one: it is written as /TU, the name a screen reader announces for the field. Pass tooltip: "...". This will raise in 0.4.0.),
-               ~s(a radio group "contact" on page 1 has no tooltip. In a tagged document every form field needs one: it is written as /TU, the name a screen reader announces for the field. Pass tooltip: "...". This will raise in 0.4.0.)
+      assert field_violations(pdf) == [
+               %{
+                 rule: :field_without_description,
+                 clause: "7.18.1",
+                 message: ~s(a text field "full_name" on page 1 has no tooltip. ) <> @no_tooltip
+               },
+               %{
+                 rule: :field_without_description,
+                 clause: "7.18.1",
+                 message: ~s(a radio group "contact" on page 1 has no tooltip. ) <> @no_tooltip
+               }
              ]
+
+      assert_refused(pdf, [
+        ~s(a text field "full_name" on page 1 has no tooltip. ) <>
+          @no_tooltip <> " (ISO 14289-1 clause 7.18.1)",
+        ~s(a radio group "contact" on page 1 has no tooltip.)
+      ])
     end
 
     test "a blank tooltip counts as none" do
@@ -60,11 +104,30 @@ defmodule Tincture.FormDeprecationsTest do
           Tincture.tag(pdf, :section, &Tincture.checkbox(&1, 72, 700, 14, "agree", tooltip: "  "))
         end)
 
-      assert [warning] = warnings(fn -> Tincture.export(pdf) end)
-      assert warning =~ ~s(a checkbox "agree" on page 1 has no tooltip)
+      assert [%{message: message}] = field_violations(pdf)
+      assert message == ~s(a checkbox "agree" on page 1 has no tooltip. ) <> @no_tooltip
     end
 
-    test "does not warn when every field has a tooltip" do
+    test "a push button and a labelled signature field need a tooltip too: a label is not one" do
+      pdf =
+        tagged(fn pdf ->
+          Tincture.tag(pdf, :section, fn doc ->
+            doc
+            |> Tincture.push_button(72, 700, 120, 24, "open",
+              action: {:url, "https://example.org"},
+              label: "Open"
+            )
+            |> Tincture.signature_field(72, 600, 200, 50, "sign", label: "Sign here")
+          end)
+        end)
+
+      assert Enum.map(field_violations(pdf), & &1.message) == [
+               ~s(a push button "open" on page 1 has no tooltip. ) <> @no_tooltip,
+               ~s(a signature field "sign" on page 1 has no tooltip. ) <> @no_tooltip
+             ]
+    end
+
+    test "no violation when every field has a tooltip" do
       pdf =
         tagged(fn pdf ->
           Tincture.tag(pdf, :section, fn doc ->
@@ -74,31 +137,33 @@ defmodule Tincture.FormDeprecationsTest do
           end)
         end)
 
-      assert warnings(fn -> Tincture.export(pdf) end) == []
+      assert field_violations(pdf) == []
+      assert capture_io(:stderr, fn -> Tincture.export(pdf) end) == ""
     end
 
-    test "does not warn in an untagged document" do
+    test "not checked in an untagged document" do
       pdf =
         Tincture.new()
         |> Tincture.text_field(72, 700, 200, 20, "full_name")
         |> radio()
 
-      assert warnings(fn -> Tincture.export(pdf) end) == []
+      assert field_violations(pdf) == []
+      assert capture_io(:stderr, fn -> Tincture.export(pdf) end) == ""
     end
 
-    test "warns on every export of the document, once per field each time" do
+    test "refused on every export of the document" do
       pdf =
         tagged(fn pdf ->
           Tincture.tag(pdf, :section, &Tincture.text_field(&1, 72, 700, 200, 20, "full_name"))
         end)
 
-      assert length(warnings(fn -> Tincture.export(pdf) end)) == 1
-      assert length(warnings(fn -> Tincture.export(pdf) end)) == 1
+      assert_raise ArgumentError, fn -> Tincture.export(pdf) end
+      assert_raise ArgumentError, fn -> Tincture.export(pdf) end
     end
   end
 
-  describe "J2, a field outside the structure tree in a tagged document" do
-    test "warns once at export for a field created outside every tag scope" do
+  describe "J2, a field outside the structure tree in a tagged document, is refused at export" do
+    test "for a field created outside every tag scope" do
       pdf =
         tagged(fn pdf ->
           pdf
@@ -106,12 +171,16 @@ defmodule Tincture.FormDeprecationsTest do
           |> Tincture.text_field(72, 700, 200, 20, "full_name", tooltip: "Your full name")
         end)
 
-      assert warnings(fn -> Tincture.export(pdf) end) == [
-               ~s{a text field "full_name" on page 1 is not in the structure tree. In a tagged document a form field must be created inside a tag(...) scope so a reader can reach it. This will raise in 0.4.0.}
+      message = ~s{a text field "full_name" on page 1 is not in the structure tree. } <> @outside
+
+      assert field_violations(pdf) == [
+               %{rule: :field_outside_structure, clause: "7.18.4", message: message}
              ]
+
+      assert_refused(pdf, [message <> " (ISO 14289-1 clause 7.18.4)"])
     end
 
-    test "a radio group outside every tag scope warns once, not once per button" do
+    test "a radio group outside every tag scope is refused once, not once per button" do
       pdf =
         tagged(fn pdf ->
           pdf
@@ -119,11 +188,13 @@ defmodule Tincture.FormDeprecationsTest do
           |> radio(tooltip: "Preferred contact")
         end)
 
-      assert [warning] = warnings(fn -> Tincture.export(pdf) end)
-      assert warning =~ ~s(a radio group "contact" on page 1 is not in the structure tree)
+      assert [%{message: message}] = field_violations(pdf)
+
+      assert message ==
+               ~s{a radio group "contact" on page 1 is not in the structure tree. } <> @outside
     end
 
-    test "does not warn for a field created inside a :section" do
+    test "no violation for a field created inside a :section" do
       pdf =
         tagged(fn pdf ->
           Tincture.tag(
@@ -133,13 +204,13 @@ defmodule Tincture.FormDeprecationsTest do
           )
         end)
 
-      assert warnings(fn -> Tincture.export(pdf) end) == []
+      assert field_violations(pdf) == []
     end
 
-    test "does not warn in an untagged document" do
+    test "not checked in an untagged document" do
       pdf = Tincture.text_field(Tincture.new(), 72, 700, 200, 20, "full_name", tooltip: "Name")
 
-      assert warnings(fn -> Tincture.export(pdf) end) == []
+      assert field_violations(pdf) == []
     end
   end
 
@@ -288,44 +359,55 @@ defmodule Tincture.FormDeprecationsTest do
     end
   end
 
-  describe "J1 and J2 still warn, and change no byte" do
+  describe "J1 and J2 refuse, and enforce: false changes no byte" do
     # 0.3.11 writes the same document as 4662 bytes, cff2445e…6419. Against
     # that, three structural changes and no others: the text field carries its
     # own /AP, whose /Helv is the /DR font object, and /NeedAppearances is
     # gone. Since stage 8a, two more: each radio button, created inside the
     # :section, is owned by a Form element of its own, and carries the
     # /StructParent key the parent tree maps to it; the text field, created
-    # outside every tag scope, has neither. The warnings themselves change no
-    # byte.
+    # outside every tag scope, has neither. The refusal itself changes no byte:
+    # with enforce: false the document is written exactly as it would be.
     @sha256 "cff0586354d3ebef26a339c35f8c9999ae606d97770095ad000582d51c508ce5"
 
-    test "a document that triggers both exports, warning three times" do
-      {binary, count} =
-        with_warnings(fn ->
-          Tincture.new()
-          |> Tincture.set_language("en-GB")
-          |> Tincture.set_metadata(title: "Form deprecations")
-          |> Tincture.text_field(72, 700, 200, 20, "full_name", value: "Größe")
-          |> Tincture.tag(:section, fn doc ->
-            doc
-            |> Tincture.tag(:p, &Tincture.text_at(&1, 72, 740, "Contact"))
-            |> radio()
+    defp both do
+      Tincture.new()
+      |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Form deprecations")
+      |> Tincture.text_field(72, 700, 200, 20, "full_name", value: "Größe")
+      |> Tincture.tag(:section, fn doc ->
+        doc
+        |> Tincture.tag(:p, &Tincture.text_at(&1, 72, 740, "Contact"))
+        |> radio()
+      end)
+    end
+
+    test "a document that triggers both is refused, naming all three violations" do
+      # J1 for both fields; J2 for the text field.
+      assert Enum.map(field_violations(both()), &{&1.rule, &1.message =~ ~s("full_name")}) == [
+               {:field_without_description, true},
+               {:field_without_description, false},
+               {:field_outside_structure, true}
+             ]
+
+      assert_refused(both(), [~s("full_name"), ~s("contact")])
+    end
+
+    test "exported with enforce: false, it writes the bytes it always did, and warns nothing on stderr" do
+      parent = self()
+
+      stderr =
+        capture_io(:stderr, fn ->
+          ExUnit.CaptureLog.capture_log(fn ->
+            send(parent, {:binary, Tincture.export(both(), enforce: false)})
           end)
-          |> Tincture.export()
         end)
 
-      # J1 for both fields; J2 for the text field.
-      assert count == 3
+      assert_received {:binary, binary}
+      assert stderr == ""
       assert byte_size(binary) == 5282
       assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @sha256
       refute binary =~ "created_outside_structure"
-    end
-
-    defp with_warnings(fun) do
-      parent = self()
-      stderr = capture_io(:stderr, fn -> send(parent, {:result, fun.()}) end)
-      assert_received {:result, result}
-      {result, length(Regex.scan(~r/This will raise in 0\.4\.0\./, stderr))}
     end
   end
 end

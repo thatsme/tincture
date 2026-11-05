@@ -461,7 +461,8 @@ defmodule Tincture do
     * `:max_length` — maximum characters accepted.
     * `:read_only`, `:required`, `:no_export` — field flags, all `false` by
       default.
-    * `:tooltip` — hover text.
+    * `:tooltip` — hover text, written as `/TU`. Required in a tagged
+      document.
     * `:border` — `:none` (default) or `{horizontal, vertical, width}`.
     * `:page` — which page to place the widget on. Defaults to the current
       page.
@@ -470,9 +471,12 @@ defmodule Tincture do
 
   Every form field needs a `:tooltip`. It is written as `/TU`, the name a
   screen reader announces for the field. Every form field must also be created
-  inside a `tag/4` scope, so that a reader can reach it from the structure
-  tree. `export/2` warns for each field that breaks either rule, and 0.4.0
-  raises. An untagged document is not checked.
+  inside a `tag/4` scope: each of its widgets then gets a `Form` structure
+  element of its own, inside the innermost open element, so that a reader can
+  reach it from the structure tree. Create a field inside the element that
+  describes it, such as the `:p` that draws its label. `export/2` refuses a
+  field that breaks either rule, following `:enforce`. An untagged document is
+  not checked.
 
   ## Appearance
 
@@ -2224,9 +2228,9 @@ defmodule Tincture do
 
   ## Form fields in a tagged document
 
-  In a tagged document, export warns for each form field with no `:tooltip`,
-  and for each form field created outside every `tag/4` scope. The document
-  still exports, unchanged. 0.4.0 refuses both, following `:enforce` like the
+  In a tagged document, export refuses a form field with no `:tooltip`
+  (`:field_without_description`) and a form field created outside every
+  `tag/4` scope (`:field_outside_structure`), following `:enforce` like the
   other PDF/UA checks. See `text_field/7`.
 
   ## Signed and encrypted
@@ -2258,10 +2262,6 @@ defmodule Tincture do
     PDF.refuse_in_form_xobject!(pdf, caller)
     refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
-
-    # Warnings for what 0.4.0 refuses in a tagged form; they do not change
-    # what is exported.
-    Accessibility.warn_form_deprecations(pdf)
 
     # A path nothing painted on the current page is refused; a page left with
     # one was refused when it was left. No enforce: escape - it is invalid
