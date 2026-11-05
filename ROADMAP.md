@@ -18,7 +18,7 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.13: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
 | Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
@@ -34,9 +34,10 @@ covered by the test suite only)
    remains.
 3. **Forms completed** — appearance streams for text and choice fields, now
    written, and for signature widgets, without which a signed document cannot
-   also be PDF/A; archival documents with form fields, now allowed and
-   validated (`archival_form.pdf`, PDF/A-2b and 2u); then tagged documents
-   with form fields.
+   also be PDF/A; archival documents with form fields, now allowed; and
+   tagged documents with form fields, each widget owned by a `Form` element.
+   Both are validated: `archival_form.pdf` at PDF/A-2a, 2b and 2u and at
+   PDF/UA-1, and `tagged_form.pdf` at PDF/UA-1.
 
    This one is worth more than its own entry. An `/AP` stream is a form
    XObject: a nested content stream with its own resources, holding text laid
@@ -185,8 +186,8 @@ to produce a conforming file, and whether yours conforms depends on how you tag
 it. What validation establishes is narrower: for the constructs the validated
 documents emit, correct usage is not blocked by a defect in the output. It
 found three such defects. It says nothing about constructs those documents do
-not emit, and form fields are one: no validated document has a form field yet
-(below).
+not emit. Form fields in tagged documents joined the corpus with
+`tagged_form.pdf` and `archival_form.pdf` (below).
 
 `Tincture.tag/4` produces the structure tree, marked content around the
 operators that draw each element, the parent tree linking them, `/MarkInfo`,
@@ -219,8 +220,8 @@ rules are asking for.
 
 What remains:
 
-- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 19 of 38
-  structure types are exercised by the validated documents; the other 19 have
+- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 20 of 38
+  structure types are exercised by the validated documents; the other 18 have
   never been through a validator. The README lists them, and a test fails when
   the set drifts. Closing the gap is ongoing work — the audit was the part that
   had never been done.
@@ -229,14 +230,14 @@ What remains:
   tree root. No rule in any of veraPDF 1.30.2's profiles mentions `/IDTree`, so
   no validator run checks it; the test suite does. An `/ID` with no tree is
   unusable rather than merely unverified.
-- **Form fields in tagged documents: built, not yet validated.** Clause
-  7.18.4 requires a widget annotation to be nested in a `Form` structure
-  element. In 0.4.0 each widget of a field created inside a `tag/4` scope is
+- ~~**Form fields cannot be made PDF/UA conformant.**~~ **Done** in 0.4.0.
+  Clause 7.18.4 requires a widget annotation to be nested in a `Form`
+  structure element. Each widget of a field created inside a `tag/4` scope is
   owned by a `Form` element of its own, through the `/OBJR` machinery links
   use, with `/StructParent` and the parent tree the other way; export refuses
-  a field outside every scope, and one with no `:tooltip`. No validated
-  document has a form field yet, so `Form` is on the README's never-validated
-  list until a tagged form example joins the corpus.
+  a field outside every scope, and one with no `:tooltip`. `tagged_form.pdf`
+  and `archival_form.pdf` carry every field type into the validated corpus,
+  and a CI step traces each widget's ownership in their bytes.
 - ~~**PAC audit.**~~ **Done** on 2026-10-19, with PAC 2026.1, on the five PDF/UA
   examples as committed at `4a75f1e`: PDF/UA 0 errors, 0 warnings on all five.
   veraPDF checks that the structure is *well-formed*; PAC also looks at whether

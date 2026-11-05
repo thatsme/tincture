@@ -98,21 +98,20 @@ asking — so here is the answer, kept honest by a test that fails when it drift
 
 ### What the validated documents actually exercise
 
-Of the 38 structure types Tincture can emit, the validated corpus emits **19**:
+Of the 38 structure types Tincture can emit, the validated corpus emits **20**:
 
-`Caption` `Document` `Figure` `H1` `H2` `L` `LBody` `LI` `Lbl` `Link` `Note`
-`P` `Sect` `TBody` `TD` `TH` `THead` `TR` `Table`
+`Caption` `Document` `Figure` `Form` `H1` `H2` `L` `LBody` `LI` `Lbl` `Link`
+`Note` `P` `Sect` `TBody` `TD` `TH` `THead` `TR` `Table`
 
-The other **19** have never been through a validator. Their PDF/UA rules have
+The other **18** have never been through a validator. Their PDF/UA rules have
 never run against Tincture's output, so a clean run says nothing about them:
 
-`Art` `BlockQuote` `Code` `Div` `Form` `Formula` `H` `H3` `H4` `H5` `H6`
-`Index` `Part` `Quote` `Reference` `Span` `TFoot` `TOC` `TOCI`
+`Art` `BlockQuote` `Code` `Div` `Formula` `H` `H3` `H4` `H5` `H6` `Index`
+`Part` `Quote` `Reference` `Span` `TFoot` `TOC` `TOCI`
 
-`Form` is the newest. In a tagged document each form field widget is owned by
-a `Form` element of its own, as ISO 14289-1 clause 7.18.4 requires, but no
-validated document has a form field yet, so the clause 7.18 rules for widgets
-have not run against the corpus.
+`Form` is the newest covered: the tagged form examples own each of their
+widgets with one, so the clause 7.18 rules for widgets run against the
+corpus.
 
 `H3`–`H6` are unexercised rather than known-bad: clause 7.4's heading-nesting
 rules have only ever been run two levels deep.
@@ -191,7 +190,8 @@ mix examples
 | [`accessible.exs`](https://github.com/thatsme/tincture/blob/main/examples/accessible.exs) | A tagged report — headings, table scope, alt text |
 | [`compliant.exs`](https://github.com/thatsme/tincture/blob/main/examples/compliant.exs) | A PDF/UA template, annotated requirement by requirement |
 | [`archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival.exs) | PDF/A-2a and PDF/UA-1 in one document |
-| [`archival_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival_form.exs) | An interactive form in a PDF/A-2u document |
+| [`archival_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival_form.exs) | An interactive form in a tagged PDF/A-2a document, also PDF/UA-1 |
+| [`tagged_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/tagged_form.exs) | An accessible form, PDF/UA-1: every field type, each widget owned by a `Form` element |
 | [`signed.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed.exs) | A digitally signed agreement |
 | [`remote_links.exs`](https://github.com/thatsme/tincture/blob/main/examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
 | [`telemetry.exs`](https://github.com/thatsme/tincture/blob/main/examples/telemetry.exs) | The telemetry spans, printed as a document is built |

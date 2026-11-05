@@ -159,8 +159,16 @@ to protect.
   character the field's embedded font has no glyph for raises at the call,
   naming each such character: the font would draw it as a blank. Fields with
   embedded fonts are new in this release, so no existing call is affected.
-- **`examples/archival_form.exs`**, an interactive form claiming PDF/A-2u:
-  validated by veraPDF in CI at PDF/A-2b and PDF/A-2u.
+- **`examples/archival_form.exs`**, an interactive form claiming PDF/A-2a,
+  tagged, so a PDF/UA-1 document too: every field PDF/A allows, each widget
+  owned by a `Form` element inside the paragraph that draws its label,
+  validated by veraPDF in CI at PDF/A-2a, 2b and 2u and at PDF/UA-1.
+- **`examples/tagged_form.exs`**, an accessible form claiming PDF/UA-1: one
+  of each field type, a push button with a URL action and a labelled
+  signature field included, each widget owned by a `Form` element and each
+  field with a tooltip, validated by veraPDF in CI at PDF/UA-1. A CI step
+  traces each widget's ownership in the bytes of both tagged forms
+  (`scripts/trace_widget_ownership.py`).
 
 ### Changed
 
