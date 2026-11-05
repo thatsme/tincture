@@ -83,7 +83,8 @@ defmodule Tincture.PDF.Ops do
   # `{font_name, codepoint}` in the order they occur. A code point with no
   # cmap entry, or one mapped to glyph 0, is drawn with glyph 0 alike: a
   # format 0 cmap lists every byte, with 0 for the ones the font lacks. A
-  # standard-14 font, and an embedded font with no cmap, are not checked.
+  # standard-14 font is not checked. Every registered embedded font has cmap
+  # data: a font without it is refused at registration.
   @doc false
   @spec missing_glyphs(PDF.t(), String.t(), String.t()) :: [{String.t(), non_neg_integer()}]
   def missing_glyphs(%PDF{} = pdf, font_name, text) do

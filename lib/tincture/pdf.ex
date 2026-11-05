@@ -1037,6 +1037,8 @@ defmodule Tincture.PDF do
       {:ok, data} ->
         case parse_embedded_font_metadata(format, data) do
           {:ok, metadata} ->
+            refuse_unreadable_cmap!(metadata, data, path)
+
             warn_embedding_permissions_if_needed(
               metadata,
               subset,
@@ -1088,6 +1090,36 @@ defmodule Tincture.PDF do
   end
 
   defp parse_embedded_font_metadata(:otf, _data), do: :error
+
+  # A font with no cmap data the library reads cannot draw any character
+  # correctly: glyphs are chosen as glyph = code, and widths with them. So it
+  # is refused before it is registered, whatever text would use it.
+  defp refuse_unreadable_cmap!(%{ttf_metrics: %{cmap_by_code: cmap}}, _data, _path)
+       when map_size(cmap) > 0,
+       do: :ok
+
+  defp refuse_unreadable_cmap!(%{ttf_metrics: _ttf_metrics}, data, path) do
+    raise ArgumentError,
+          "font file #{inspect(path)} has no character map (cmap) that Tincture can " <>
+            "read, so no character could be drawn with its glyphs: " <>
+            cmap_empty_reason_text(TTF.cmap_empty_reason(data)) <>
+            ". Use a TrueType or OpenType font with a Unicode cmap subtable " <>
+            "(format 4 or 12)."
+  end
+
+  defp refuse_unreadable_cmap!(_metadata, _data, path) do
+    raise ArgumentError,
+          "font file #{inspect(path)} is not a readable OpenType font: " <>
+            "its tables could not be parsed."
+  end
+
+  defp cmap_empty_reason_text(:no_table), do: "it has no cmap table"
+  defp cmap_empty_reason_text(:header), do: "its cmap table header could not be parsed"
+
+  defp cmap_empty_reason_text(:no_supported_subtable),
+    do: "none of its cmap subtables is in a format Tincture reads (0, 2, 4, 6, 8, 10, 12 or 13)"
+
+  defp cmap_empty_reason_text(:maps_nothing), do: "its cmap subtable maps no character"
 
   defp ttf_signature?(<<0, 1, 0, 0, _::binary>>), do: true
   defp ttf_signature?(<<"true", _::binary>>), do: true

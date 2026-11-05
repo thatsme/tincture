@@ -54,12 +54,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no glyph for "✓" (U+2713), which is drawn as a blank.` A default-ignorable
   code point is still not counted, and the standard 14 fonts are not checked.
   *Migration:* register a font that covers the character, or remove it.
+- **A font without a readable character map is refused at registration.**
+  `register_ttf_font/3,4` and `register_otf_font/3,4` raise `ArgumentError`
+  for a font with no `cmap` data Tincture can read, naming the file and the
+  cause: no `cmap` table, a table header that does not parse, no subtable in
+  a format Tincture reads (a font whose only subtable is format 14, for
+  example), or a subtable that maps nothing. They also raise for an `OTTO`
+  file whose tables do not parse, which was registered with default widths
+  until now. Such a font never drew correctly. With no `cmap`, glyphs were
+  chosen as glyph = character code, and the widths written with them, so
+  Latin text was drawn with the wrong spacing, other text with the wrong
+  glyphs, and text extraction, which reads the correct `ToUnicode` map,
+  disagreed with what was shown. No validator rule catches the wrong glyphs.
+  `text_at_with_fallback/4,5,6` and `text_at_rotated_with_fallback/5,6,7`
+  consulted the font's OS/2 Unicode and code page ranges for such a font, and
+  no longer have any such font to consult. *Migration:* use a TrueType or
+  OpenType font with a Unicode `cmap` subtable (format 4 or 12).
 
 The first four have warned since 0.3.4, the next two since 0.3.8, the
 seventh since 0.3.9, the standard-14 field text since 0.3.6, the choice
 value since 0.3.10 and the text an embedded font cannot draw since 0.3.13, so
 code that runs without those warnings is unaffected by them, and the eighth
 follows from them.
+
+The refusal of a font without a readable character map has no warning
+release first. This is a deliberate, recorded exception to the rule that
+nothing breaks without a warning: the rule protects output that is correct,
+and no correct output was found. Every case measured draws wrong, no example
+uses such a font, and 0.3.x releases have stopped except for data-corrupting
+defects.
 
 ### Added
 
