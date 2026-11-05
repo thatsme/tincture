@@ -199,17 +199,25 @@ defmodule Tincture.EmbeddedFontLayoutTest do
   end
 
   describe "the drawn document" do
-    test "an embedded font laid out as a paragraph still exports and subsets", %{pdf: pdf} do
+    test "an embedded font laid out as a paragraph still exports and subsets" do
+      # The setup's font maps every glyph it has, so its subset is never
+      # smaller and it is embedded whole; this one has a glyph to drop.
+      path = MeasurableFont.write_subsettable!()
+      on_exit(fn -> File.rm(path) end)
+
       rich = RichText.from_plain("AB BA AB BA", font: "Probe", size: 10)
 
       binary =
-        pdf
+        Tincture.new()
+        |> Tincture.page_size(:a4)
+        |> Tincture.register_ttf_font("Probe", path)
+        |> Tincture.add_page()
         |> Tincture.text_paragraph(50, 700, rich, 60)
         |> Tincture.export()
 
       assert binary =~ "%PDF"
       # A subset tag is six capitals and a plus sign before the base name.
-      assert binary =~ ~r|/BaseFont /[A-Z]{6}\+|
+      assert binary =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
     end
   end
 

@@ -66,7 +66,9 @@ defmodule Tincture.PDF.FontEmbedTest do
   defp font(opts \\ []) do
     os2_opts = Keyword.get(opts, :os2)
     chars = Keyword.get(opts, :chars, [{?A, 1}, {?B, 2}])
-    num_glyphs = Keyword.get(opts, :num_glyphs, 3)
+    glyf? = Keyword.get(opts, :glyf, false)
+    # With glyf, a fourth glyph that no character maps to.
+    num_glyphs = Keyword.get(opts, :num_glyphs, if(glyf?, do: 4, else: 3))
 
     base = [
       {"head",
@@ -82,7 +84,24 @@ defmodule Tincture.PDF.FontEmbedTest do
     ]
 
     tables = if os2_opts, do: base ++ [{"OS/2", os2(os2_opts)}], else: base
+    tables = if glyf?, do: tables ++ glyf(num_glyphs), else: tables
     build_ttf(tables)
+  end
+
+  # loca and glyf for `num_glyphs` glyphs, the last of them 200 bytes. font/1
+  # maps no character to that last glyph, so a subset under :used_text or
+  # :ascii_basic drops it and is smaller than the font. Short loca: stored
+  # values are byte offsets / 2.
+  defp glyf(num_glyphs) do
+    small =
+      <<1::16-signed-big, 0::16-signed-big, 0::16-signed-big, 500::16-signed-big,
+        700::16-signed-big>>
+
+    offsets = for i <- 0..(num_glyphs - 1), into: <<>>, do: <<i * 5::16-big>>
+    tail = <<(num_glyphs - 1) * 5 + 100::16-big>>
+    glyphs = :binary.copy(small, num_glyphs - 1) <> small <> <<0::size(190)-unit(8)>>
+
+    [{"loca", offsets <> tail}, {"glyf", glyphs}]
   end
 
   defp with_font(binary, fun) do
@@ -226,7 +245,7 @@ defmodule Tincture.PDF.FontEmbedTest do
   describe "subset modes" do
     test "used_text is the default and tags the base font" do
       # A subsetted font must carry the six-uppercase-letter tag.
-      assert render(font()) =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
+      assert render(font(glyf: true)) =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
     end
 
     test "none embeds the font untagged" do
@@ -234,7 +253,8 @@ defmodule Tincture.PDF.FontEmbedTest do
     end
 
     test "ascii_basic tags the font like any other subset" do
-      assert render(font(), register: [subset: :ascii_basic]) =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
+      assert render(font(glyf: true), register: [subset: :ascii_basic]) =~
+               ~r|/BaseFont /[A-Z]{6}\+Probe|
     end
 
     test "an unknown subset mode is rejected" do

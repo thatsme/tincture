@@ -367,8 +367,15 @@ defmodule Tincture.PDF.FontEmbed do
     end)
   end
 
-  defp embedded_font_file_object(embedded_font, used_char_codes, scalar_codepoints) do
+  # The font program as it will be embedded - a subset, or the whole font
+  # when subsetting is off or fell back - and the font marked accordingly, so
+  # that its name carries a subset tag only when the program is a subset.
+  defp with_font_program(embedded_font, used_char_codes, scalar_codepoints) do
     data = embedded_font_file_data(embedded_font, used_char_codes, scalar_codepoints)
+    {Map.put(embedded_font, :subset_program?, data != Map.fetch!(embedded_font, :data)), data}
+  end
+
+  defp embedded_font_file_object(embedded_font, data) do
     length = byte_size(data)
 
     case Map.fetch!(embedded_font, :format) do
@@ -1734,8 +1741,9 @@ defmodule Tincture.PDF.FontEmbed do
   # No /CIDSet. It is optional in PDF 1.7 and deprecated in PDF 2.0, required
   # only by PDF/A-1, and it must identify exactly the CIDs present in the
   # embedded program. Subsetting here falls back to the whole font on several
-  # paths while the name keeps its subset tag, so the retained set is not
-  # reliably knowable at this point - and an inaccurate CIDSet is a conformance
+  # paths (the name then carries no subset tag), and the glyphs a subset
+  # keeps are not tracked as CIDs, so the retained set is not reliably
+  # knowable at this point - and an inaccurate CIDSet is a conformance
   # failure where an absent one is not. Reinstating it correctly is a
   # prerequisite for PDF/A-1, not for PDF/UA.
   defp embedded_font_descriptor_object(embedded_font, font_file_id) do
@@ -1778,6 +1786,9 @@ defmodule Tincture.PDF.FontEmbed do
          to_unicode_mappings,
          true
        ) do
+    {embedded_font, program} =
+      with_font_program(embedded_font, used_char_codes, scalar_codepoints)
+
     font_file_id = next_id
     descriptor_id = next_id + 1
     cid_to_gid_map_id = next_id + 2
@@ -1798,7 +1809,7 @@ defmodule Tincture.PDF.FontEmbed do
 
       objects =
         [
-          embedded_font_file_object(embedded_font, used_char_codes, scalar_codepoints),
+          embedded_font_file_object(embedded_font, program),
           embedded_font_descriptor_object(embedded_font, font_file_id),
           cid_to_gid_map_object,
           embedded_cid_font_object(
@@ -1820,7 +1831,7 @@ defmodule Tincture.PDF.FontEmbed do
 
       objects =
         [
-          embedded_font_file_object(embedded_font, used_char_codes, scalar_codepoints),
+          embedded_font_file_object(embedded_font, program),
           embedded_font_descriptor_object(embedded_font, font_file_id),
           cid_to_gid_map_object,
           embedded_cid_font_object(
@@ -1850,12 +1861,14 @@ defmodule Tincture.PDF.FontEmbed do
          _to_unicode_mappings,
          false
        ) do
+    {embedded_font, program} = with_font_program(embedded_font, used_char_codes, [])
+
     font_file_id = next_id
     descriptor_id = next_id + 1
     font_id = next_id + 2
 
     objects = [
-      embedded_font_file_object(embedded_font, used_char_codes, []),
+      embedded_font_file_object(embedded_font, program),
       embedded_font_descriptor_object(embedded_font, font_file_id),
       embedded_font_object(embedded_font, descriptor_id, used_char_codes)
     ]
@@ -2510,19 +2523,17 @@ defmodule Tincture.PDF.FontEmbed do
     "<< /Type /Font /Subtype /TrueType /BaseFont /#{font_name} /Encoding /WinAnsiEncoding /FirstChar #{first_char} /LastChar #{last_char} /Widths [#{widths}] /FontDescriptor #{descriptor_id} 0 R >>"
   end
 
+  # ISO 32000-1 9.6.4: the six-letter tag marks a font subset. So it follows
+  # the program embedded, not the :subset option asked for: when subsetting
+  # falls back to the whole font - a composite glyph that cannot be followed,
+  # a font with no glyf or CFF table to cut, a subset no smaller than the
+  # font - the name carries no tag.
   defp embedded_pdf_font_name(embedded_font) do
     base_name = embedded_font |> Map.fetch!(:name) |> Object.sanitize_name()
 
-    case Map.get(embedded_font, :subset, :none) do
-      :ascii_basic ->
-        "#{subset_prefix(base_name)}+#{base_name}"
-
-      :used_text ->
-        "#{subset_prefix(base_name)}+#{base_name}"
-
-      _ ->
-        base_name
-    end
+    if Map.get(embedded_font, :subset_program?, false),
+      do: "#{subset_prefix(base_name)}+#{base_name}",
+      else: base_name
   end
 
   defp embedded_font_char_range(embedded_font, used_char_codes) do
