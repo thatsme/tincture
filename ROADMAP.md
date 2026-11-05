@@ -18,7 +18,7 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 37 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 19 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.13: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
 | Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
@@ -185,7 +185,7 @@ to produce a conforming file, and whether yours conforms depends on how you tag
 it. What validation establishes is narrower: for the constructs the validated
 documents emit, correct usage is not blocked by a defect in the output. It
 found three such defects. It says nothing about constructs those documents do
-not emit, and form fields are a known case where correct usage is blocked
+not emit, and form fields are one: no validated document has a form field yet
 (below).
 
 `Tincture.tag/4` produces the structure tree, marked content around the
@@ -219,8 +219,8 @@ rules are asking for.
 
 What remains:
 
-- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 19 of 37
-  structure types are exercised by the validated documents; the other 18 have
+- ~~**The corpus audit.**~~ **Done**, and it found two more defects. 19 of 38
+  structure types are exercised by the validated documents; the other 19 have
   never been through a validator. The README lists them, and a test fails when
   the set drifts. Closing the gap is ongoing work — the audit was the part that
   had never been done.
@@ -229,10 +229,14 @@ What remains:
   tree root. No rule in any of veraPDF 1.30.2's profiles mentions `/IDTree`, so
   no validator run checks it; the test suite does. An `/ID` with no tree is
   unusable rather than merely unverified.
-- **Form fields cannot be made PDF/UA conformant.** Clause 7.18.4 requires a
-  widget annotation to be nested in a `Form` structure element, and there is no
-  such tag. The `/OBJR` machinery links now use is the same machinery this
-  needs, so the seam exists; the vocabulary and the association do not.
+- **Form fields in tagged documents: built, not yet validated.** Clause
+  7.18.4 requires a widget annotation to be nested in a `Form` structure
+  element. In 0.4.0 each widget of a field created inside a `tag/4` scope is
+  owned by a `Form` element of its own, through the `/OBJR` machinery links
+  use, with `/StructParent` and the parent tree the other way; export refuses
+  a field outside every scope, and one with no `:tooltip`. No validated
+  document has a form field yet, so `Form` is on the README's never-validated
+  list until a tagged form example joins the corpus.
 - ~~**PAC audit.**~~ **Done** on 2026-10-19, with PAC 2026.1, on the five PDF/UA
   examples as committed at `4a75f1e`: PDF/UA 0 errors, 0 warnings on all five.
   veraPDF checks that the structure is *well-formed*; PAC also looks at whether
@@ -275,7 +279,9 @@ What remains:
   of inline elements at block level are now written automatically, so neither
   is left to the caller. Three rules are checked as violations: a `:figure`
   without `:alt`, a link outside a `:link` element, and a link with no
-  `/Contents`. Heading-level order and table header association are the
+  `/Contents`. 0.4.0 adds three: a form field with no `:tooltip`, a form
+  field outside every `tag/4` scope, and a tagged document with no
+  language. Heading-level order and table header association are the
   candidates left; whether an alternative text is *accurate* is not one a
   library can settle.
 

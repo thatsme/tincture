@@ -1810,6 +1810,11 @@ defmodule Tincture do
   `:block_quote`, `:code`, `:note`, `:reference`, `:span`, `:link`,
   `:toc_item`.
 
+  Form fields add the third kind themselves. Each widget of a field created
+  inside a `tag/4` scope is owned by a `Form` element of its own, appended to
+  the innermost open element: a radio group gets one per button. `tag/4`
+  cannot open `:form`, and raises `ArgumentError` if asked to.
+
   ## Options
 
     * `:alt` — alternative text. **Required in practice for `:figure`**: an
@@ -1835,15 +1840,15 @@ defmodule Tincture do
   ## What this does and does not give you
 
   It produces the structure: `/StructTreeRoot`, marked content, the parent
-  tree, `/MarkInfo`, `/Lang`, alt text and table scope. That is what assistive
-  technology reads.
+  tree, `/MarkInfo`, `/Lang`, alt text and table scope, and a `Form` element
+  for each form field widget. That is what assistive technology reads.
 
   Layout attributes are written where the standard calls for them. A figure
   gets the bounding box of what it draws (`/BBox`); one that draws nothing
   raises `ArgumentError` when it closes, unless it is given `:bbox`. A figure
   cannot span pages: changing page while it is open raises. An inline element —
   `:link`, `:note`, `:span`, `:quote`, `:reference`, `:code`, `:figure`,
-  `:formula` — placed directly in `:document`, `:part`, `:article`,
+  `:formula`, and a form field's `Form` — placed directly in `:document`, `:part`, `:article`,
   `:section` or `:div` is declared a block (`/Placement /Block`), since that is
   how it is laid out; inside a `:p`, a heading or a cell it stays inline.
 
@@ -2058,6 +2063,8 @@ defmodule Tincture do
 
   Without it a screen reader has to guess which language to pronounce the text
   as, so this is a requirement for an accessible document rather than a nicety.
+  A tagged document claims PDF/UA, and `export/2` refuses one with no language
+  (`:language_missing`), following `:enforce`.
   """
   @spec set_language(PDF.t(), String.t()) :: PDF.t()
   def set_language(%PDF{} = pdf, language) do
