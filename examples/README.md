@@ -294,6 +294,46 @@ A self-signed certificate proves the document has not changed; it says nothing
 about *who* signed it that you did not already take on faith. And with no
 timestamp authority, nothing proves *when*.
 
+## [`signed_archival.exs`](signed_archival.exs) → [`output/signed_archival.pdf`](output/signed_archival.pdf)
+
+A calibration acceptance that is archival, accessible and signed at once:
+it claims **PDF/A-2a**, which subsumes 2u and 2b and requires tagging, so it
+is a PDF/UA-1 document too, and it carries a digital signature over the whole
+file. Like `signed.exs`, it mints a throwaway self-signed certificate.
+
+Shows:
+
+- **A signature in an archival document.** PDF/A-2 accepts a detached PKCS#7
+  signature (`/SubFilter /adbe.pkcs7.detached`) whose byte range covers the
+  whole file but the signature itself, with the signer's certificate and a
+  single signer.
+- **A visible, labelled signature field.** Its label, "Approved: M. Kaur",
+  is drawn in its own appearance in an embedded font, as PDF/A requires of
+  every font a page draws with.
+- **The signature widget in the structure tree.** It is owned by a `Form`
+  element inside the paragraph that draws its label, and its `:tooltip` is
+  the name a screen reader announces.
+- **Headings that look like headings**, each with a bookmark.
+
+The script prints a checklist of each requirement and where it came from. CI
+verifies the signature with openssl, as it does `signed.pdf`'s, and traces
+the widget's ownership in the file's bytes.
+
+**Validated.** Passes veraPDF 1.30.2 in CI on every commit at four flavours.
+New in 0.4.0, which is not yet released:
+
+| Profile | Rules | Checks |
+|---|---|---|
+| PDF/A-2b | 144 of 144 | 1538 of 1538 |
+| PDF/A-2u | 146 of 146 | 1842 of 1842 |
+| PDF/A-2a | 153 of 153 | 1997 of 1997 |
+| PDF/UA-1 | 106 of 106 | 946 of 946 |
+
+    verapdf --flavour 2b  examples/output/signed_archival.pdf
+    verapdf --flavour 2u  examples/output/signed_archival.pdf
+    verapdf --flavour 2a  examples/output/signed_archival.pdf
+    verapdf --flavour ua1 examples/output/signed_archival.pdf
+
 ## [`remote_links.exs`](remote_links.exs) → [`output/linked/`](output/linked/)
 
 The only example that writes more than one file:
