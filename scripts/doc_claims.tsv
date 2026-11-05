@@ -39,3 +39,6 @@ examples/README.md	1	linked_Main-report-ua1	`Main-report.pdf` {rules} rules, {ch
 examples/README.md	1	linked_Attached_documents_Appendix-A-ua1	`Appendix-A.pdf` {rules} rules, {checks} checks.
 examples/README.md	1	archival_form-2b	| PDF/A-2b | {rules} | {checks} |
 examples/README.md	1	archival_form-2u	| PDF/A-2u | {rules} | {checks} |
+examples/README.md	1	archival_form-2a	| PDF/A-2a | {rules} | {checks} |
+examples/README.md	1	archival_form-ua1	| PDF/UA-1 | {rules} | {checks} |
+examples/README.md	1	tagged_form-ua1	New in 0.4.0, which is not yet released: {rules} rules, {checks} checks.

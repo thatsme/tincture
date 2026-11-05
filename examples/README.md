@@ -115,10 +115,9 @@ file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
 
-Of the other examples, `compliant.exs`, `archival.exs` and `remote_links.exs`
-are tagged and validated below, and `archival_form.exs` is validated below
-without being tagged. The rest are not tagged, claim no conformance, and are
-not validated.
+Of the other examples, `compliant.exs`, `archival.exs`, `archival_form.exs`,
+`tagged_form.exs` and `remote_links.exs` are tagged and validated below. The
+rest are not tagged, claim no conformance, and are not validated.
 
 ## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
 
@@ -188,12 +187,17 @@ PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
 ## [`archival_form.exs`](archival_form.exs) → [`output/archival_form.pdf`](output/archival_form.pdf)
 
 An instrument loan record: an interactive form in an archival document,
-claiming **PDF/A-2u**, which subsumes PDF/A-2b. It carries one of each field
-PDF/A allows — single-line and multiline text, a read-only text field, a combo
-box, a list box, a checkbox, a radio group and an unsigned signature field —
-and no push button, which a PDF/A document cannot carry.
+claiming **PDF/A-2a**, which subsumes 2u and 2b and requires tagging, so it is
+a PDF/UA-1 document too. It carries one of each field PDF/A allows —
+single-line and multiline text, a read-only text field, a combo box, a list
+box, a checkbox, a radio group and an unsigned signature field — and no push
+button, which a PDF/A document cannot carry.
 
 Shows:
+
+- **A tagged form.** Every widget is owned by a `Form` structure element of
+  its own, inside the `:p` that draws the field's label, and every field has
+  a `:tooltip`, as in `tagged_form.exs` below. The heading has a bookmark.
 
 - **Fields in an archival document.** Every field carries its own appearance,
   so it displays the same in every viewer and in print, and PDF/A requires
@@ -210,16 +214,58 @@ Shows:
 
 The script prints a checklist of each requirement and where it came from.
 
-**Validated.** Passes veraPDF 1.30.2 in CI on every commit. The example is new
-in 0.4.0, which is not yet released:
+**Validated.** Passes veraPDF 1.30.2 in CI on every commit at four flavours.
+The example is new in 0.4.0, which is not yet released:
 
 | Profile | Rules | Checks |
 |---|---|---|
-| PDF/A-2b | 144 of 144 | 6075 of 6075 |
-| PDF/A-2u | 146 of 146 | 6237 of 6237 |
+| PDF/A-2b | 144 of 144 | 6800 of 6800 |
+| PDF/A-2u | 146 of 146 | 7192 of 7192 |
+| PDF/A-2a | 153 of 153 | 7391 of 7391 |
+| PDF/UA-1 | 106 of 106 | 1401 of 1401 |
 
-    verapdf --flavour 2b examples/output/archival_form.pdf
-    verapdf --flavour 2u examples/output/archival_form.pdf
+    verapdf --flavour 2b  examples/output/archival_form.pdf
+    verapdf --flavour 2u  examples/output/archival_form.pdf
+    verapdf --flavour 2a  examples/output/archival_form.pdf
+    verapdf --flavour ua1 examples/output/archival_form.pdf
+
+## [`tagged_form.exs`](tagged_form.exs) → [`output/tagged_form.pdf`](output/tagged_form.pdf)
+
+A workshop registration form in a tagged document, claiming **PDF/UA-1**. It
+carries one of each field type — single-line and multiline text, a combo box,
+a list box, a checkbox, a three-button radio group, a push button that opens a
+URL, and an unsigned signature field with a label.
+
+Shows:
+
+- **Every widget owned by a `Form` structure element.** In a tagged
+  document, each field call appends one `Form` element per widget to the
+  element open at the call — one per button for a radio group — and the
+  widget points back at it through `/StructParent`, as ISO 14289-1 clause
+  7.18.4 requires.
+- **Each field inside the `:p` that draws its label.** The `Form` element
+  then sits under the element that describes it, and no paragraph holds a
+  widget alone: a paragraph with nothing drawn in it is one an accessibility
+  checker reports as missing. The push button's paragraph draws "Workshop
+  terms", since its caption is part of the widget, not of the page.
+- **A `:tooltip` on every field**, written as `/TU`, the name a screen reader
+  announces. In a tagged document `export/2` refuses a field without one, and
+  a field created outside every `tag/4` scope.
+- **Headings that look like headings**, well above the body size, each with a
+  bookmark.
+- **Fonts for typing.** The fields use a font embedded whole, so a viewer can
+  draw whatever someone types; the page text is subset from the same file.
+- **A form XObject** for the letterhead, placed once inside a paragraph.
+
+The script prints a checklist of each requirement and where it came from.
+
+**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every
+commit. New in 0.4.0, which is not yet released: 106 of 106 rules, 1411 of
+1411 checks. A CI step also traces, in the file's bytes, that every widget's
+`Form` element and `/StructParent` point at each other
+(`scripts/trace_widget_ownership.py`).
+
+    verapdf --flavour ua1 examples/output/tagged_form.pdf
 
 ## [`signed.exs`](signed.exs) → [`output/signed.pdf`](output/signed.pdf)
 

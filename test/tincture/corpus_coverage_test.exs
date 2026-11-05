@@ -17,12 +17,15 @@ defmodule Tincture.CorpusCoverageTest do
   alias Tincture.PDF.Structure
 
   # Every document CI and the release checklist run veraPDF against, as paths
-  # under examples/output without the extension. All five are validated at
-  # PDF/UA-1; `archival.pdf` is also validated at PDF/A-2a, 2b and 2u.
+  # under examples/output without the extension. All seven are validated at
+  # PDF/UA-1; `archival.pdf` and `archival_form.pdf` are also validated at
+  # PDF/A-2a, 2b and 2u.
   @validated [
     "compliant",
     "accessible",
     "archival",
+    "archival_form",
+    "tagged_form",
     "linked/Main-report",
     "linked/Attached documents/Appendix-A"
   ]
@@ -34,14 +37,9 @@ defmodule Tincture.CorpusCoverageTest do
   # covered — delete it — or a new type arrived uncovered, in which case adding
   # it is the cheap part and knowing what it owes is the point.
   #
-  # `Form` is the newest: every widget of a form field in a tagged document is
-  # owned by one, as clause 7.18.4 requires, and no validated document has a
-  # form field yet, so 7.18.1-3, 7.18.4-1 and 7.18.4-2 have never run against
-  # Tincture's output.
-  #
   # `H3` through `H6` are the quiet ones: heading levels the corpus stops short
   # of, so clause 7.4's nesting rules have only ever seen two levels deep.
-  @never_validated ~w(Art BlockQuote Code Div Form Formula H H3 H4 H5 H6 Index
+  @never_validated ~w(Art BlockQuote Code Div Formula H H3 H4 H5 H6 Index
                       Part Quote Reference Span TFoot TOC TOCI)
 
   defp emitted_structure_types do
@@ -90,6 +88,14 @@ defmodule Tincture.CorpusCoverageTest do
     assert MapSet.member?(emitted, "Link"),
            "The validated corpus must carry a tagged link. Without one, ISO 14289-1 " <>
              "clause 7.18.5 has nothing to match and passes by default."
+  end
+
+  test "a Form is exercised: every widget of a tagged form is owned by one" do
+    emitted = emitted_structure_types()
+
+    assert MapSet.member?(emitted, "Form"),
+           "no validated document emits /S /Form, so clause 7.18.4's widget rules " <>
+             "(7.18.4-1, 7.18.4-2) have nothing to match and pass for that reason"
   end
 
   test "every recorded gap is a real structure type, not a stale name" do
