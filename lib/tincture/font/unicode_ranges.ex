@@ -6,9 +6,10 @@ defmodule Tincture.Font.UnicodeRanges do
   128-bit field, split across four 32-bit words (`ulUnicodeRange1..4`). Bit *n*
   is set when the font covers the block assigned to bit *n*.
 
-  Tincture consults this only as a *fallback*: when a font's `cmap` cannot be
-  parsed into a usable code-to-glyph map, the `OS/2` range bits are the only
-  remaining signal for whether a given codepoint is covered.
+  The range bits say which blocks a font claims, not which glyph draws a
+  character, which only the `cmap` says. Tincture does not use them to choose
+  a font: a font with no readable `cmap` is refused at registration (see
+  `Tincture.register_ttf_font/4`).
 
   Bit assignments follow the OpenType specification (bits 0..122; bits 123..127
   are reserved). Several bits cover more than one block — bit 9 (Cyrillic), for

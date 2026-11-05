@@ -64,13 +64,10 @@ defmodule Tincture do
   Elixir and Erlang/OTP. It runs anywhere the BEAM runs.
   """
 
-  import Bitwise
-
   require Logger
 
   alias Tincture.Font
   alias Tincture.Font.Context
-  alias Tincture.Font.UnicodeRanges
   alias Tincture.PDF
   alias Tincture.PDF.Accessibility
   alias Tincture.PDF.Archival
@@ -916,6 +913,9 @@ defmodule Tincture do
 
   @doc """
   Register an embedded TrueType font by name from a `.ttf` file path.
+
+  Takes the default options of `register_ttf_font/4`, and raises
+  `ArgumentError` for the same fonts.
   """
   @spec register_ttf_font(PDF.t(), String.t(), Path.t()) :: PDF.t()
   def register_ttf_font(%PDF{} = pdf, font_name, path) do
@@ -924,6 +924,17 @@ defmodule Tincture do
 
   @doc """
   Register an embedded TrueType font by name from a `.ttf` file path with embedding options.
+
+  The font must have a character map (`cmap`) with at least one subtable in a
+  format Tincture reads (0, 2, 4, 6, 8, 10, 12 or 13) that maps a character.
+  The `cmap` is what selects the glyph that draws each character. A font
+  without one raises `ArgumentError` naming the file and the cause: no `cmap`
+  table, a table header that does not parse, no subtable in a readable format
+  (a font whose only subtable is format 14, for example), or a subtable that
+  maps nothing. The font's OS/2 Unicode and code page ranges do not stand in
+  for a `cmap`: they say which scripts a font claims, not which glyph draws a
+  character. A file that is not a TrueType font, or whose required tables do
+  not parse, raises `ArgumentError` too.
 
   ## Options
 
@@ -961,6 +972,9 @@ defmodule Tincture do
 
   @doc """
   Register an embedded OpenType font by name from an `.otf` file path.
+
+  Takes the default options of `register_otf_font/4`, and raises
+  `ArgumentError` for the same fonts.
   """
   @spec register_otf_font(PDF.t(), String.t(), Path.t()) :: PDF.t()
   def register_otf_font(%PDF{} = pdf, font_name, path) do
@@ -972,6 +986,12 @@ defmodule Tincture do
 
   Takes the same options as `register_ttf_font/4`, including `:subset`, which
   defaults to `:used_text`.
+
+  The font must have a readable character map (`cmap`), as for
+  `register_ttf_font/4`, and a font without one raises `ArgumentError` the
+  same way. A file that starts with `OTTO` but whose tables do not parse
+  raises `ArgumentError` saying it is not a readable OpenType font. A file
+  that does not start with `OTTO` raises `ArgumentError` too.
   """
   @spec register_otf_font(PDF.t(), String.t(), Path.t(), keyword()) :: PDF.t()
   def register_otf_font(%PDF{} = pdf, font_name, path, opts) when is_list(opts) do
@@ -2955,127 +2975,7 @@ defmodule Tincture do
     Map.get(cmap_by_code, codepoint, 0) != 0
   end
 
-  defp embedded_font_supports_codepoint?(
-         %{ttf_metrics: %{cmap_by_code: cmap_by_code} = ttf_metrics},
-         codepoint
-       )
-       when is_map(cmap_by_code) and map_size(cmap_by_code) == 0 do
-    unicode_ranges = Map.get(ttf_metrics, :os2_unicode_ranges)
-    code_page_ranges = Map.get(ttf_metrics, :os2_code_page_ranges)
-
-    cond do
-      is_tuple(unicode_ranges) and not UnicodeRanges.all_zero?(unicode_ranges) ->
-        UnicodeRanges.supports_codepoint?(unicode_ranges, codepoint)
-
-      is_tuple(code_page_ranges) and not code_page_ranges_all_zero?(code_page_ranges) ->
-        code_page_ranges_support_codepoint?(code_page_ranges, codepoint)
-
-      true ->
-        codepoint <= 255
-    end
-  end
-
-  defp embedded_font_supports_codepoint?(%{}, codepoint), do: codepoint <= 255
   defp embedded_font_supports_codepoint?(_other, _codepoint), do: false
-
-  # credo:disable-for-next-line /^Elixir\.Credo\.Check\.Refactor\.(ABCSize|CyclomaticComplexity)$/
-  defp code_page_ranges_support_codepoint?({range1, range2}, codepoint)
-       when is_integer(range1) and is_integer(range2) and is_integer(codepoint) do
-    cond do
-      codepoint < 0 ->
-        false
-
-      codepoint <= 0x7F ->
-        true
-
-      codepoint <= 0xFF ->
-        latin_1_supported? = (range1 &&& 1 <<< 0) != 0
-        latin_1_supported?
-
-      codepoint >= 0x0100 and codepoint <= 0x024F ->
-        latin_2_supported? = (range1 &&& 1 <<< 1) != 0
-        turkish_supported? = (range1 &&& 1 <<< 4) != 0 and turkish_codepoint?(codepoint)
-        baltic_supported? = (range1 &&& 1 <<< 7) != 0 and baltic_codepoint?(codepoint)
-        vietnamese_supported? = (range1 &&& 1 <<< 8) != 0 and vietnamese_codepoint?(codepoint)
-        latin_2_supported? or turkish_supported? or baltic_supported? or vietnamese_supported?
-
-      codepoint >= 0x0400 and codepoint <= 0x04FF ->
-        cyrillic_supported? = (range1 &&& 1 <<< 2) != 0
-        cyrillic_supported?
-
-      codepoint >= 0x0370 and codepoint <= 0x03FF ->
-        greek_supported? = (range1 &&& 1 <<< 3) != 0
-        greek_supported?
-
-      codepoint >= 0x0590 and codepoint <= 0x05FF ->
-        hebrew_supported? = (range1 &&& 1 <<< 5) != 0
-        hebrew_supported?
-
-      codepoint >= 0x0600 and codepoint <= 0x06FF ->
-        arabic_supported? = (range1 &&& 1 <<< 6) != 0
-        arabic_supported?
-
-      codepoint >= 0x0E00 and codepoint <= 0x0E7F ->
-        thai_supported? = (range2 &&& 1 <<< 0) != 0
-        thai_supported?
-
-      true ->
-        false
-    end
-  end
-
-  defp code_page_ranges_support_codepoint?(_ranges, _codepoint), do: false
-
-  defp turkish_codepoint?(0x011E), do: true
-  defp turkish_codepoint?(0x011F), do: true
-  defp turkish_codepoint?(0x0130), do: true
-  defp turkish_codepoint?(0x0131), do: true
-  defp turkish_codepoint?(0x015E), do: true
-  defp turkish_codepoint?(0x015F), do: true
-  defp turkish_codepoint?(_codepoint), do: false
-
-  defp baltic_codepoint?(0x0104), do: true
-  defp baltic_codepoint?(0x0105), do: true
-  defp baltic_codepoint?(0x010C), do: true
-  defp baltic_codepoint?(0x010D), do: true
-  defp baltic_codepoint?(0x0112), do: true
-  defp baltic_codepoint?(0x0113), do: true
-  defp baltic_codepoint?(0x0116), do: true
-  defp baltic_codepoint?(0x0117), do: true
-  defp baltic_codepoint?(0x0122), do: true
-  defp baltic_codepoint?(0x0123), do: true
-  defp baltic_codepoint?(0x012A), do: true
-  defp baltic_codepoint?(0x012B), do: true
-  defp baltic_codepoint?(0x012E), do: true
-  defp baltic_codepoint?(0x012F), do: true
-  defp baltic_codepoint?(0x0136), do: true
-  defp baltic_codepoint?(0x0137), do: true
-  defp baltic_codepoint?(0x013B), do: true
-  defp baltic_codepoint?(0x013C), do: true
-  defp baltic_codepoint?(0x0145), do: true
-  defp baltic_codepoint?(0x0146), do: true
-  defp baltic_codepoint?(0x014C), do: true
-  defp baltic_codepoint?(0x014D), do: true
-  defp baltic_codepoint?(0x0156), do: true
-  defp baltic_codepoint?(0x0157), do: true
-  defp baltic_codepoint?(0x0160), do: true
-  defp baltic_codepoint?(0x0161), do: true
-  defp baltic_codepoint?(0x016A), do: true
-  defp baltic_codepoint?(0x016B), do: true
-  defp baltic_codepoint?(0x0172), do: true
-  defp baltic_codepoint?(0x0173), do: true
-  defp baltic_codepoint?(0x017D), do: true
-  defp baltic_codepoint?(0x017E), do: true
-  defp baltic_codepoint?(_codepoint), do: false
-
-  defp vietnamese_codepoint?(0x01A0), do: true
-  defp vietnamese_codepoint?(0x01A1), do: true
-  defp vietnamese_codepoint?(0x01AF), do: true
-  defp vietnamese_codepoint?(0x01B0), do: true
-  defp vietnamese_codepoint?(_codepoint), do: false
-
-  defp code_page_ranges_all_zero?({0, 0}), do: true
-  defp code_page_ranges_all_zero?(_ranges), do: false
 
   # `set_font/3` does not validate, so a document can be drawing with a font
   # nothing knows about. Estimating keeps that cosmetic rather than fatal.

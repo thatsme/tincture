@@ -411,7 +411,7 @@ defmodule Tincture.PDF.FontEmbed do
             num_glyphs: num_glyphs,
             index_to_loc_format: index_to_loc_format
           } = metrics
-          when is_map(cmap_by_code) and map_size(cmap_by_code) > 0 and is_list(glyph_offsets) and
+          when is_map(cmap_by_code) and is_list(glyph_offsets) and
                  glyph_offsets != [] and is_integer(num_glyphs) and num_glyphs > 0 and
                  index_to_loc_format in [0, 1] ->
             codepoints =
@@ -475,8 +475,7 @@ defmodule Tincture.PDF.FontEmbed do
       mode when mode in [:ascii_basic, :used_text] ->
         case ttf_metrics do
           %{cmap_by_code: cmap_by_code, num_glyphs: num_glyphs}
-          when is_map(cmap_by_code) and map_size(cmap_by_code) > 0 and is_integer(num_glyphs) and
-                 num_glyphs > 0 ->
+          when is_map(cmap_by_code) and is_integer(num_glyphs) and num_glyphs > 0 ->
             codepoints =
               subset_mode_codepoints(mode, used_char_codes, scalar_codepoints)
 
@@ -1915,7 +1914,7 @@ defmodule Tincture.PDF.FontEmbed do
                scalar_codepoints,
                variation_sequences
              ) do
-          data when is_binary(data) and byte_size(data) > 0 ->
+          data when is_binary(data) ->
             {" /CIDToGIDMap #{object_id} 0 R", cid_to_gid_map_object(data), object_id + 1}
 
           :ambiguous ->
@@ -1923,9 +1922,6 @@ defmodule Tincture.PDF.FontEmbed do
               "embedded TTF Type0 CIDToGIDMap fallback to /Identity for font #{Map.get(embedded_font, :name, "unknown")} due to ambiguous non-BMP surrogate mappings"
             )
 
-            {" /CIDToGIDMap /Identity", nil, object_id}
-
-          _ ->
             {" /CIDToGIDMap /Identity", nil, object_id}
         end
     end
@@ -1937,40 +1933,36 @@ defmodule Tincture.PDF.FontEmbed do
          scalar_codepoints,
          variation_sequences
        ) do
-    case Map.get(embedded_font, :ttf_metrics) do
-      %{cmap_by_code: cmap_by_code} when is_map(cmap_by_code) and map_size(cmap_by_code) > 0 ->
-        with {:ok, surrogate_overrides} <-
-               non_bmp_cid_to_gid_overrides(cmap_by_code, scalar_codepoints),
-             {:ok, variation_overrides} <-
-               variation_cid_to_gid_overrides(embedded_font, variation_sequences),
-             {:ok, cid_overrides} <- merge_override_maps(surrogate_overrides, variation_overrides) do
-          max_cid =
-            case normalize_used_cids(used_cids) do
-              [] -> 0
-              cids -> List.last(cids)
-            end
+    %{cmap_by_code: cmap_by_code} = Map.fetch!(embedded_font, :ttf_metrics)
 
-          0..max_cid
-          |> Enum.map(fn cid ->
-            glyph_id =
-              case Map.get(cid_overrides, cid) do
-                override when is_integer(override) and override >= 0 ->
-                  override
-
-                _ ->
-                  mapped_cmap_glyph_id(cmap_by_code, cid)
-              end
-
-            <<normalize_cid_to_gid_value(glyph_id)::16-big>>
-          end)
-          |> IO.iodata_to_binary()
-        else
-          :ambiguous ->
-            :ambiguous
+    with {:ok, surrogate_overrides} <-
+           non_bmp_cid_to_gid_overrides(cmap_by_code, scalar_codepoints),
+         {:ok, variation_overrides} <-
+           variation_cid_to_gid_overrides(embedded_font, variation_sequences),
+         {:ok, cid_overrides} <- merge_override_maps(surrogate_overrides, variation_overrides) do
+      max_cid =
+        case normalize_used_cids(used_cids) do
+          [] -> 0
+          cids -> List.last(cids)
         end
 
-      _ ->
-        nil
+      0..max_cid
+      |> Enum.map(fn cid ->
+        glyph_id =
+          case Map.get(cid_overrides, cid) do
+            override when is_integer(override) and override >= 0 ->
+              override
+
+            _ ->
+              mapped_cmap_glyph_id(cmap_by_code, cid)
+          end
+
+        <<normalize_cid_to_gid_value(glyph_id)::16-big>>
+      end)
+      |> IO.iodata_to_binary()
+    else
+      :ambiguous ->
+        :ambiguous
     end
   end
 

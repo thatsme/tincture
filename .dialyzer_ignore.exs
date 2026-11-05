@@ -34,11 +34,6 @@
   # before dispatch, so Dialyzer sees it as dead.
   {"lib/tincture/typography/hyphen.ex", :pattern_match_cov},
 
-  # embedded_font_supports_codepoint?/2 final clause. The preceding clause
-  # matches `%{}`, which in pattern position matches ANY map, so the non-map
-  # fallback is unreachable while every caller passes a font metrics map.
-  {"lib/tincture.ex", :pattern_match},
-
   # CFF / cmap / loca / glyf parser fallbacks. Each guards a malformed-font path
   # where preceding clauses already cover every shape Dialyzer can infer from
   # the parse pipeline. Font files are untrusted input, so these stay.

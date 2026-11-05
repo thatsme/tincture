@@ -134,13 +134,13 @@ defmodule Tincture.Font.Context do
   end
 
   # The text as drawn in `font_name`: without the default-ignorable code
-  # points an embedded font with cmap data lacks. Such a character - a
+  # points an embedded font lacks. Such a character - a
   # zero-width joiner, a soft hyphen, a bidi control - has no visible glyph,
   # so it is left out of the content stream rather than written as glyph 0;
   # it is measured as left out, too. One the font has is drawn as any other
   # character, and so is a variation selector the font's format 14 subtable
-  # lists. A standard-14 font, and an embedded font with no cmap data, draw
-  # the text unchanged.
+  # lists. A standard-14 font draws the text unchanged. Every registered
+  # embedded font has cmap data: a font without it is refused at registration.
   @doc false
   def drawn_text(%__MODULE__{embedded: embedded}, font_name, text) when is_binary(text) do
     case Map.get(embedded, font_name) do

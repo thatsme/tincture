@@ -1455,7 +1455,10 @@ defmodule TinctureTest do
   end
 
   test "register_ttf_font/3 stores parsed cmap format 14 variation metadata" do
-    path = write_test_ttf_with_cmap_format14!()
+    # A format 4 subtable maps U+2603 to glyph 1; the format 14 subtable maps
+    # the sequence U+2603 U+FE0F to glyph 2. A font with only the format 14
+    # subtable is refused (see the cmap refusal tests).
+    path = write_test_ttf_with_cmap_format4_and14!()
 
     pdf =
       Tincture.new()
@@ -1463,7 +1466,7 @@ defmodule TinctureTest do
 
     metrics = pdf.embedded_fonts["DemoUnicodeFormat14"].ttf_metrics
     assert metrics.cmap_var_selectors == [0xFE0F]
-    assert metrics.cmap_non_default_uvs[{0x2603, 0xFE0F}] == 1
+    assert metrics.cmap_non_default_uvs[{0x2603, 0xFE0F}] == 2
 
     File.rm(path)
   end
@@ -1860,6 +1863,102 @@ defmodule TinctureTest do
     File.rm(path)
   end
 
+  test "register_ttf_font/3 refuses a font with no cmap table" do
+    path = write_test_binary!(".ttf", test_ttf_with_cmap_table(nil))
+
+    assert_cmap_refusal(&Tincture.register_ttf_font/3, path, "it has no cmap table")
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/3 refuses a font whose cmap table header cannot be parsed" do
+    path = write_test_binary!(".ttf", test_ttf_with_cmap_table(<<0::16-big>>))
+
+    assert_cmap_refusal(
+      &Tincture.register_ttf_font/3,
+      path,
+      "its cmap table header could not be parsed"
+    )
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/3 refuses a font whose only cmap subtable is format 14" do
+    path = write_test_ttf_with_cmap_format14!()
+
+    assert_cmap_refusal(
+      &Tincture.register_ttf_font/3,
+      path,
+      "none of its cmap subtables is in a format Tincture reads (0, 2, 4, 6, 8, 10, 12 or 13)"
+    )
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/3 refuses a font whose cmap subtable maps no character" do
+    path = write_test_binary!(".ttf", test_ttf_with_cmap_table(cmap_format12([])))
+
+    assert_cmap_refusal(
+      &Tincture.register_ttf_font/3,
+      path,
+      "its cmap subtable maps no character"
+    )
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/3 refuses a font with no cmap whose OS/2 unicode ranges claim a script" do
+    # OS/2 ulUnicodeRange names the Greek block; it says which scripts the
+    # font claims, not which glyph draws a character, so it is no cmap.
+    path = write_test_ttf_no_cmap_greek_range!()
+
+    assert_cmap_refusal(&Tincture.register_ttf_font/3, path, "it has no cmap table")
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/3 refuses a font with no cmap whose OS/2 code page ranges claim a script" do
+    # OS/2 ulCodePageRange names Cyrillic (1251); as with the unicode ranges,
+    # it is no cmap.
+    path = write_test_ttf_no_cmap_cyrillic_codepage!()
+
+    assert_cmap_refusal(&Tincture.register_ttf_font/3, path, "it has no cmap table")
+
+    File.rm(path)
+  end
+
+  test "register_otf_font/3 refuses an OpenType font with no cmap table" do
+    path = write_test_binary!(".otf", test_otf_with_cmap_table(nil))
+
+    assert_cmap_refusal(&Tincture.register_otf_font/3, path, "it has no cmap table")
+
+    File.rm(path)
+  end
+
+  test "register_otf_font/3 refuses an OTTO file whose tables cannot be parsed" do
+    path = write_test_binary!(".otf", test_otf_unparsable_binary())
+
+    assert_raise ArgumentError,
+                 "font file #{inspect(path)} is not a readable OpenType font: " <>
+                   "its tables could not be parsed.",
+                 fn -> Tincture.register_otf_font(Tincture.new(), "Unparsable", path) end
+
+    File.rm(path)
+  end
+
+  test "register_ttf_font/4 refuses a font with no cmap before any embedding-permission warning" do
+    path = write_test_binary!(".ttf", test_ttf_with_os2_fs_type_binary() |> drop_table("cmap"))
+
+    log =
+      capture_log(fn ->
+        assert_cmap_refusal(&Tincture.register_ttf_font/3, path, "it has no cmap table")
+      end)
+
+    refute log =~ "fsType"
+
+    File.rm(path)
+  end
+
   test "register_ttf_font/3 and register_otf_font/3 reject unreadable files" do
     missing_ttf =
       Path.join(System.tmp_dir!(), "missing_#{System.unique_integer([:positive])}.ttf")
@@ -2179,312 +2278,6 @@ defmodule TinctureTest do
 
     assert [{:text_at, x, 700, "☃️", {"FallbackSnowmanVariation", 12}}] = pdf.operations
     assert_in_delta x, 50.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 unicode ranges when embedded cmap is unavailable" do
-    primary_path = write_test_ttf_no_cmap_greek_range!()
-    fallback_path = write_test_ttf_primary_ascii!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryGreekNoCmap", primary_path)
-      |> Tincture.register_ttf_font("FallbackASCII", fallback_path)
-      |> Tincture.set_font("PrimaryGreekNoCmap", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "B", ["FallbackASCII"])
-
-    assert [{:text_at, x, 600, "B", {"FallbackASCII", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 keeps permissive fallback when embedded cmap and unicode ranges are unavailable" do
-    primary_path = write_test_ttf_no_cmap_zero_ranges!()
-    fallback_path = write_test_ttf_primary_ascii!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryNoCmapUnknownRanges", primary_path)
-      |> Tincture.register_ttf_font("FallbackASCII", fallback_path)
-      |> Tincture.set_font("PrimaryNoCmapUnknownRanges", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "A", ["FallbackASCII"])
-
-    assert [{:text_at, x, 600, "A", {"PrimaryNoCmapUnknownRanges", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 code page ranges when cmap and unicode ranges are unavailable" do
-    primary_path = write_test_ttf_no_cmap_cyrillic_codepage!()
-    fallback_path = write_test_ttf_latin1_e_acute!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryCyrillicNoCmap", primary_path)
-      |> Tincture.register_ttf_font("FallbackLatin1EAcute", fallback_path)
-      |> Tincture.set_font("PrimaryCyrillicNoCmap", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "é", ["FallbackLatin1EAcute"])
-
-    assert [{:text_at, x, 600, "é", {"FallbackLatin1EAcute", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Cyrillic code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_cyrillic_codepage!()
-    fallback_path = write_test_ttf_cyrillic_zh!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryCyrillicNoCmap", primary_path)
-      |> Tincture.register_ttf_font("FallbackCyrillicZh", fallback_path)
-      |> Tincture.set_font("PrimaryCyrillicNoCmap", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "Ж", ["FallbackCyrillicZh"])
-
-    assert [{:text_at, x, 600, "Ж", {"PrimaryCyrillicNoCmap", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Greek code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_greek_codepage!()
-    fallback_path = write_test_ttf_greek_omega!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryGreekNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackGreekOmega", fallback_path)
-      |> Tincture.set_font("PrimaryGreekNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "Ω", ["FallbackGreekOmega"])
-
-    assert [{:text_at, x, 600, "Ω", {"PrimaryGreekNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Turkish code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_turkish_codepage!()
-    fallback_path = write_test_ttf_turkish_g_breve!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryTurkishNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackTurkishGBreve", fallback_path)
-      |> Tincture.set_font("PrimaryTurkishNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ğ", ["FallbackTurkishGBreve"])
-
-    assert [{:text_at, x, 600, "ğ", {"PrimaryTurkishNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Baltic code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_baltic_codepage!()
-    fallback_path = write_test_ttf_baltic_g_cedilla!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryBalticNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackBalticGCedilla", fallback_path)
-      |> Tincture.set_font("PrimaryBalticNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "Ģ", ["FallbackBalticGCedilla"])
-
-    assert [{:text_at, x, 600, "Ģ", {"PrimaryBalticNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Vietnamese code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_vietnamese_codepage!()
-    fallback_path = write_test_ttf_vietnamese_o_horn!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryVietnameseNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackVietnameseOHorn", fallback_path)
-      |> Tincture.set_font("PrimaryVietnameseNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ơ", ["FallbackVietnameseOHorn"])
-
-    assert [{:text_at, x, 600, "ơ", {"PrimaryVietnameseNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Hebrew code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_hebrew_codepage!()
-    fallback_path = write_test_ttf_hebrew_alef!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryHebrewNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackHebrewAlef", fallback_path)
-      |> Tincture.set_font("PrimaryHebrewNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "א", ["FallbackHebrewAlef"])
-
-    assert [{:text_at, x, 600, "א", {"PrimaryHebrewNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Arabic code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_arabic_codepage!()
-    fallback_path = write_test_ttf_arabic_alef!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryArabicNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackArabicAlef", fallback_path)
-      |> Tincture.set_font("PrimaryArabicNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ا", ["FallbackArabicAlef"])
-
-    assert [{:text_at, x, 600, "ا", {"PrimaryArabicNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Thai code page for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_thai_codepage!()
-    fallback_path = write_test_ttf_thai_ko_kai!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryThaiNoCmapCodePage", primary_path)
-      |> Tincture.register_ttf_font("FallbackThaiKoKai", fallback_path)
-      |> Tincture.set_font("PrimaryThaiNoCmapCodePage", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ก", ["FallbackThaiKoKai"])
-
-    assert [{:text_at, x, 600, "ก", {"PrimaryThaiNoCmapCodePage", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Cyrillic unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_cyrillic_unicode_range!()
-    fallback_path = write_test_ttf_cyrillic_zh!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryCyrillicNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackCyrillicZh", fallback_path)
-      |> Tincture.set_font("PrimaryCyrillicNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "Ж", ["FallbackCyrillicZh"])
-
-    assert [{:text_at, x, 600, "Ж", {"PrimaryCyrillicNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Hebrew unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_hebrew_unicode_range!()
-    fallback_path = write_test_ttf_hebrew_alef!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryHebrewNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackHebrewAlef", fallback_path)
-      |> Tincture.set_font("PrimaryHebrewNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "א", ["FallbackHebrewAlef"])
-
-    assert [{:text_at, x, 600, "א", {"PrimaryHebrewNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Arabic unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_arabic_unicode_range!()
-    fallback_path = write_test_ttf_arabic_alef!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryArabicNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackArabicAlef", fallback_path)
-      |> Tincture.set_font("PrimaryArabicNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ا", ["FallbackArabicAlef"])
-
-    assert [{:text_at, x, 600, "ا", {"PrimaryArabicNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Armenian unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_armenian_unicode_range!()
-    fallback_path = write_test_ttf_armenian_ayb!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryArmenianNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackArmenianAyb", fallback_path)
-      |> Tincture.set_font("PrimaryArmenianNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "Ա", ["FallbackArmenianAyb"])
-
-    assert [{:text_at, x, 600, "Ա", {"PrimaryArmenianNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Devanagari unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_devanagari_unicode_range!()
-    fallback_path = write_test_ttf_devanagari_a!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryDevanagariNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackDevanagariA", fallback_path)
-      |> Tincture.set_font("PrimaryDevanagariNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "अ", ["FallbackDevanagariA"])
-
-    assert [{:text_at, x, 600, "अ", {"PrimaryDevanagariNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
-
-    File.rm(primary_path)
-    File.rm(fallback_path)
-  end
-
-  test "text_at_with_fallback/5 uses OS/2 Thai unicode range for cmap-less embedded fonts" do
-    primary_path = write_test_ttf_no_cmap_thai_unicode_range!()
-    fallback_path = write_test_ttf_thai_ko_kai!()
-
-    pdf =
-      Tincture.new()
-      |> Tincture.register_ttf_font("PrimaryThaiNoCmapUnicodeRange", primary_path)
-      |> Tincture.register_ttf_font("FallbackThaiKoKai", fallback_path)
-      |> Tincture.set_font("PrimaryThaiNoCmapUnicodeRange", 12)
-      |> Tincture.text_at_with_fallback(10, 600, "ก", ["FallbackThaiKoKai"])
-
-    assert [{:text_at, x, 600, "ก", {"PrimaryThaiNoCmapUnicodeRange", 12}}] = pdf.operations
-    assert_in_delta x, 10.0, 0.001
 
     File.rm(primary_path)
     File.rm(fallback_path)
@@ -4319,7 +4112,9 @@ defmodule TinctureTest do
       {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
       {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx", <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>}
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4476,6 +4271,19 @@ defmodule TinctureTest do
   end
 
   defp test_otf_binary do
+    build_otf([
+      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
+      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
+      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
+      {"cmap", fixture_cmap()}
+    ])
+  end
+
+  # An `OTTO` file whose table directory declares one record but holds only 12
+  # of its 16 bytes, so no table can be read.
+  defp test_otf_unparsable_binary do
     <<"OTTO", 0, 1, 0, 16, 0, 1, 0, 0, 67, 70, 70, 32, 0, 0, 0, 0, 0, 0, 0, 24>>
   end
 
@@ -4621,7 +4429,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_family_name("CFF Demo Family")}
+      {"CFF ", cff_table_with_family_name("CFF Demo Family")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4632,7 +4441,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_weight("Bold")}
+      {"CFF ", cff_table_with_weight("Bold")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4643,7 +4453,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_stem_v(140)}
+      {"CFF ", cff_table_with_stem_v(140)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4654,7 +4465,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_stem_h(120)}
+      {"CFF ", cff_table_with_stem_h(120)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4665,7 +4477,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_force_bold()}
+      {"CFF ", cff_table_with_force_bold()},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4676,7 +4489,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_weight_sid(384)}
+      {"CFF ", cff_table_with_weight_sid(384)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4687,7 +4501,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_full_name("CFF Demo FullName")}
+      {"CFF ", cff_table_with_full_name("CFF Demo FullName")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4698,7 +4513,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_family_name_sid(388)}
+      {"CFF ", cff_table_with_family_name_sid(388)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4709,7 +4525,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_font_name("CFF FontName Demo")}
+      {"CFF ", cff_table_with_font_name("CFF FontName Demo")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4720,7 +4537,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_weight("650")}
+      {"CFF ", cff_table_with_weight("650")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4731,7 +4549,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"CFF ", cff_table_with_weight("Semi-Bold")}
+      {"CFF ", cff_table_with_weight("Semi-Bold")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4750,7 +4569,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4769,7 +4589,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4788,7 +4609,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -4807,7 +4629,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5246,159 +5069,9 @@ defmodule TinctureTest do
     path
   end
 
-  defp write_test_ttf_no_cmap_zero_ranges! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_zero_ranges_binary())
-    path
-  end
-
   defp write_test_ttf_no_cmap_cyrillic_codepage! do
     path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
     :ok = File.write(path, test_ttf_no_cmap_cyrillic_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_greek_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_greek_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_hebrew_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_hebrew_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_arabic_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_arabic_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_thai_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_thai_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_turkish_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_turkish_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_baltic_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_baltic_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_vietnamese_codepage! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_vietnamese_codepage_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_cyrillic_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_cyrillic_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_hebrew_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_hebrew_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_arabic_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_arabic_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_armenian_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_armenian_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_devanagari_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_devanagari_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_no_cmap_thai_unicode_range! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_no_cmap_thai_unicode_range_binary())
-    path
-  end
-
-  defp write_test_ttf_latin1_e_acute! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_latin1_e_acute_binary())
-    path
-  end
-
-  defp write_test_ttf_cyrillic_zh! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_cyrillic_zh_binary())
-    path
-  end
-
-  defp write_test_ttf_greek_omega! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_greek_omega_binary())
-    path
-  end
-
-  defp write_test_ttf_hebrew_alef! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_hebrew_alef_binary())
-    path
-  end
-
-  defp write_test_ttf_arabic_alef! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_arabic_alef_binary())
-    path
-  end
-
-  defp write_test_ttf_armenian_ayb! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_armenian_ayb_binary())
-    path
-  end
-
-  defp write_test_ttf_devanagari_a! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_devanagari_a_binary())
-    path
-  end
-
-  defp write_test_ttf_thai_ko_kai! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_thai_ko_kai_binary())
-    path
-  end
-
-  defp write_test_ttf_turkish_g_breve! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_turkish_g_breve_binary())
-    path
-  end
-
-  defp write_test_ttf_baltic_g_cedilla! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_baltic_g_cedilla_binary())
-    path
-  end
-
-  defp write_test_ttf_vietnamese_o_horn! do
-    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
-    :ok = File.write(path, test_ttf_vietnamese_o_horn_binary())
     path
   end
 
@@ -5560,7 +5233,8 @@ defmodule TinctureTest do
          -10::16-signed-big,
          700::16-signed-big,
          750::16-signed-big
-       >>}
+       >>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5853,7 +5527,9 @@ defmodule TinctureTest do
          -200::16-signed-big, 1100::16-signed-big, 900::16-signed-big, 0::size(10)-unit(8)>>},
       {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx", <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>}
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5867,7 +5543,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2_table(780, -220, 880, 240, 510, 730, 700, 3, 0)}
+      {"OS/2", os2_table(780, -220, 880, 240, 510, 730, 700, 3, 0)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5886,7 +5563,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5900,7 +5578,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2_table(780, -220, 880, 240, 510, 730, 900, 3, 0)}
+      {"OS/2", os2_table(780, -220, 880, 240, 510, 730, 900, 3, 0)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5913,7 +5592,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 0)}
+      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 0)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5924,7 +5604,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 33)}
+      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 33)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5935,7 +5616,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 512)}
+      {"OS/2", os2_table(0, 0, 840, 260, 510, 730, 500, 5, 512)},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5954,7 +5636,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5973,7 +5656,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -5992,7 +5676,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6011,7 +5696,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6030,7 +5716,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
+      {"OS/2", os2},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6115,7 +5802,8 @@ defmodule TinctureTest do
          5,
          0,
          <<2, 11, 6, 4, 2, 2, 2, 2, 2, 4>>
-       )}
+       )},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6128,7 +5816,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"post", <<0x0003_0000::32-big, -786_432::32-signed-big>>}
+      {"post", <<0x0003_0000::32-big, -786_432::32-signed-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6141,7 +5830,8 @@ defmodule TinctureTest do
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
       {"post",
        <<0x0003_0000::32-big, 0::32-signed-big, 0::16-signed-big, 0::16-signed-big, 1::32-big,
-         0::32-big, 0::32-big, 0::32-big, 0::32-big>>}
+         0::32-big, 0::32-big, 0::32-big, 0::32-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6152,7 +5842,9 @@ defmodule TinctureTest do
          0::16-signed-big, 0::16-signed-big, 0::16-signed-big>>},
       {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx", <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>}
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6163,7 +5855,8 @@ defmodule TinctureTest do
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"name", name_table("Demo Family")}
+      {"name", name_table("Demo Family")},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6176,7 +5869,9 @@ defmodule TinctureTest do
        <<0::32-big, 760::16-signed-big, -240::16-signed-big, 0::16-signed-big, 900::16-big,
          0::size(22)-unit(8), 2::16-big>>},
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx", <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>}
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
+      {"cmap", fixture_cmap()}
     ])
   end
 
@@ -6602,19 +6297,6 @@ defmodule TinctureTest do
     ])
   end
 
-  defp test_ttf_no_cmap_zero_ranges_binary do
-    os2 = os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
   defp test_ttf_no_cmap_cyrillic_codepage_binary do
     os2 =
       os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
@@ -6630,320 +6312,49 @@ defmodule TinctureTest do
     ])
   end
 
-  defp test_ttf_no_cmap_greek_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 8)
+  # The four tables every fixture font needs, and a cmap table when one is given.
+  defp test_ttf_with_cmap_table(cmap), do: build_ttf(fixture_tables(cmap))
+  defp test_otf_with_cmap_table(cmap), do: build_otf(fixture_tables(cmap))
 
-    build_ttf([
+  defp fixture_tables(cmap) do
+    tables = [
       {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
       {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
       {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
+      {"hmtx", <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>}
+    ]
+
+    if cmap, do: tables ++ [{"cmap", cmap}], else: tables
   end
 
-  defp test_ttf_no_cmap_hebrew_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 32)
+  # The same font with the table directory record for `tag` renamed, so the
+  # table's bytes stay and no record names it.
+  defp drop_table(font, tag) do
+    <<_version::32, num_tables::16-big, _::binary>> = font
 
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
+    index =
+      Enum.find(0..(num_tables - 1), fn i ->
+        binary_part(font, 12 + i * 16, 4) == tag
+      end)
+
+    at = 12 + index * 16
+    <<prefix::binary-size(at), _tag::binary-size(4), rest::binary>> = font
+    <<prefix::binary, "xmap", rest::binary>>
   end
 
-  defp test_ttf_no_cmap_arabic_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 64)
+  defp assert_cmap_refusal(register, path, reason) do
+    message =
+      "font file #{inspect(path)} has no character map (cmap) that Tincture can read, " <>
+        "so no character could be drawn with its glyphs: #{reason}. Use a TrueType or " <>
+        "OpenType font with a Unicode cmap subtable (format 4 or 12)."
 
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
+    assert_raise ArgumentError, message, fn -> register.(Tincture.new(), "NoCmap", path) end
   end
 
-  defp test_ttf_no_cmap_thai_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(82, 1)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_turkish_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 16)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_baltic_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 128)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_vietnamese_codepage_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(78, 256)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_cyrillic_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 512)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_hebrew_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 2048)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_arabic_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 8192)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_armenian_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 1024)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_devanagari_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 32_768)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_no_cmap_thai_unicode_range_binary do
-    os2 =
-      os2_table(0, 0, 0, 0, 0, 0, 500, 5, 0)
-      |> write_u32_at(42, 16_777_216)
-
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"OS/2", os2}
-    ])
-  end
-
-  defp test_ttf_latin1_e_acute_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format0([{233, 1}])}
-    ])
-  end
-
-  defp test_ttf_cyrillic_zh_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0416, 1}])}
-    ])
-  end
-
-  defp test_ttf_greek_omega_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x03A9, 1}])}
-    ])
-  end
-
-  defp test_ttf_hebrew_alef_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x05D0, 1}])}
-    ])
-  end
-
-  defp test_ttf_arabic_alef_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0627, 1}])}
-    ])
-  end
-
-  defp test_ttf_armenian_ayb_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0531, 1}])}
-    ])
-  end
-
-  defp test_ttf_devanagari_a_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0905, 1}])}
-    ])
-  end
-
-  defp test_ttf_thai_ko_kai_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0E01, 1}])}
-    ])
-  end
-
-  defp test_ttf_turkish_g_breve_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x011F, 1}])}
-    ])
-  end
-
-  defp test_ttf_baltic_g_cedilla_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x0122, 1}])}
-    ])
-  end
-
-  defp test_ttf_vietnamese_o_horn_binary do
-    build_ttf([
-      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
-      {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
-      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
-      {"hmtx",
-       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
-      {"cmap", cmap_format4([{0x01A1, 1}])}
-    ])
+  # Printable ASCII and U+2603, every one mapped to glyph 1: the fixtures
+  # draw no other character, and a font registers only with cmap data.
+  defp fixture_cmap do
+    cmap_format4(for(code <- 32..126, do: {code, 1}) ++ [{0x2603, 1}])
   end
 
   defp cmap_format0(entries) do

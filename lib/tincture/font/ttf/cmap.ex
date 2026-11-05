@@ -36,6 +36,44 @@ defmodule Tincture.Font.TTF.Cmap do
     end
   end
 
+  # Why `parse_cmap_by_code/2` found no mapping, for a font where it returned
+  # an empty map: the registration refusal names the cause. It follows the
+  # same steps, in the same order, as `parse_cmap_by_code/2`. `table_records`
+  # come from `Tincture.Font.TTF`, which refuses a record that lies outside
+  # the file, so the table's slice always succeeds here.
+  @doc false
+  @spec empty_reason(binary(), map()) ::
+          :no_table | :header | :no_supported_subtable | :maps_nothing
+  def empty_reason(data, table_records) do
+    case Map.fetch(table_records, "cmap") do
+      {:ok, {offset, length}} ->
+        {:ok, cmap_table} = Binary.slice(data, offset, length)
+        subtable_reason(cmap_table)
+
+      :error ->
+        :no_table
+    end
+  end
+
+  defp subtable_reason(<<_version::16-big, num_tables::16-big, rest::binary>> = cmap_table)
+       when byte_size(rest) >= num_tables * 8 do
+    <<records::binary-size(num_tables * 8), _::binary>> = rest
+
+    records
+    |> parse_cmap_records([])
+    |> Enum.sort_by(&cmap_record_priority/1)
+    |> Enum.find_value(:no_supported_subtable, fn {_platform_id, _encoding_id, offset} ->
+      with {:ok, subtable} <- extract_subtable(cmap_table, offset),
+           {:ok, _cmap_by_code} <- parse_cmap_subtable(subtable) do
+        :maps_nothing
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  defp subtable_reason(_cmap_table), do: :header
+
   @doc false
   def parse_cmap_variation_metadata(data, table_records) do
     default = %{cmap_var_selectors: [], cmap_non_default_uvs: %{}}

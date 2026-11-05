@@ -164,6 +164,15 @@ defmodule Tincture.Font.TTF do
     end
   end
 
+  # Why a font that `parse_basic_tables/1` read has an empty `cmap_by_code`.
+  @doc false
+  @spec cmap_empty_reason(binary()) ::
+          :no_table | :header | :no_supported_subtable | :maps_nothing
+  def cmap_empty_reason(data) when is_binary(data) do
+    {:ok, table_records} = parse_table_records(data)
+    Cmap.empty_reason(data, table_records)
+  end
+
   defp parse_basic_tables_body(data) do
     with {:ok, table_records} <- parse_table_records(data),
          {:ok, head_table} <- fetch_table(data, table_records, "head"),
