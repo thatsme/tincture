@@ -193,6 +193,7 @@ mix examples
 | [`archival_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/archival_form.exs) | An interactive form in a tagged PDF/A-2a document, also PDF/UA-1 |
 | [`tagged_form.exs`](https://github.com/thatsme/tincture/blob/main/examples/tagged_form.exs) | An accessible form, PDF/UA-1: every field type, each widget owned by a `Form` element |
 | [`signed.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed.exs) | A digitally signed agreement |
+| [`signed_archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed_archival.exs) | A signed document that is PDF/A-2a and PDF/UA-1 at once |
 | [`remote_links.exs`](https://github.com/thatsme/tincture/blob/main/examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
 | [`telemetry.exs`](https://github.com/thatsme/tincture/blob/main/examples/telemetry.exs) | The telemetry spans, printed as a document is built |
 

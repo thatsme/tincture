@@ -169,6 +169,13 @@ to protect.
   field with a tooltip, validated by veraPDF in CI at PDF/UA-1. A CI step
   traces each widget's ownership in the bytes of both tagged forms
   (`scripts/trace_widget_ownership.py`).
+- **`examples/signed_archival.exs`**, a signed archival document claiming
+  PDF/A-2a, tagged, so a PDF/UA-1 document too: a visible signature field
+  with a label in an embedded font, its widget owned by a `Form` element,
+  signed with a detached PKCS#7 signature. Validated by veraPDF in CI at
+  PDF/A-2a, 2b and 2u and at PDF/UA-1, which brings the claims CI checks to
+  17; CI verifies its signature with openssl and rejects a tampered copy, as
+  for `signed.pdf`.
 
 ### Changed
 
