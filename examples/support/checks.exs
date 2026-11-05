@@ -47,6 +47,41 @@ defmodule Examples.Checks do
     end
   end
 
+  @doc """
+  The rows every tagged form asserts present, read from the written bytes, so
+  that no PDF/UA rule for forms passes for having nothing to match.
+
+  `widgets` is the number of widget annotations the form draws (a radio
+  group's buttons each count), `fields` the number of fields (a radio group
+  counts once), and `headings` the number of headings, each of which has a
+  bookmark.
+  """
+  @spec form_rows(binary(), keyword()) :: [row()]
+  def form_rows(binary, counts) do
+    widgets = Keyword.fetch!(counts, :widgets)
+    fields = Keyword.fetch!(counts, :fields)
+    headings = Keyword.fetch!(counts, :headings)
+
+    widget_lines = Regex.scan(~r|<< /Type /Annot /Subtype /Widget[^\n]*|, binary)
+    count = fn pattern -> length(Regex.scan(pattern, binary)) end
+
+    [
+      {"a Form element per widget (#{widgets})", "7.18.4-1, 7.18.4-2",
+       count.(~r|/Type /StructElem /S /Form |) == widgets and length(widget_lines) == widgets},
+      {"/StructParent on every widget", "/ParentTree",
+       Enum.count(widget_lines, fn [line] -> line =~ ~r|/StructParent \d+| end) == widgets},
+      {"/TU on every field (#{fields})", "7.18.1-3", count.(~r|/TU \(|) == fields},
+      {"/AP on every widget", "section D",
+       Enum.all?(widget_lines, fn [line] -> line =~ "/AP << /N " end)},
+      {"/Tabs /S", "7.18.3-1", binary =~ "/Tabs /S"},
+      {"no /NeedAppearances", "section D", not (binary =~ "/NeedAppearances")},
+      {"a bookmark per heading (#{headings})", "outline",
+       count.(~r|<< /Title [^\n]*/Dest \[|) == headings and binary =~ "/Type /Outlines"},
+      {"catalog /Lang", "7.2-34, 7.2-25", binary =~ ~r|/Lang \(|},
+      {"dc:title in the XMP", "7.1-9", binary =~ "<dc:title>"}
+    ]
+  end
+
   defp text(true), do: "ok"
   defp text(false), do: "MISSING"
   defp text({true, ok_text}) when is_binary(ok_text), do: ok_text
