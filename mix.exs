@@ -90,6 +90,7 @@ defmodule Tincture.MixProject do
         "run examples/archival_form.exs",
         "run examples/tagged_form.exs",
         "run examples/signed.exs",
+        "run examples/signed_archival.exs",
         "run examples/telemetry.exs",
         "run examples/remote_links.exs",
         "run examples/stamp.exs"

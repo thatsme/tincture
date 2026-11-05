@@ -17,15 +17,16 @@ defmodule Tincture.CorpusCoverageTest do
   alias Tincture.PDF.Structure
 
   # Every document CI and the release checklist run veraPDF against, as paths
-  # under examples/output without the extension. All seven are validated at
-  # PDF/UA-1; `archival.pdf` and `archival_form.pdf` are also validated at
-  # PDF/A-2a, 2b and 2u.
+  # under examples/output without the extension. All eight are validated at
+  # PDF/UA-1; `archival.pdf`, `archival_form.pdf` and `signed_archival.pdf`
+  # are also validated at PDF/A-2a, 2b and 2u.
   @validated [
     "compliant",
     "accessible",
     "archival",
     "archival_form",
     "tagged_form",
+    "signed_archival",
     "linked/Main-report",
     "linked/Attached documents/Appendix-A"
   ]
