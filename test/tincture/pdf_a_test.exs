@@ -113,6 +113,7 @@ defmodule Tincture.PDFATest do
     test "a tagged document not claiming PDF/A needs no extension schema" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "tagged"))
         |> export()

@@ -99,6 +99,7 @@ defmodule Tincture.Layout.TaggedTableTest do
     test "puts every row in the body" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.tag(:document, fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], @rows, [])
           rendered
@@ -126,6 +127,7 @@ defmodule Tincture.Layout.TaggedTableTest do
     test "a document already carrying structure gets a tagged table" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "before"))
         |> then(fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], @rows, header_rows: 1)
@@ -139,7 +141,7 @@ defmodule Tincture.Layout.TaggedTableTest do
 
   describe ":tag explicitly" do
     test "true tags a table in an otherwise untagged document" do
-      binary = render(Tincture.new(), header_rows: 1, tag: true)
+      binary = render(Tincture.set_language(Tincture.new(), "en-GB"), header_rows: 1, tag: true)
 
       assert binary =~ "/StructTreeRoot"
       assert count_elements(binary, "Table") == 1
@@ -199,6 +201,7 @@ defmodule Tincture.Layout.TaggedTableTest do
 
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.tag(:document, fn pdf ->
           {rendered, _} = Table.render(pdf, 50, 700, [200, 120], rows, header_rows: 1)
           rendered

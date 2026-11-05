@@ -21,10 +21,13 @@ defmodule Tincture.PDF.Accessibility do
     * a form field with no `:tooltip`, which is written as `/TU` (clause
       7.18.1);
     * a form field created outside every `Tincture.tag/4` scope, which leaves
-      its widget with no Form element (clause 7.18.4).
+      its widget with no Form element (clause 7.18.4);
+    * a document with no language, set with `Tincture.set_language/2`
+      (clause 7.2).
 
   Clause numbers are those of the matching rules in veraPDF 1.30.2's PDF/UA-1
-  profile (7.3-1, 7.18.5-1, 7.18.5-2, 7.18.1-3 and 7.18.4-1).
+  profile (7.3-1, 7.18.5-1, 7.18.5-2, 7.18.1-3, 7.18.4-1, and 7.2-34, 7.2-25
+  and 7.2-33).
 
   ## What this can and cannot tell you
 
@@ -62,7 +65,8 @@ defmodule Tincture.PDF.Accessibility do
           &links_outside_structure/1,
           &links_without_description/1,
           &fields_without_description/1,
-          &fields_outside_structure/1
+          &fields_outside_structure/1,
+          &language_missing/1
         ],
         fn check -> check.(pdf) end
       )
@@ -164,6 +168,29 @@ defmodule Tincture.PDF.Accessibility do
         }
     end
   end
+
+  # A tagged document claims PDF/UA-1 in its XMP, and PDF/UA requires the
+  # natural language of everything a reader announces to be determined: the
+  # page text (veraPDF rule 7.2-34), a field's /TU (7.2-25), the metadata
+  # title (7.2-33). The catalog /Lang that set_language/2 writes determines
+  # all three; without it a screen reader guesses which language to pronounce
+  # the text in. One violation for the document, whatever it holds.
+  defp language_missing(%PDF{language: nil}) do
+    [
+      %{
+        rule: :language_missing,
+        clause: "7.2",
+        message:
+          "the document has no language. A tagged document claims PDF/UA, which needs " <>
+            "the natural language of its text, its form fields' tooltips and its " <>
+            "metadata title to be known (veraPDF rules 7.2-34, 7.2-25 and 7.2-33), so a " <>
+            "screen reader does not have to guess how to pronounce them. Call " <>
+            "set_language/2, for example set_language(pdf, \"en-GB\")"
+      }
+    ]
+  end
+
+  defp language_missing(%PDF{}), do: []
 
   # A field's tooltip is written as /TU, the name a screen reader announces for
   # it; without one, a reader reaches the field and can say only that a field

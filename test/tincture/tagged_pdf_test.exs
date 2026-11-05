@@ -85,6 +85,7 @@ defmodule Tincture.TaggedPDFTest do
     test "container elements emit none, having no content of their own" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:table, fn pdf ->
           Tincture.tag(pdf, :tr, fn pdf ->
@@ -101,6 +102,7 @@ defmodule Tincture.TaggedPDFTest do
     test "marked-content ids are allocated per page, not per document" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "page one"))
         |> Tincture.add_page()
@@ -114,6 +116,7 @@ defmodule Tincture.TaggedPDFTest do
     test "every BDC is closed" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -134,6 +137,7 @@ defmodule Tincture.TaggedPDFTest do
     setup do
       pdf =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -231,6 +235,7 @@ defmodule Tincture.TaggedPDFTest do
     test "a figure carries alternative text" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.tag(:figure, [alt: "Bar chart of revenue"], fn pdf ->
           Tincture.rectangle(pdf, 10, 10, 50, 50, :fill)
         end)
@@ -242,6 +247,7 @@ defmodule Tincture.TaggedPDFTest do
     test "a header cell records the cells it governs" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:th, [scope: :row], &Tincture.text_at(&1, 10, 10, "Total"))
         |> export()
@@ -255,6 +261,7 @@ defmodule Tincture.TaggedPDFTest do
     test "carries actual text, for when the glyphs are not the words" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:span, [actual_text: "ffi"], &Tincture.text_at(&1, 10, 10, "ﬃ"))
         |> export()
@@ -277,6 +284,7 @@ defmodule Tincture.TaggedPDFTest do
     test "a title is carried through" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:section, [title: "Appendix"], fn pdf ->
           Tincture.tag(pdf, :p, &Tincture.text_at(&1, 10, 10, "text"))
