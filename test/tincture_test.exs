@@ -79,9 +79,10 @@ defmodule TinctureTest do
       |> Tincture.export()
 
     assert pdf_binary =~ "/Subtype /TrueType"
-    # Subsetting is on by default, so the PDF spec requires a six-uppercase-letter
-    # subset tag on /BaseFont.
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoTTF|
+    # The fixture has no glyf table, so subsetting falls back to the whole
+    # font, and a whole font carries no subset tag (ISO 32000-1 9.6.4).
+    assert pdf_binary =~ "/BaseFont /DemoTTF"
+    refute pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoTTF|
     assert pdf_binary =~ "/FontFile2 "
     assert pdf_binary =~ "/F1 "
     assert pdf_binary =~ "/F1 14 Tf"
@@ -90,7 +91,7 @@ defmodule TinctureTest do
   end
 
   test "register_ttf_font/4 supports opt-in baseline subset mode" do
-    path = write_test_ttf!()
+    path = write_test_ttf_subsettable!()
 
     pdf_binary =
       Tincture.new()
@@ -101,13 +102,13 @@ defmodule TinctureTest do
 
     assert pdf_binary =~ "/Subtype /TrueType"
     assert pdf_binary =~ "/FirstChar 32 /LastChar 126"
-    assert pdf_binary =~ "+DemoSubset"
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubset|
 
     File.rm(path)
   end
 
   test "register_ttf_font/4 ascii_basic subset uses Type0/CID objects for non-ASCII text runs" do
-    path = write_test_ttf!()
+    path = write_test_ttf_subsettable!()
 
     pdf_binary =
       Tincture.new()
@@ -119,14 +120,14 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Subtype /Type0"
     assert pdf_binary =~ "/Encoding /Identity-H"
     assert pdf_binary =~ "/Subtype /CIDFontType2"
-    assert pdf_binary =~ "+DemoSubsetUnicode"
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubsetUnicode|
     refute pdf_binary =~ "/FirstChar "
 
     File.rm(path)
   end
 
   test "register_ttf_font/4 supports used-text subset range mode" do
-    path = write_test_ttf!()
+    path = write_test_ttf_subsettable!()
 
     pdf_binary =
       Tincture.new()
@@ -136,7 +137,7 @@ defmodule TinctureTest do
       |> Tincture.export()
 
     assert pdf_binary =~ "/FirstChar 65 /LastChar 90"
-    assert pdf_binary =~ "+DemoUsedSubset"
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubset|
 
     File.rm(path)
   end
@@ -157,7 +158,7 @@ defmodule TinctureTest do
   end
 
   test "register_ttf_font/4 used-text subset uses Type0/CID objects for non-ASCII text runs" do
-    path = write_test_ttf!()
+    path = write_test_ttf_subsettable!()
 
     pdf_binary =
       Tincture.new()
@@ -171,12 +172,12 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Subtype /CIDFontType2"
     # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
     # identify exactly the CIDs present in the embedded program. Subsetting
-    # falls back to the whole font on several paths while the name keeps its
-    # subset tag, so an accurate one cannot be produced here - and veraPDF
+    # falls back to the whole font on several paths, so an accurate one
+    # cannot be produced here - and veraPDF
     # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
     # one is conformant.
     refute pdf_binary =~ "/CIDSet "
-    assert pdf_binary =~ "+DemoUsedSubsetUnicode"
+    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubsetUnicode|
     refute pdf_binary =~ "/FirstChar "
 
     File.rm(path)
@@ -1621,8 +1622,8 @@ defmodule TinctureTest do
     assert pdf_binary =~ "/Encoding /Identity-H"
     # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
     # identify exactly the CIDs present in the embedded program. Subsetting
-    # falls back to the whole font on several paths while the name keeps its
-    # subset tag, so an accurate one cannot be produced here - and veraPDF
+    # falls back to the whole font on several paths, so an accurate one
+    # cannot be produced here - and veraPDF
     # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
     # one is conformant.
     refute pdf_binary =~ "/CIDSet "
@@ -1660,9 +1661,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Hello OTF")
       |> Tincture.export()
 
-    # Subsetting is on by default, so the PDF spec requires a six-uppercase-letter
-    # subset tag on /BaseFont.
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoOTF|
+    # The fixture has no CFF table, so subsetting falls back to the whole
+    # font, and a whole font carries no subset tag (ISO 32000-1 9.6.4).
+    assert pdf_binary =~ "/BaseFont /DemoOTF"
+    refute pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoOTF|
     assert pdf_binary =~ "/FontFile3 "
     assert pdf_binary =~ "/Subtype /OpenType"
     assert pdf_binary =~ "/F1 12 Tf"
@@ -4115,6 +4117,34 @@ defmodule TinctureTest do
       {"hmtx",
        <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big>>},
       {"cmap", fixture_cmap()}
+    ])
+  end
+
+  defp write_test_ttf_subsettable! do
+    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
+    :ok = File.write(path, test_ttf_subsettable_binary())
+    path
+  end
+
+  # test_ttf_binary/0 with glyph data to cut: every character the fixtures
+  # draw maps to glyph 1, and glyph 2 is an unmapped 200-byte glyph that a
+  # subset drops, so the subset is smaller than the font and is tagged.
+  defp test_ttf_subsettable_binary do
+    build_ttf([
+      {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
+      {"hhea", <<0::32-big, 0::size(30)-unit(8), 3::16-big>>},
+      {"maxp", <<0x0001_0000::32-big, 3::16-big>>},
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 900::16-big,
+         0::16-signed-big>>},
+      {"cmap", fixture_cmap()},
+      # Short loca: stored values are byte offsets / 2.
+      {"loca", <<0::16-big, 5::16-big, 10::16-big, 110::16-big>>},
+      {"glyf",
+       <<1::16-signed-big, 0::16-signed-big, -20::16-signed-big, 500::16-signed-big,
+         700::16-signed-big, 1::16-signed-big, 0::16-signed-big, -10::16-signed-big,
+         700::16-signed-big, 750::16-signed-big, 1::16-signed-big, 0::16-signed-big,
+         -30::16-signed-big, 900::16-signed-big, 820::16-signed-big, 0::size(190)-unit(8)>>}
     ])
   end
 

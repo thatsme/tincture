@@ -82,6 +82,52 @@ defmodule Tincture.Test.MeasurableFont do
     ])
   end
 
+  @doc """
+  Write `subsettable_binary/0` to a temporary file and return its path.
+  """
+  @spec write_subsettable!() :: Path.t()
+  def write_subsettable! do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "tincture_measurable_subsettable_#{System.unique_integer([:positive])}.ttf"
+      )
+
+    :ok = File.write(path, subsettable_binary())
+    path
+  end
+
+  @doc """
+  The font with a fifth glyph that no character maps to: a 200-byte glyph
+  that a subset drops, so the subset is smaller than the font. `binary/0`
+  holds only the glyphs it maps, so a subset of it is never smaller and the
+  library embeds it whole. The widths are the same.
+  """
+  @spec subsettable_binary() :: binary()
+  def subsettable_binary do
+    outline = fn x_min, y_min, x_max, y_max ->
+      <<1::16-signed-big, x_min::16-signed-big, y_min::16-signed-big, x_max::16-signed-big,
+        y_max::16-signed-big>>
+    end
+
+    build_ttf([
+      {"head", <<0::size(18)-unit(8), @units_per_em::16-big, 0::size(34)-unit(8)>>},
+      {"hhea", <<0::32-big, 0::size(30)-unit(8), 5::16-big>>},
+      {"maxp", <<0x0001_0000::32-big, 5::16-big>>},
+      {"hmtx",
+       <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 900::16-big,
+         0::16-signed-big, 300::16-big, 0::16-signed-big, 800::16-big, 0::16-signed-big>>},
+      {"cmap", cmap_format0([{?A, 1}, {?B, 2}, {?\s, 3}])},
+      # Short loca: stored values are byte offsets / 2. Glyph 3 is empty;
+      # glyph 4 is the unmapped one.
+      {"loca", <<0::16-big, 5::16-big, 10::16-big, 15::16-big, 15::16-big, 115::16-big>>},
+      {"glyf",
+       <<outline.(0, -20, 500, 700)::binary, outline.(0, -10, 700, 750)::binary,
+         outline.(0, -30, 900, 820)::binary, outline.(0, 0, 800, 800)::binary,
+         0::size(190)-unit(8)>>}
+    ])
+  end
+
   defp cmap_format0(entries) do
     glyph_ids =
       entries

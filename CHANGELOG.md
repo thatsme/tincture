@@ -265,6 +265,14 @@ to protect.
   blank instead of in a later font that has it. Such a font, typically one
   with a format 0 cmap, now counts as lacking the character, as the
   missing-glyph check does.
+- **A font embedded whole is no longer named as a subset.** Under
+  `subset: :used_text` (the default) or `:ascii_basic`, `/BaseFont` and
+  `/FontName` carried a six-letter subset tag even when subsetting fell back
+  to embedding the whole font: a TrueType font without `glyf` and `loca`, one
+  whose composite glyphs do not resolve, an OpenType font whose `CFF ` table
+  cannot be subset, or any font whose subset is no smaller. ISO 32000-1
+  9.6.4 reserves the tag for a font program that is a subset. The tag is now
+  written only when the embedded program is one.
 
 ## [0.3.13] — 2026-11-02
 
