@@ -142,7 +142,11 @@ defmodule Tincture.PDF do
           %{
             required(:export_value) => String.t(),
             required(:page_number) => pos_integer(),
-            required(:rect) => {number(), number(), number(), number()}
+            required(:rect) => {number(), number(), number(), number()},
+            # Internal: the annotation id of this button's widget, when a
+            # structure element was open at radio_group/4. Its Form element
+            # owns the widget through that id.
+            optional(:annotation_id) => pos_integer()
           }
   @type form_field ::
           %{
@@ -167,6 +171,11 @@ defmodule Tincture.PDF do
             # Set on a text or choice field given align: :center or :right;
             # absent means left-aligned.
             optional(:align) => :left | :center | :right,
+            # Internal: the annotation id of the field's widget, when a
+            # structure element was open at the call. Its Form element owns
+            # the widget through that id. A radio group's ids are on its
+            # widgets.
+            optional(:annotation_id) => pos_integer(),
             # Internal: whether the field was created with no structure
             # element open. Read only by the 0.3.6 warnings; never written.
             optional(:created_outside_structure) => boolean()
@@ -647,6 +656,7 @@ defmodule Tincture.PDF do
   @spec begin_structure(t(), Structure.tag(), keyword()) :: t()
   def begin_structure(%__MODULE__{} = pdf, tag, opts \\ []) do
     refuse_in_form_xobject!(pdf, "Tincture.tag/4")
+    refuse_annotation_owning_tag!(tag)
     name = Structure.tag_name(tag)
 
     {pdf, mcid} =
@@ -665,6 +675,18 @@ defmodule Tincture.PDF do
       )
 
     %__MODULE__{pdf | structure_stack: [element | pdf.structure_stack]}
+  end
+
+  # A Form element owns one widget and nothing else, and each form field call
+  # creates its own; one opened by the caller would have no widget to own.
+  defp refuse_annotation_owning_tag!(tag) do
+    if Structure.annotation_owning?(tag) do
+      raise ArgumentError,
+            "tag/4 cannot open #{inspect(tag)}: each form field call creates a :form " <>
+              "element for each of its widgets, inside the element open at the call. " <>
+              "Create the field inside the element that describes it, such as the :p " <>
+              "holding its label"
+    end
   end
 
   defp structure_options(%{tag: tag} = element, opts, page_size) do
@@ -1558,7 +1580,43 @@ defmodule Tincture.PDF do
     refuse_missing_field_glyphs!(pdf, field)
     refuse_value_outside_options!(field)
 
+    {%__MODULE__{} = pdf, field} = own_widgets(pdf, field)
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
+  end
+
+  # A widget annotation is not content, so in a tagged document the structure
+  # tree has to own it outright, as it owns a link: ISO 14289-1 clause 7.18.4
+  # requires it to sit in a Form element, and a Form without a Role attribute
+  # may have only that one child. So each widget gets a Form element of its
+  # own, appended to the innermost open element, which the caller chose as the
+  # field's context - the paragraph holding its label, say. A radio group gets
+  # one per button, in button order. The widget takes its annotation id from
+  # the links' counter, which is how the element names it through /OBJR.
+  #
+  # With no element open the widget is outside the structure, and gets no
+  # Form element; :created_outside_structure records it for the export check.
+  defp own_widgets(%__MODULE__{structure_stack: []} = pdf, field), do: {pdf, field}
+
+  defp own_widgets(%__MODULE__{} = pdf, %{type: :radio, widgets: widgets} = field) do
+    {widgets, pdf} =
+      Enum.map_reduce(widgets, pdf, fn widget, pdf ->
+        {pdf, id} = append_form_element(pdf, widget.page_number)
+        {Map.put(widget, :annotation_id, id), pdf}
+      end)
+
+    {pdf, %{field | widgets: widgets}}
+  end
+
+  defp own_widgets(%__MODULE__{} = pdf, field) do
+    {pdf, id} = append_form_element(pdf, field.page_number)
+    {pdf, Map.put(field, :annotation_id, id)}
+  end
+
+  defp append_form_element(%__MODULE__{structure_stack: [element | rest]} = pdf, page_number) do
+    id = pdf.next_annotation_id
+    form = %{tag: :form, page_number: page_number, mcid: nil, kids: [], annotation_ids: [id]}
+    element = %{element | kids: [form | element.kids]}
+    {%__MODULE__{pdf | structure_stack: [element | rest], next_annotation_id: id + 1}, id}
   end
 
   # Quadding, written as /Q (ISO 32000-1 Table 222). Left is the default, so
@@ -1758,6 +1816,7 @@ defmodule Tincture.PDF do
       |> maybe_put_field(:tooltip, Keyword.get(opts, :tooltip))
       |> Map.put(:created_outside_structure, pdf.structure_stack == [])
 
+    {%__MODULE__{} = pdf, field} = own_widgets(pdf, field)
     %__MODULE__{pdf | form_fields: pdf.form_fields ++ [field]}
   end
 

@@ -110,6 +110,12 @@ defmodule Tincture.PDF.Serialize do
     {tagged_annotations, annotation_objects} =
       build_link_annotation_objects(pdf, page_object_refs, page_numbers, annotations_start_id)
 
+    # Widgets owned by a Form element join the same table: their object
+    # numbers are fixed by the field order above, and their /StructParent keys
+    # continue after the links', so a document without fields keeps every key.
+    tagged_annotations =
+      add_widget_keys(tagged_annotations, pdf.form_fields, form_fields_start_id, page_numbers)
+
     structure_start_id = annotations_start_id + length(annotation_objects)
 
     {struct_tree_ref, structure_objects} =
@@ -139,15 +145,21 @@ defmodule Tincture.PDF.Serialize do
       build_dr_font_objects(pdf.form_fields, embedded_font_refs, dr_fonts_start_id)
 
     {form_field_refs, widget_refs, form_field_objects} =
-      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
-        signature_field: pdf.signature && pdf.signature.field_name,
-        signature_ref: signature_ref,
-        appearances: appearances,
-        stream_refs: stream_refs,
-        dr_font_refs: Map.new(dr_font_refs)
-      })
+      build_form_field_objects(
+        put_struct_parents(pdf.form_fields, tagged_annotations),
+        page_object_refs,
+        form_fields_start_id,
+        %{
+          signature_field: pdf.signature && pdf.signature.field_name,
+          signature_ref: signature_ref,
+          appearances: appearances,
+          stream_refs: stream_refs,
+          dr_font_refs: Map.new(dr_font_refs)
+        }
+      )
 
     ^form_field_object_count = length(form_field_objects)
+    assert_widget_numbering!(tagged_annotations, widget_refs, pdf.form_fields)
 
     kids =
       page_numbers
@@ -1264,6 +1276,97 @@ defmodule Tincture.PDF.Serialize do
     {tagged, objects}
   end
 
+  # Each owned widget's object number, in field order, as the builders below
+  # allocate them - a field's own number, or a radio group's kid numbers after
+  # its parent, three objects to a button - and its /StructParent key, after
+  # every key already taken. assert_widget_numbering!/3 checks the numbers
+  # against what the builders wrote.
+  defp add_widget_keys(tagged, form_fields, start_id, page_numbers) do
+    {owned, _next} =
+      Enum.flat_map_reduce(form_fields, start_id, fn field, id ->
+        next = id + form_field_object_count([field])
+
+        owned =
+          case field do
+            %{type: :radio, widgets: widgets} ->
+              widgets
+              |> Enum.with_index()
+              |> Enum.filter(fn {widget, _i} -> Map.has_key?(widget, :annotation_id) end)
+              |> Enum.map(fn {widget, i} -> {widget.annotation_id, id + 1 + 3 * i} end)
+
+            %{annotation_id: annotation_id} ->
+              [{annotation_id, id}]
+
+            _ ->
+              []
+          end
+
+        {owned, next}
+      end)
+
+    base = length(page_numbers) + map_size(tagged)
+
+    owned
+    |> Enum.with_index(base)
+    |> Enum.reduce(tagged, fn {{annotation_id, object_id}, key}, acc ->
+      Map.put(acc, annotation_id, {object_id, key})
+    end)
+  end
+
+  # The key each owned widget writes as /StructParent.
+  defp put_struct_parents(form_fields, tagged) do
+    key = fn id ->
+      case Map.fetch(tagged, id) do
+        {:ok, {_object_id, key}} -> key
+        :error -> nil
+      end
+    end
+
+    Enum.map(form_fields, fn
+      %{type: :radio, widgets: widgets} = field ->
+        %{
+          field
+          | widgets:
+              Enum.map(widgets, fn widget ->
+                Map.put(widget, :struct_parent, key.(Map.get(widget, :annotation_id)))
+              end)
+        }
+
+      field ->
+        Map.put(field, :struct_parent, key.(Map.get(field, :annotation_id)))
+    end)
+  end
+
+  defp widget_struct_parent_entry(%{struct_parent: key}) when is_integer(key),
+    do: " /StructParent #{key}"
+
+  defp widget_struct_parent_entry(_widget), do: ""
+
+  # A Form element names its widget by object number through /OBJR, and that
+  # number was worked out before the widget was written. A miscount would point
+  # a Form at some other object while every key still looked present, so it is
+  # checked rather than trusted.
+  defp assert_widget_numbering!(tagged, widget_refs, form_fields) do
+    written = MapSet.new(widget_refs, fn {object_id, _page_number} -> object_id end)
+
+    owned =
+      Enum.flat_map(form_fields, fn
+        %{type: :radio, widgets: widgets} -> Enum.map(widgets, &Map.get(&1, :annotation_id))
+        field -> [Map.get(field, :annotation_id)]
+      end)
+
+    for annotation_id <- owned, annotation_id != nil do
+      {object_id, _key} = Map.fetch!(tagged, annotation_id)
+
+      unless MapSet.member?(written, object_id) do
+        raise "widget numbering: annotation #{annotation_id} was given object " <>
+                "#{object_id}, which is not a widget"
+      end
+    end
+
+    :ok
+  end
+
   # How many objects each field's builder below writes, by type: a radio group
   # its parent and, per button, a kid with an on and an off appearance; a
   # checkbox the field and both states; a push button, a text or choice field
@@ -1623,7 +1726,7 @@ defmodule Tincture.PDF.Serialize do
       options_entry(field) <>
       button_action_entry(field) <>
       appearance_entry <>
-      tooltip_entry(field) <> trailing_entries <> " >>"
+      tooltip_entry(field) <> trailing_entries <> widget_struct_parent_entry(field) <> " >>"
   end
 
   defp signature_value_entry(%{signature_ref: reference}) when is_integer(reference),
@@ -1720,7 +1823,8 @@ defmodule Tincture.PDF.Serialize do
       annotation_border_entry_for(field.border) <>
       " /MK << /BC [0] /BG [1] >>" <>
       " /AS #{appearance_state}" <>
-      " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >> >>"
+      " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >>" <>
+      widget_struct_parent_entry(widget) <> " >>"
   end
 
   # The stream references of an appearance that draws no text and places no

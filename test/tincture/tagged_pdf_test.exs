@@ -337,11 +337,24 @@ defmodule Tincture.TaggedPDFTest do
   end
 
   describe "Structure" do
-    test "classifies every known tag as container or content, never both" do
+    test "classifies every known tag as exactly one of container, content or annotation-owning" do
       for {tag, _name} <- Structure.tags() do
-        assert Structure.container?(tag) != Structure.content?(tag),
-               "#{inspect(tag)} must be exactly one of container or content"
+        kinds =
+          Enum.count(
+            [
+              Structure.container?(tag),
+              Structure.content?(tag),
+              Structure.annotation_owning?(tag)
+            ],
+            & &1
+          )
+
+        assert kinds == 1,
+               "#{inspect(tag)} must be exactly one of container, content or annotation-owning"
       end
+
+      assert Structure.annotation_owning?(:form)
+      assert Structure.tag_name(:form) == "Form"
     end
 
     test "maps tags to their specification names" do

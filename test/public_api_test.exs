@@ -52,6 +52,11 @@ defmodule Tincture.PublicApiTest do
   # :left | :center | :right, set on a field given align: :center or :right
   # and written as /Q.
   #
+  # Since v0.3.13, widget ownership in tagged documents (stage 8a of 0.4.0),
+  # two widenings: Tincture.PDF's form_field/0 and radio_widget/0 gained
+  # optional(:annotation_id) => pos_integer(), the id by which a widget's Form
+  # element owns it, set when a structure element was open at the field call.
+  #
   # To regenerate it for a release, run in a worktree of that release's tag,
   # with test/support/api_snapshot.ex present:
   #
