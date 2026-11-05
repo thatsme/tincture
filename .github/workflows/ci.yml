@@ -329,8 +329,11 @@ jobs:
           2b archival
           2u archival
           2a archival
+          2a archival_form
           2b archival_form
           2u archival_form
+          ua1 archival_form
+          ua1 tagged_form
           ua1 archival
           ua1 linked/Main-report
           ua1 linked/Attached documents/Appendix-A
@@ -400,6 +403,11 @@ jobs:
           mix run examples/form.exs
           mix run scripts/viewer_fields.exs tmp/viewer/fields.pdf
 
+      - name: Build the tagged forms
+        run: |
+          mix run examples/tagged_form.exs
+          mix run examples/archival_form.exs
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -418,6 +426,13 @@ jobs:
 
       - name: Check the field appearances in PDFium and pdf.js
         run: python -I scripts/viewer_check.py tmp/viewer examples/output/form.pdf tmp/viewer/fields.pdf
+
+      # No validator reads the connection between a widget and its Form
+      # element as a whole: /OBJR one way, /StructParent and the parent tree
+      # the other. This follows it in the bytes, and fails the job on any
+      # broken step, or when Form elements and widgets differ in number.
+      - name: Trace widget ownership in the tagged forms
+        run: python -I scripts/trace_widget_ownership.py examples/output/tagged_form.pdf examples/output/archival_form.pdf
 
       - name: Upload the renders
         if: always()
