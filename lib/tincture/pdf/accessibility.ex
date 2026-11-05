@@ -17,10 +17,19 @@ defmodule Tincture.PDF.Accessibility do
     * a `:figure` with no `:alt` (clause 7.3);
     * a link annotation outside the structure tree, or nested in an element
       other than `:link` (clause 7.18.5);
-    * a link annotation with no `:contents` (clause 7.18.5).
+    * a link annotation with no `:contents` (clause 7.18.5);
+    * a form field with no `:tooltip`, which is written as `/TU` (clause
+      7.18.1);
+    * a form field created outside every `Tincture.tag/4` scope, which leaves
+      its widget with no Form element (clause 7.18.4);
+    * a document with no language, set with `Tincture.set_language/2`
+      (clause 7.2);
+    * a document with no title, set with `Tincture.set_metadata/2` (clause
+      7.1).
 
   Clause numbers are those of the matching rules in veraPDF 1.30.2's PDF/UA-1
-  profile (7.3-1, 7.18.5-1 and 7.18.5-2).
+  profile (7.3-1, 7.18.5-1, 7.18.5-2, 7.18.1-3, 7.18.4-1, 7.2-34, 7.2-25 and
+  7.2-33, and 7.1-9).
 
   ## What this can and cannot tell you
 
@@ -53,7 +62,15 @@ defmodule Tincture.PDF.Accessibility do
   def violations(%PDF{} = pdf) do
     if PDF.tagged?(pdf) do
       Enum.flat_map(
-        [&figures_without_alt/1, &links_outside_structure/1, &links_without_description/1],
+        [
+          &figures_without_alt/1,
+          &links_outside_structure/1,
+          &links_without_description/1,
+          &fields_without_description/1,
+          &fields_outside_structure/1,
+          &language_missing/1,
+          &title_missing/1
+        ],
         fn check -> check.(pdf) end
       )
     else
@@ -155,37 +172,86 @@ defmodule Tincture.PDF.Accessibility do
     end
   end
 
-  @doc false
-  # The two form-field rules 0.4.0 refuses in a tagged document, as warnings:
-  # a field with no tooltip, which is written as /TU and is the name a screen
-  # reader announces; and a field created outside every tag/4 scope, which
-  # 0.4.0 cannot give the Form element PDF/UA requires. One warning per field
-  # and rule, in field order, at export. An untagged document claims nothing,
-  # so nothing is checked.
-  @spec warn_form_deprecations(PDF.t()) :: :ok
-  def warn_form_deprecations(%PDF{} = pdf) do
-    if PDF.tagged?(pdf), do: Enum.each(pdf.form_fields, &warn_field_deprecations/1)
-
-    :ok
+  # A tagged document claims PDF/UA-1 in its XMP, and PDF/UA requires the
+  # natural language of everything a reader announces to be determined: the
+  # page text (veraPDF rule 7.2-34), a field's /TU (7.2-25), the metadata
+  # title (7.2-33). The catalog /Lang that set_language/2 writes determines
+  # all three; without it a screen reader guesses which language to pronounce
+  # the text in. One violation for the document, whatever it holds.
+  defp language_missing(%PDF{language: nil}) do
+    [
+      %{
+        rule: :language_missing,
+        clause: "7.2",
+        message:
+          "the document has no language. A tagged document claims PDF/UA, which needs " <>
+            "the natural language of its text, its form fields' tooltips and its " <>
+            "metadata title to be known (veraPDF rules 7.2-34, 7.2-25 and 7.2-33), so a " <>
+            "screen reader does not have to guess how to pronounce them. Call " <>
+            "set_language/2, for example set_language(pdf, \"en-GB\")"
+      }
+    ]
   end
 
-  defp warn_field_deprecations(field) do
-    if blank?(Map.get(field, :tooltip)) do
-      IO.warn(
-        "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
-          "has no tooltip. In a tagged document every form field needs one: it is " <>
-          "written as /TU, the name a screen reader announces for the field. Pass " <>
-          "tooltip: \"...\". This will raise in 0.4.0."
-      )
-    end
+  defp language_missing(%PDF{}), do: []
 
-    if Map.get(field, :created_outside_structure, false) do
-      IO.warn(
-        "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
-          "is not in the structure tree. In a tagged document a form field must be " <>
-          "created inside a tag(...) scope so a reader can reach it. This will raise in " <>
-          "0.4.0."
-      )
+  # PDF/UA also requires the metadata to carry a title that identifies the
+  # document (veraPDF rule 7.1-9, dc:title in the XMP), which a reader
+  # announces in place of a file name: a tagged document asks the viewer to
+  # show it (/DisplayDocTitle). set_metadata/2's :title writes it. A blank
+  # title counts as none. One violation for the document.
+  defp title_missing(%PDF{metadata: metadata}) do
+    if blank?(Map.get(metadata, :title)) do
+      [
+        %{
+          rule: :title_missing,
+          clause: "7.1",
+          message:
+            "the document has no title. A tagged document claims PDF/UA, which needs " <>
+              "its metadata to carry a title that identifies the document (veraPDF rule " <>
+              "7.1-9, dc:title), so a reader can announce what it is. Call " <>
+              "set_metadata/2 with title:, for example " <>
+              "set_metadata(pdf, title: \"Annual report\")"
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  # A field's tooltip is written as /TU, the name a screen reader announces for
+  # it; without one, a reader reaches the field and can say only that a field
+  # is there. Checked once per field, so a radio group, one field with one
+  # :tooltip, is checked once whatever its number of buttons.
+  defp fields_without_description(%PDF{} = pdf) do
+    for field <- pdf.form_fields, blank?(Map.get(field, :tooltip)) do
+      %{
+        rule: :field_without_description,
+        clause: "7.18.1",
+        message:
+          "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
+            "has no tooltip. In a tagged document every form field needs one: it is " <>
+            "written as /TU, the name a screen reader announces for the field. Pass " <>
+            "tooltip: \"...\""
+      }
+    end
+  end
+
+  # A widget, like a link, is not content: the structure tree has to own it,
+  # through a Form element, which a field call creates only inside a tag/4
+  # scope. One created outside every scope has none, and is unreachable to
+  # anyone navigating by structure. Once per field: a radio group's buttons
+  # all come from one call.
+  defp fields_outside_structure(%PDF{} = pdf) do
+    for field <- pdf.form_fields, Map.get(field, :created_outside_structure, false) do
+      %{
+        rule: :field_outside_structure,
+        clause: "7.18.4",
+        message:
+          "a #{field_kind(field.type)} #{inspect(field.name)} on page #{field.page_number} " <>
+            "is not in the structure tree. In a tagged document a form field must be " <>
+            "created inside a tag(...) scope so a reader can reach it"
+      }
     end
   end
 

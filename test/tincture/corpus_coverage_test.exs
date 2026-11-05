@@ -34,14 +34,14 @@ defmodule Tincture.CorpusCoverageTest do
   # covered — delete it — or a new type arrived uncovered, in which case adding
   # it is the cheap part and knowing what it owes is the point.
   #
-  # One is a known defect rather than merely unexercised: `Form` does not exist
-  # in the vocabulary at all, so a widget annotation cannot be nested in one as
-  # clause 7.18.4 requires, and form fields are not usable in a PDF/UA
-  # document. It has no entry below because it is not a type Tincture emits.
+  # `Form` is the newest: every widget of a form field in a tagged document is
+  # owned by one, as clause 7.18.4 requires, and no validated document has a
+  # form field yet, so 7.18.1-3, 7.18.4-1 and 7.18.4-2 have never run against
+  # Tincture's output.
   #
   # `H3` through `H6` are the quiet ones: heading levels the corpus stops short
   # of, so clause 7.4's nesting rules have only ever seen two levels deep.
-  @never_validated ~w(Art BlockQuote Code Div Formula H H3 H4 H5 H6 Index
+  @never_validated ~w(Art BlockQuote Code Div Form Formula H H3 H4 H5 H6 Index
                       Part Quote Reference Span TFoot TOC TOCI)
 
   defp emitted_structure_types do

@@ -45,6 +45,7 @@ defmodule Tincture.NoteIdTest do
   defp document_with_notes(count, opts \\ %{}) do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.tag(:document, fn doc ->
       Enum.reduce(1..count, doc, fn n, acc ->
         Tincture.tag(acc, :note, Map.get(opts, n, []), fn page ->
@@ -114,6 +115,7 @@ defmodule Tincture.NoteIdTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn doc ->
           Tincture.tag(doc, :p, fn page ->
             page

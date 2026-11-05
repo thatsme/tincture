@@ -110,6 +110,12 @@ defmodule Tincture.PDF.Serialize do
     {tagged_annotations, annotation_objects} =
       build_link_annotation_objects(pdf, page_object_refs, page_numbers, annotations_start_id)
 
+    # Widgets owned by a Form element join the same table: their object
+    # numbers are fixed by the field order above, and their /StructParent keys
+    # continue after the links', so a document without fields keeps every key.
+    tagged_annotations =
+      add_widget_keys(tagged_annotations, pdf.form_fields, form_fields_start_id, page_numbers)
+
     structure_start_id = annotations_start_id + length(annotation_objects)
 
     {struct_tree_ref, structure_objects} =
@@ -139,15 +145,21 @@ defmodule Tincture.PDF.Serialize do
       build_dr_font_objects(pdf.form_fields, embedded_font_refs, dr_fonts_start_id)
 
     {form_field_refs, widget_refs, form_field_objects} =
-      build_form_field_objects(pdf.form_fields, page_object_refs, form_fields_start_id, %{
-        signature_field: pdf.signature && pdf.signature.field_name,
-        signature_ref: signature_ref,
-        appearances: appearances,
-        stream_refs: stream_refs,
-        dr_font_refs: Map.new(dr_font_refs)
-      })
+      build_form_field_objects(
+        put_struct_parents(pdf.form_fields, tagged_annotations),
+        page_object_refs,
+        form_fields_start_id,
+        %{
+          signature_field: pdf.signature && pdf.signature.field_name,
+          signature_ref: signature_ref,
+          appearances: appearances,
+          stream_refs: stream_refs,
+          dr_font_refs: Map.new(dr_font_refs)
+        }
+      )
 
     ^form_field_object_count = length(form_field_objects)
+    assert_widget_numbering!(tagged_annotations, widget_refs, pdf.form_fields)
 
     kids =
       page_numbers
@@ -557,36 +569,24 @@ defmodule Tincture.PDF.Serialize do
     root_id = start_id
     parent_tree_id = start_id + 1
 
-    flattened = Structure.flatten(pdf.structure_tree)
-    element_ids = structure_element_ids(flattened)
-
     # The ID tree is emitted only when something is registered in it, so a
     # document with no Note elements serialises exactly as it did before.
-    id_tree_id = if element_ids == %{}, do: nil, else: start_id + 2
+    registers? = pdf.structure_tree |> Structure.flatten() |> Enum.any?(&registers_id?/1)
+    id_tree_id = if registers?, do: start_id + 2, else: nil
     first_element_id = if id_tree_id, do: start_id + 3, else: start_id + 2
 
-    ids = flattened |> Enum.with_index(first_element_id) |> Map.new(fn {el, id} -> {el, id} end)
-
-    # Depth-first, parents first, so a parent's kids are already numbered.
-    # Built once rather than searched per element, which would be quadratic.
-    parents =
-      for parent <- flattened, kid <- parent.kids, into: %{}, do: {kid, parent}
+    {numbered, _next_id} = number_elements(pdf.structure_tree, nil, first_element_id)
+    element_ids = structure_element_ids(numbered)
 
     element_objects =
-      Enum.map(flattened, fn element ->
-        structure_element_body(
-          element,
-          ids,
-          root_id,
-          parents,
-          page_object_refs,
-          tagged,
-          element_ids
-        )
+      Enum.map(numbered, fn entry ->
+        structure_element_body(entry, root_id, page_object_refs, tagged, element_ids)
       end)
 
     root_kids =
-      Enum.map_join(pdf.structure_tree, " ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+      numbered
+      |> Enum.filter(&is_nil(&1.parent))
+      |> Enum.map_join(" ", fn entry -> "#{entry.id} 0 R" end)
 
     id_tree_entry = if id_tree_id, do: " /IDTree #{id_tree_id} 0 R", else: ""
 
@@ -595,15 +595,30 @@ defmodule Tincture.PDF.Serialize do
         id_tree_entry <>
         " /ParentTreeNextKey #{length(page_numbers) + map_size(tagged)} >>"
 
-    id_tree_objects = if id_tree_id, do: [id_tree_body(element_ids, ids)], else: []
+    id_tree_objects = if id_tree_id, do: [id_tree_body(element_ids)], else: []
 
     {root_id,
-     [root, parent_tree_body(flattened, ids, page_numbers, tagged)] ++
+     [root, parent_tree_body(numbered, page_numbers, tagged)] ++
        id_tree_objects ++ element_objects}
   end
 
-  defp structure_id_entry(element, element_ids) do
-    case Map.fetch(element_ids, element) do
+  # Each element with the object number it is written as, its parent's entry
+  # and its kids' numbers: depth-first, parents first, so an element's number
+  # is lower than its children's. Numbered by position in the tree, not looked
+  # up by value: two elements can be equal as terms - two empty :section
+  # scopes on one page - and a lookup by value would give both one object,
+  # listed twice in its parent's /K, and leave the other unreachable.
+  defp number_elements(elements, parent, next_id) do
+    Enum.flat_map_reduce(elements, next_id, fn element, id ->
+      entry = %{element: element, id: id, parent: parent, kid_ids: []}
+      {kids, after_kids} = number_elements(element.kids, entry, id + 1)
+      kid_ids = for %{parent: %{id: ^id}} = kid <- kids, do: kid.id
+      {[%{entry | kid_ids: kid_ids} | kids], after_kids}
+    end)
+  end
+
+  defp structure_id_entry(%{id: object_id}, element_ids) do
+    case Map.fetch(element_ids, object_id) do
       {:ok, id} -> " /ID #{Object.format_text(id)}"
       :error -> ""
     end
@@ -624,8 +639,9 @@ defmodule Tincture.PDF.Serialize do
   defp registers_id?(%{tag: :note}), do: true
   defp registers_id?(_element), do: false
 
-  defp structure_element_ids(flattened) do
-    registered = Enum.filter(flattened, &registers_id?/1)
+  # Keyed by object number, the element's identity in the file.
+  defp structure_element_ids(numbered) do
+    registered = Enum.filter(numbered, &registers_id?(&1.element))
 
     # /Names is ordered by byte comparison, not numerically, so "note10" sorts
     # between "note1" and "note2". Zero-padding to a fixed width makes the two
@@ -635,14 +651,14 @@ defmodule Tincture.PDF.Serialize do
     width = registered |> length() |> Integer.digits() |> length() |> max(4)
 
     {pairs, _next} =
-      Enum.map_reduce(registered, 1, fn element, counter ->
+      Enum.map_reduce(registered, 1, fn %{element: element, id: object_id}, counter ->
         case element[:id] do
           nil ->
             generated = "note" <> String.pad_leading(Integer.to_string(counter), width, "0")
-            {{element, generated}, counter + 1}
+            {{object_id, generated}, counter + 1}
 
           explicit ->
-            {{element, explicit}, counter}
+            {{object_id, explicit}, counter}
         end
       end)
 
@@ -667,10 +683,10 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  defp id_tree_body(element_ids, ids) do
+  defp id_tree_body(element_ids) do
     names =
       element_ids
-      |> Enum.map(fn {element, id} -> {id, Map.fetch!(ids, element)} end)
+      |> Enum.map(fn {object_id, id} -> {id, object_id} end)
       |> Enum.sort_by(fn {id, _object_id} -> id end)
       |> Enum.map_join(" ", fn {id, object_id} ->
         "#{Object.format_text(id)} #{object_id} 0 R"
@@ -683,11 +699,11 @@ defmodule Tincture.PDF.Serialize do
   # array indexed by MCID, so a reader that finds marked content can get back to
   # the element owning it. An annotation's /StructParent key maps straight to
   # its element, since an annotation is one object rather than a sequence.
-  defp parent_tree_body(flattened, ids, page_numbers, tagged) do
+  defp parent_tree_body(numbered, page_numbers, tagged) do
     by_page =
-      flattened
-      |> Enum.filter(& &1.mcid)
-      |> Enum.group_by(& &1.page_number)
+      numbered
+      |> Enum.filter(& &1.element.mcid)
+      |> Enum.group_by(& &1.element.page_number)
 
     page_entries =
       page_numbers
@@ -697,17 +713,17 @@ defmodule Tincture.PDF.Serialize do
         refs =
           by_page
           |> Map.fetch!(page_number)
-          |> Enum.sort_by(& &1.mcid)
-          |> Enum.map_join(" ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+          |> Enum.sort_by(& &1.element.mcid)
+          |> Enum.map_join(" ", fn entry -> "#{entry.id} 0 R" end)
 
         {idx, "[#{refs}]"}
       end)
 
     annotation_entries =
-      for element <- flattened,
-          annotation_id <- Map.get(element, :annotation_ids, []),
+      for entry <- numbered,
+          annotation_id <- Map.get(entry.element, :annotation_ids, []),
           {_object_id, key} = Map.fetch!(tagged, annotation_id) do
-        {key, "#{Map.fetch!(ids, element)} 0 R"}
+        {key, "#{entry.id} 0 R"}
       end
 
     # /Nums has to be ascending by key: it is a number tree, and a reader is
@@ -720,17 +736,10 @@ defmodule Tincture.PDF.Serialize do
     "<< /Nums [#{nums}] >>"
   end
 
-  defp structure_element_body(
-         element,
-         ids,
-         root_id,
-         parents,
-         page_object_refs,
-         tagged,
-         element_ids
-       ) do
-    parent = Map.get(parents, element)
-    parent_id = if parent, do: Map.fetch!(ids, parent), else: root_id
+  defp structure_element_body(entry, root_id, page_object_refs, tagged, element_ids) do
+    %{element: element, kid_ids: kid_ids} = entry
+    parent = entry.parent && entry.parent.element
+    parent_id = if entry.parent, do: entry.parent.id, else: root_id
 
     page_ref = Map.fetch!(page_object_refs, element.page_number)
 
@@ -748,7 +757,7 @@ defmodule Tincture.PDF.Serialize do
         nil -> []
         mcid -> [Integer.to_string(mcid)]
       end ++
-        Enum.map(element.kids, fn kid -> "#{Map.fetch!(ids, kid)} 0 R" end) ++
+        Enum.map(kid_ids, fn kid_id -> "#{kid_id} 0 R" end) ++
         object_refs
 
     kids_entry = if kids == [], do: "", else: " /K [#{Enum.join(kids, " ")}]"
@@ -756,7 +765,7 @@ defmodule Tincture.PDF.Serialize do
     "<< /Type /StructElem /S /#{Structure.tag_name(element.tag)}" <>
       " /P #{parent_id} 0 R /Pg #{page_ref} 0 R" <>
       kids_entry <>
-      structure_id_entry(element, element_ids) <>
+      structure_id_entry(entry, element_ids) <>
       structure_text_entry(" /Alt ", element[:alt]) <>
       structure_text_entry(" /ActualText ", element[:actual_text]) <>
       structure_text_entry(" /T ", element[:title]) <>
@@ -1267,6 +1276,97 @@ defmodule Tincture.PDF.Serialize do
     {tagged, objects}
   end
 
+  # Each owned widget's object number, in field order, as the builders below
+  # allocate them - a field's own number, or a radio group's kid numbers after
+  # its parent, three objects to a button - and its /StructParent key, after
+  # every key already taken. assert_widget_numbering!/3 checks the numbers
+  # against what the builders wrote.
+  defp add_widget_keys(tagged, form_fields, start_id, page_numbers) do
+    {owned, _next} =
+      Enum.flat_map_reduce(form_fields, start_id, fn field, id ->
+        next = id + form_field_object_count([field])
+
+        owned =
+          case field do
+            %{type: :radio, widgets: widgets} ->
+              widgets
+              |> Enum.with_index()
+              |> Enum.filter(fn {widget, _i} -> Map.has_key?(widget, :annotation_id) end)
+              |> Enum.map(fn {widget, i} -> {widget.annotation_id, id + 1 + 3 * i} end)
+
+            %{annotation_id: annotation_id} ->
+              [{annotation_id, id}]
+
+            _ ->
+              []
+          end
+
+        {owned, next}
+      end)
+
+    base = length(page_numbers) + map_size(tagged)
+
+    owned
+    |> Enum.with_index(base)
+    |> Enum.reduce(tagged, fn {{annotation_id, object_id}, key}, acc ->
+      Map.put(acc, annotation_id, {object_id, key})
+    end)
+  end
+
+  # The key each owned widget writes as /StructParent.
+  defp put_struct_parents(form_fields, tagged) do
+    key = fn id ->
+      case Map.fetch(tagged, id) do
+        {:ok, {_object_id, key}} -> key
+        :error -> nil
+      end
+    end
+
+    Enum.map(form_fields, fn
+      %{type: :radio, widgets: widgets} = field ->
+        %{
+          field
+          | widgets:
+              Enum.map(widgets, fn widget ->
+                Map.put(widget, :struct_parent, key.(Map.get(widget, :annotation_id)))
+              end)
+        }
+
+      field ->
+        Map.put(field, :struct_parent, key.(Map.get(field, :annotation_id)))
+    end)
+  end
+
+  defp widget_struct_parent_entry(%{struct_parent: key}) when is_integer(key),
+    do: " /StructParent #{key}"
+
+  defp widget_struct_parent_entry(_widget), do: ""
+
+  # A Form element names its widget by object number through /OBJR, and that
+  # number was worked out before the widget was written. A miscount would point
+  # a Form at some other object while every key still looked present, so it is
+  # checked rather than trusted.
+  defp assert_widget_numbering!(tagged, widget_refs, form_fields) do
+    written = MapSet.new(widget_refs, fn {object_id, _page_number} -> object_id end)
+
+    owned =
+      Enum.flat_map(form_fields, fn
+        %{type: :radio, widgets: widgets} -> Enum.map(widgets, &Map.get(&1, :annotation_id))
+        field -> [Map.get(field, :annotation_id)]
+      end)
+
+    for annotation_id <- owned, annotation_id != nil do
+      {object_id, _key} = Map.fetch!(tagged, annotation_id)
+
+      unless MapSet.member?(written, object_id) do
+        raise "widget numbering: annotation #{annotation_id} was given object " <>
+                "#{object_id}, which is not a widget"
+      end
+    end
+
+    :ok
+  end
+
   # How many objects each field's builder below writes, by type: a radio group
   # its parent and, per button, a kid with an on and an off appearance; a
   # checkbox the field and both states; a push button, a text or choice field
@@ -1626,7 +1726,7 @@ defmodule Tincture.PDF.Serialize do
       options_entry(field) <>
       button_action_entry(field) <>
       appearance_entry <>
-      tooltip_entry(field) <> trailing_entries <> " >>"
+      tooltip_entry(field) <> trailing_entries <> widget_struct_parent_entry(field) <> " >>"
   end
 
   defp signature_value_entry(%{signature_ref: reference}) when is_integer(reference),
@@ -1723,7 +1823,8 @@ defmodule Tincture.PDF.Serialize do
       annotation_border_entry_for(field.border) <>
       " /MK << /BC [0] /BG [1] >>" <>
       " /AS #{appearance_state}" <>
-      " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >> >>"
+      " /AP << /N << #{on_state} #{on_id} 0 R /Off #{off_id} 0 R >> >>" <>
+      widget_struct_parent_entry(widget) <> " >>"
   end
 
   # The stream references of an appearance that draws no text and places no

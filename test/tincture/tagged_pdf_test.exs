@@ -31,6 +31,7 @@ defmodule Tincture.TaggedPDFTest do
   defp simple_tagged do
     Tincture.new()
     |> Tincture.set_language("en-GB")
+    |> Tincture.set_metadata(title: "Test document")
     |> Tincture.set_font("Helvetica", 12)
     |> Tincture.tag(:document, fn pdf ->
       pdf
@@ -64,6 +65,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("fr")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.text_at(10, 10, "bonjour")
         |> export()
 
@@ -85,6 +87,8 @@ defmodule Tincture.TaggedPDFTest do
     test "container elements emit none, having no content of their own" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:table, fn pdf ->
           Tincture.tag(pdf, :tr, fn pdf ->
@@ -101,6 +105,8 @@ defmodule Tincture.TaggedPDFTest do
     test "marked-content ids are allocated per page, not per document" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, &Tincture.text_at(&1, 10, 10, "page one"))
         |> Tincture.add_page()
@@ -114,6 +120,8 @@ defmodule Tincture.TaggedPDFTest do
     test "every BDC is closed" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -134,6 +142,8 @@ defmodule Tincture.TaggedPDFTest do
     setup do
       pdf =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:document, fn pdf ->
           pdf
@@ -231,6 +241,8 @@ defmodule Tincture.TaggedPDFTest do
     test "a figure carries alternative text" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:figure, [alt: "Bar chart of revenue"], fn pdf ->
           Tincture.rectangle(pdf, 10, 10, 50, 50, :fill)
         end)
@@ -242,6 +254,8 @@ defmodule Tincture.TaggedPDFTest do
     test "a header cell records the cells it governs" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:th, [scope: :row], &Tincture.text_at(&1, 10, 10, "Total"))
         |> export()
@@ -255,6 +269,8 @@ defmodule Tincture.TaggedPDFTest do
     test "carries actual text, for when the glyphs are not the words" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:span, [actual_text: "ffi"], &Tincture.text_at(&1, 10, 10, "ﬃ"))
         |> export()
@@ -266,6 +282,7 @@ defmodule Tincture.TaggedPDFTest do
       binary =
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:p, [lang: "cy"], &Tincture.text_at(&1, 10, 10, "Croeso"))
         |> export()
@@ -277,6 +294,8 @@ defmodule Tincture.TaggedPDFTest do
     test "a title is carried through" do
       binary =
         Tincture.new()
+        |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.set_font("Helvetica", 12)
         |> Tincture.tag(:section, [title: "Appendix"], fn pdf ->
           Tincture.tag(pdf, :p, &Tincture.text_at(&1, 10, 10, "text"))
@@ -337,11 +356,24 @@ defmodule Tincture.TaggedPDFTest do
   end
 
   describe "Structure" do
-    test "classifies every known tag as container or content, never both" do
+    test "classifies every known tag as exactly one of container, content or annotation-owning" do
       for {tag, _name} <- Structure.tags() do
-        assert Structure.container?(tag) != Structure.content?(tag),
-               "#{inspect(tag)} must be exactly one of container or content"
+        kinds =
+          Enum.count(
+            [
+              Structure.container?(tag),
+              Structure.content?(tag),
+              Structure.annotation_owning?(tag)
+            ],
+            & &1
+          )
+
+        assert kinds == 1,
+               "#{inspect(tag)} must be exactly one of container, content or annotation-owning"
       end
+
+      assert Structure.annotation_owning?(:form)
+      assert Structure.tag_name(:form) == "Form"
     end
 
     test "maps tags to their specification names" do

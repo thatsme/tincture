@@ -26,14 +26,19 @@ defmodule Tincture.PDF.Structure do
 
   ## Container and content elements
 
-  Elements divide into two kinds, and the difference decides whether marked
-  content is emitted at all:
+  Elements divide into two kinds a caller opens, and the difference decides
+  whether marked content is emitted at all:
 
     * **containers** (`:document`, `:table`, `:tr`, `:l`…) group other elements
       and never wrap drawing operators directly. They get no MCID, because
       there is no content of their own to point at.
     * **content** elements (`:p`, `:h1`, `:td`, `:figure`…) bracket the
       operators that draw them, and carry an MCID.
+
+  A third kind, `:form`, owns an annotation instead: one widget of a form
+  field, through `/OBJR`. In a tagged document every form field call creates
+  one for each of its widgets, inside the innermost open element, so it is
+  never opened with `Tincture.tag/4`.
 
   Nesting content inside content is legal — a `:span` inside a `:p` — and the
   innermost open sequence owns whatever is drawn. The parent keeps its own MCID
@@ -83,6 +88,13 @@ defmodule Tincture.PDF.Structure do
     toc_item: "TOCI"
   }
 
+  # Elements that own an annotation rather than content. A Form element owns
+  # one widget, through a single /OBJR in its /K; it carries no marked content
+  # and no MCID, since ISO 14289-1 clause 7.18.4 allows a Form without a Role
+  # attribute only one child. Each form field call creates its own, so no
+  # caller opens one with tag/4.
+  @annotation_tags %{form: "Form"}
+
   @type tag :: atom()
   @type t :: %{
           required(:tag) => tag(),
@@ -99,8 +111,8 @@ defmodule Tincture.PDF.Structure do
 
   # ISO 32000-1 §14.8.4.4 lists the inline-level structure types, and
   # §14.8.4.5 the illustrations; these are the ones Tincture's vocabulary has.
-  # BibEntry, Annot, Ruby, Warichu and Form have no tag here.
-  @inline_level [:span, :quote, :note, :reference, :code, :link, :figure, :formula]
+  # BibEntry, Annot, Ruby and Warichu have no tag here.
+  @inline_level [:span, :quote, :note, :reference, :code, :link, :figure, :formula, :form]
 
   # The grouping elements (§14.8.4.2) that hold blocks rather than a line of
   # text. An inline element directly inside one of these is laid out as a
@@ -111,7 +123,7 @@ defmodule Tincture.PDF.Structure do
   Every tag this module understands, as `{atom, pdf_name}` pairs.
   """
   @spec tags() :: %{tag() => String.t()}
-  def tags, do: Map.merge(@container_tags, @content_tags)
+  def tags, do: @container_tags |> Map.merge(@content_tags) |> Map.merge(@annotation_tags)
 
   @doc """
   The PDF structure type name for a tag, e.g. `:h1` becomes `"H1"`.
@@ -142,6 +154,12 @@ defmodule Tincture.PDF.Structure do
   """
   @spec content?(tag()) :: boolean()
   def content?(tag), do: Map.has_key?(@content_tags, tag)
+
+  # Whether a tag owns an annotation rather than content or other elements:
+  # `:form`. Internal; created by the form field calls, never by tag/4.
+  @doc false
+  @spec annotation_owning?(tag()) :: boolean()
+  def annotation_owning?(tag), do: Map.has_key?(@annotation_tags, tag)
 
   # Whether a tag is inline-level (or an illustration) and so stays inline
   # unless its placement says otherwise. Internal to the serialiser.

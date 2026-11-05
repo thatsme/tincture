@@ -1,10 +1,10 @@
 defmodule Tincture.RaisePhraseTest do
   @moduledoc """
   "This will raise in 0.4.0" marks a warning that 0.4.0 turns into an error.
-  Stage 1 converted W1-W4, stage 1c W5, W6 and W7, stage 5b J4 and W8, and
-  stage 1d W9, which 0.3.13 added, so the phrase is left in two 0.3.6 form
-  warnings, J1 and J2. Stage 8a converts them, lowering the count here to
-  zero.
+  Stage 1 converted W1-W4, stage 1c W5, W6 and W7, stage 5b J4 and W8,
+  stage 1d W9, which 0.3.13 added, and stage 8a the two 0.3.6 form
+  warnings, J1 and J2. None is left, so the phrase appears nowhere in lib/:
+  a new one would announce a raise that no stage is scheduled to make.
 
   The phrase can be split across a `<>` (J2's is), so the source is not
   grepped line by line. Each file in lib/ is parsed, every chain of literal
@@ -15,28 +15,14 @@ defmodule Tincture.RaisePhraseTest do
 
   @phrase "This will raise in 0.4.0"
 
-  # The leading text that identifies each remaining warning's message.
-  @remaining %{
-    j1: "has no tooltip",
-    j2: "is not in the structure tree"
-  }
-
-  test "the phrase is left only in J1 and J2, once each" do
+  test "the phrase is left nowhere in lib/" do
     found =
       "lib/**/*.ex"
       |> Path.wildcard()
       |> Enum.flat_map(fn path -> path |> File.read!() |> folded_strings() end)
       |> Enum.filter(&String.contains?(&1, @phrase))
 
-    owners =
-      Enum.map(found, fn string ->
-        Enum.find_value(@remaining, :unknown, fn {name, lead} ->
-          if String.contains?(string, lead), do: name
-        end)
-      end)
-
-    assert length(found) == 2
-    assert Enum.sort(owners) == [:j1, :j2]
+    assert found == []
   end
 
   test "self-check: a literal split across <> is found, and so is one with interpolation" do

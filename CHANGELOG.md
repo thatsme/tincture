@@ -70,12 +70,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consulted the font's OS/2 Unicode and code page ranges for such a font, and
   no longer have any such font to consult. *Migration:* use a TrueType or
   OpenType font with a Unicode `cmap` subtable (format 4 or 12).
+- **In a tagged document, a form field with no tooltip is refused at export.**
+  `export/1,2` reports `:field_without_description` (ISO 14289-1 clause
+  7.18.1) for each field whose `:tooltip` is missing or blank, a radio group
+  once, following `:enforce` like the other PDF/UA checks; so does
+  `pdf_ua_violations/1`. The tooltip is written as `/TU`, the name a screen
+  reader announces for the field. A push button's or signature field's
+  `:label` is drawn text, not a tooltip. *Migration:* pass `tooltip:`.
+- **In a tagged document, a form field created outside every `tag/4` scope
+  is refused at export,** as `:field_outside_structure` (clause 7.18.4). Its
+  widget has no `Form` element to own it, so a reader navigating by structure
+  cannot reach it. *Migration:* create the field inside the element that
+  describes it, such as the `:p` that draws its label.
+- **A tagged document with no language is refused at export,** as
+  `:language_missing` (clause 7.2). A tagged document claims PDF/UA-1 in its
+  metadata, and without `set_language/2` it has no catalog `/Lang`: veraPDF
+  fails it on rule 7.2-34 as soon as it draws text, on 7.2-25 for a form
+  field's tooltip and on 7.2-33 for a metadata title, and a screen reader
+  guesses which language to pronounce it in. An element's `:lang` refines
+  the document's language and does not replace it. *Migration:* call
+  `set_language/2`.
+- **A tagged document with no title is refused at export,** as
+  `:title_missing` (clause 7.1). A tagged document claims PDF/UA-1 in its
+  metadata, and without a `:title` from `set_metadata/2` its XMP has no
+  `dc:title`: veraPDF fails it on rule 7.1-9, and a reader has no title to
+  announce in place of a file name. A blank title counts as none.
+  *Migration:* pass `title:` to `set_metadata/2`.
 
 The first four have warned since 0.3.4, the next two since 0.3.8, the
 seventh since 0.3.9, the standard-14 field text since 0.3.6, the choice
-value since 0.3.10 and the text an embedded font cannot draw since 0.3.13, so
-code that runs without those warnings is unaffected by them, and the eighth
-follows from them.
+value since 0.3.10, the text an embedded font cannot draw since 0.3.13, and
+a tagged form field without a tooltip or outside every `tag/4` scope since
+0.3.6, so code that runs without those warnings is unaffected by them, and
+the eighth follows from them.
 
 The refusal of a font without a readable character map has no warning
 release first. This is a deliberate, recorded exception to the rule that
@@ -83,6 +110,11 @@ nothing breaks without a warning: the rule protects output that is correct,
 and no correct output was found. Every case measured draws wrong, no example
 uses such a font, and 0.3.x releases have stopped except for data-corrupting
 defects.
+
+The refusals of a tagged document with no language and of one with no title
+have no warning release first either, for the same reason: such a file
+claims a PDF/UA conformance it does not have, so there is no correct output
+to protect.
 
 ### Added
 
@@ -132,6 +164,16 @@ defects.
 
 ### Changed
 
+- **Form fields in tagged documents are in the structure tree.** Each widget
+  of a field created inside a `tag/4` scope is owned by a `Form` structure
+  element of its own, appended to the element open at the call, as ISO
+  14289-1 clause 7.18.4 requires: the element names the widget through
+  `/OBJR`, and the widget carries `/StructParent`, which the parent tree maps
+  back to the element. A radio group gets one `Form` element per button. A
+  `Form` directly in `:document`, `:part`, `:article`, `:section` or `:div`
+  carries `/Placement /Block`. Tagged documents with form fields change
+  bytes; untagged documents, and tagged documents without form fields, do
+  not. `tag/4` refuses `:form`, which the field calls create themselves.
 - **Text, choice and signature fields are allowed in PDF/A documents.**
   `export/2` no longer refuses a document that declares PDF/A for carrying
   them: each carries its own appearance. A field that draws text must use an
@@ -195,6 +237,12 @@ defects.
 
 ### Fixed
 
+- **Identical structure elements are written as separate objects.** Two
+  elements equal in every respect, such as two empty `:section` scopes on
+  one page, were written as one object listed twice in their parent's `/K`,
+  and the other was unreachable. Two sections each holding only a form field
+  were such a pair. No veraPDF rule reports it. Each element is now its
+  own object, reachable once.
 - **A fallback chain falls back for a character the font maps to glyph 0.**
   `text_at_with_fallback/5,6` and `text_at_rotated_with_fallback/6,7` took a
   font whose cmap lists a character with glyph 0, the font's placeholder, as

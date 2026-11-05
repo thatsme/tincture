@@ -357,6 +357,7 @@ defmodule Tincture.FormXObjectTest do
       assert_raise ArgumentError, refusal("Tincture.tag/4"), fn ->
         Tincture.new()
         |> Tincture.set_language("en-GB")
+        |> Tincture.set_metadata(title: "Test document")
         |> Tincture.tag(:document, fn pdf ->
           Tincture.form_xobject(pdf, :stamp, 300, 300, fn pdf ->
             pdf |> Tincture.Layout.Box.flow_text(0, 280, 280, 260, rich) |> elem(0)
@@ -518,7 +519,12 @@ defmodule Tincture.FormXObjectTest do
   end
 
   describe "structure and figures (T15, T16)" do
-    defp tagged, do: Tincture.new() |> Tincture.set_language("en-GB") |> stamp()
+    defp tagged do
+      Tincture.new()
+      |> Tincture.set_language("en-GB")
+      |> Tincture.set_metadata(title: "Test document")
+      |> stamp()
+    end
 
     test "T15: one XObject inside two structure elements, each Do in its own marked content" do
       binary =
