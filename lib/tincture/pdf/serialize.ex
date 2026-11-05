@@ -557,36 +557,24 @@ defmodule Tincture.PDF.Serialize do
     root_id = start_id
     parent_tree_id = start_id + 1
 
-    flattened = Structure.flatten(pdf.structure_tree)
-    element_ids = structure_element_ids(flattened)
-
     # The ID tree is emitted only when something is registered in it, so a
     # document with no Note elements serialises exactly as it did before.
-    id_tree_id = if element_ids == %{}, do: nil, else: start_id + 2
+    registers? = pdf.structure_tree |> Structure.flatten() |> Enum.any?(&registers_id?/1)
+    id_tree_id = if registers?, do: start_id + 2, else: nil
     first_element_id = if id_tree_id, do: start_id + 3, else: start_id + 2
 
-    ids = flattened |> Enum.with_index(first_element_id) |> Map.new(fn {el, id} -> {el, id} end)
-
-    # Depth-first, parents first, so a parent's kids are already numbered.
-    # Built once rather than searched per element, which would be quadratic.
-    parents =
-      for parent <- flattened, kid <- parent.kids, into: %{}, do: {kid, parent}
+    {numbered, _next_id} = number_elements(pdf.structure_tree, nil, first_element_id)
+    element_ids = structure_element_ids(numbered)
 
     element_objects =
-      Enum.map(flattened, fn element ->
-        structure_element_body(
-          element,
-          ids,
-          root_id,
-          parents,
-          page_object_refs,
-          tagged,
-          element_ids
-        )
+      Enum.map(numbered, fn entry ->
+        structure_element_body(entry, root_id, page_object_refs, tagged, element_ids)
       end)
 
     root_kids =
-      Enum.map_join(pdf.structure_tree, " ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+      numbered
+      |> Enum.filter(&is_nil(&1.parent))
+      |> Enum.map_join(" ", fn entry -> "#{entry.id} 0 R" end)
 
     id_tree_entry = if id_tree_id, do: " /IDTree #{id_tree_id} 0 R", else: ""
 
@@ -595,15 +583,30 @@ defmodule Tincture.PDF.Serialize do
         id_tree_entry <>
         " /ParentTreeNextKey #{length(page_numbers) + map_size(tagged)} >>"
 
-    id_tree_objects = if id_tree_id, do: [id_tree_body(element_ids, ids)], else: []
+    id_tree_objects = if id_tree_id, do: [id_tree_body(element_ids)], else: []
 
     {root_id,
-     [root, parent_tree_body(flattened, ids, page_numbers, tagged)] ++
+     [root, parent_tree_body(numbered, page_numbers, tagged)] ++
        id_tree_objects ++ element_objects}
   end
 
-  defp structure_id_entry(element, element_ids) do
-    case Map.fetch(element_ids, element) do
+  # Each element with the object number it is written as, its parent's entry
+  # and its kids' numbers: depth-first, parents first, so an element's number
+  # is lower than its children's. Numbered by position in the tree, not looked
+  # up by value: two elements can be equal as terms - two empty :section
+  # scopes on one page - and a lookup by value would give both one object,
+  # listed twice in its parent's /K, and leave the other unreachable.
+  defp number_elements(elements, parent, next_id) do
+    Enum.flat_map_reduce(elements, next_id, fn element, id ->
+      entry = %{element: element, id: id, parent: parent, kid_ids: []}
+      {kids, after_kids} = number_elements(element.kids, entry, id + 1)
+      kid_ids = for %{parent: %{id: ^id}} = kid <- kids, do: kid.id
+      {[%{entry | kid_ids: kid_ids} | kids], after_kids}
+    end)
+  end
+
+  defp structure_id_entry(%{id: object_id}, element_ids) do
+    case Map.fetch(element_ids, object_id) do
       {:ok, id} -> " /ID #{Object.format_text(id)}"
       :error -> ""
     end
@@ -624,8 +627,9 @@ defmodule Tincture.PDF.Serialize do
   defp registers_id?(%{tag: :note}), do: true
   defp registers_id?(_element), do: false
 
-  defp structure_element_ids(flattened) do
-    registered = Enum.filter(flattened, &registers_id?/1)
+  # Keyed by object number, the element's identity in the file.
+  defp structure_element_ids(numbered) do
+    registered = Enum.filter(numbered, &registers_id?(&1.element))
 
     # /Names is ordered by byte comparison, not numerically, so "note10" sorts
     # between "note1" and "note2". Zero-padding to a fixed width makes the two
@@ -635,14 +639,14 @@ defmodule Tincture.PDF.Serialize do
     width = registered |> length() |> Integer.digits() |> length() |> max(4)
 
     {pairs, _next} =
-      Enum.map_reduce(registered, 1, fn element, counter ->
+      Enum.map_reduce(registered, 1, fn %{element: element, id: object_id}, counter ->
         case element[:id] do
           nil ->
             generated = "note" <> String.pad_leading(Integer.to_string(counter), width, "0")
-            {{element, generated}, counter + 1}
+            {{object_id, generated}, counter + 1}
 
           explicit ->
-            {{element, explicit}, counter}
+            {{object_id, explicit}, counter}
         end
       end)
 
@@ -667,10 +671,10 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
-  defp id_tree_body(element_ids, ids) do
+  defp id_tree_body(element_ids) do
     names =
       element_ids
-      |> Enum.map(fn {element, id} -> {id, Map.fetch!(ids, element)} end)
+      |> Enum.map(fn {object_id, id} -> {id, object_id} end)
       |> Enum.sort_by(fn {id, _object_id} -> id end)
       |> Enum.map_join(" ", fn {id, object_id} ->
         "#{Object.format_text(id)} #{object_id} 0 R"
@@ -683,11 +687,11 @@ defmodule Tincture.PDF.Serialize do
   # array indexed by MCID, so a reader that finds marked content can get back to
   # the element owning it. An annotation's /StructParent key maps straight to
   # its element, since an annotation is one object rather than a sequence.
-  defp parent_tree_body(flattened, ids, page_numbers, tagged) do
+  defp parent_tree_body(numbered, page_numbers, tagged) do
     by_page =
-      flattened
-      |> Enum.filter(& &1.mcid)
-      |> Enum.group_by(& &1.page_number)
+      numbered
+      |> Enum.filter(& &1.element.mcid)
+      |> Enum.group_by(& &1.element.page_number)
 
     page_entries =
       page_numbers
@@ -697,17 +701,17 @@ defmodule Tincture.PDF.Serialize do
         refs =
           by_page
           |> Map.fetch!(page_number)
-          |> Enum.sort_by(& &1.mcid)
-          |> Enum.map_join(" ", fn element -> "#{Map.fetch!(ids, element)} 0 R" end)
+          |> Enum.sort_by(& &1.element.mcid)
+          |> Enum.map_join(" ", fn entry -> "#{entry.id} 0 R" end)
 
         {idx, "[#{refs}]"}
       end)
 
     annotation_entries =
-      for element <- flattened,
-          annotation_id <- Map.get(element, :annotation_ids, []),
+      for entry <- numbered,
+          annotation_id <- Map.get(entry.element, :annotation_ids, []),
           {_object_id, key} = Map.fetch!(tagged, annotation_id) do
-        {key, "#{Map.fetch!(ids, element)} 0 R"}
+        {key, "#{entry.id} 0 R"}
       end
 
     # /Nums has to be ascending by key: it is a number tree, and a reader is
@@ -720,17 +724,10 @@ defmodule Tincture.PDF.Serialize do
     "<< /Nums [#{nums}] >>"
   end
 
-  defp structure_element_body(
-         element,
-         ids,
-         root_id,
-         parents,
-         page_object_refs,
-         tagged,
-         element_ids
-       ) do
-    parent = Map.get(parents, element)
-    parent_id = if parent, do: Map.fetch!(ids, parent), else: root_id
+  defp structure_element_body(entry, root_id, page_object_refs, tagged, element_ids) do
+    %{element: element, kid_ids: kid_ids} = entry
+    parent = entry.parent && entry.parent.element
+    parent_id = if entry.parent, do: entry.parent.id, else: root_id
 
     page_ref = Map.fetch!(page_object_refs, element.page_number)
 
@@ -748,7 +745,7 @@ defmodule Tincture.PDF.Serialize do
         nil -> []
         mcid -> [Integer.to_string(mcid)]
       end ++
-        Enum.map(element.kids, fn kid -> "#{Map.fetch!(ids, kid)} 0 R" end) ++
+        Enum.map(kid_ids, fn kid_id -> "#{kid_id} 0 R" end) ++
         object_refs
 
     kids_entry = if kids == [], do: "", else: " /K [#{Enum.join(kids, " ")}]"
@@ -756,7 +753,7 @@ defmodule Tincture.PDF.Serialize do
     "<< /Type /StructElem /S /#{Structure.tag_name(element.tag)}" <>
       " /P #{parent_id} 0 R /Pg #{page_ref} 0 R" <>
       kids_entry <>
-      structure_id_entry(element, element_ids) <>
+      structure_id_entry(entry, element_ids) <>
       structure_text_entry(" /Alt ", element[:alt]) <>
       structure_text_entry(" /ActualText ", element[:actual_text]) <>
       structure_text_entry(" /T ", element[:title]) <>
