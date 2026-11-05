@@ -29,8 +29,8 @@ defmodule Tincture.DocVersionLabelsTest do
     {"ROADMAP.md", "`examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on every commit;",
      1},
     {"examples/README.md",
-     "**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;", 2},
-    {"examples/README.md", "at four flavours;", 1},
+     "**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;", 3},
+    {"examples/README.md", "at four flavours;", 3},
     {"examples/README.md", "both pass veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;",
      1}
   ]

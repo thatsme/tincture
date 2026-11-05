@@ -2135,6 +2135,13 @@ defmodule Tincture do
   updates, which Tincture also does not yet produce — so one signature per
   document.
 
+  A document that declares PDF/A-2 with `set_pdf_a/2` may be signed. The
+  signature is the form PDF/A-2 accepts (ISO 19005-2 clause 6.4.3): its byte
+  range covers the whole file but the signature, it carries the signer's
+  certificate, and there is one signer. `examples/signed_archival.exs`
+  builds such a document, which veraPDF validates in CI at PDF/A-2a, 2b and
+  2u and at PDF/UA-1.
+
   An encrypted document cannot be signed. Calling this on a document that
   `encrypt/2` has been called on raises `ArgumentError`, and so does calling
   `encrypt/2` on a signed document.
@@ -2200,6 +2207,18 @@ defmodule Tincture do
   knows of is wrong. Validate the result. `veraPDF` is free:
 
       verapdf --flavour 2b out.pdf
+
+  ## A viewer that saves the file
+
+  PDF/A describes the file Tincture writes, not the file after a viewer has
+  filled in a form or saved it again. A viewer that saves a filled form may
+  remove the PDF/A identification and add objects of its own. Measured with
+  Acrobat Reader 2026.002.22031, which saves as an incremental update and
+  keeps Tincture's bytes: the saved file failed veraPDF 1.30.2 at 2b and 2u
+  on one rule, 6.6.4-1, because the metadata Reader rewrote has no PDF/A
+  identification, and Reader added whole copies of the field font and fonts
+  it did not embed. Tincture cannot prevent it. Archive the file as written,
+  or validate the saved one.
 
   ## Colour
 

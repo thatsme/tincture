@@ -18,9 +18,10 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13: 106 of 106 rules on each of five documents. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0 warnings. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.3.13: up to 153 of 153 rules ([2](#2-archival--pdfa)) |
-| Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` passes `openssl cms -verify` in CI on every commit, for integrity only, since its certificate is self-signed ([3](#3-digital-signatures)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.0: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026.1 audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.4.0: up to 153 of 153 rules, on three documents: a report, a form and a signed document ([2](#2-archival--pdfa)) |
+| Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` and `signed_archival.pdf` pass `openssl cms -verify` in CI on every commit, for integrity only, since their certificates are self-signed ([3](#3-digital-signatures)) |
+| Forms | every field type with its own appearance, embedded fonts in fields, tagged and archival forms; validated by veraPDF at PDF/UA-1 and PDF/A-2a, 2b and 2u in CI ([6](#6-forms-completed)) |
 | Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
 
 **Next, roughly in order**
@@ -32,18 +33,19 @@ covered by the test suite only)
    and `Layout.Box`, `/Tabs /S`, and an audit with PAC as well as veraPDF. See
    [1](#1-accessibility--tagged-pdf-pdfua) for what the audit found and what
    remains.
-3. **Forms completed** — appearance streams for text and choice fields, now
-   written, and for signature widgets, without which a signed document cannot
-   also be PDF/A; archival documents with form fields, now allowed; and
-   tagged documents with form fields, each widget owned by a `Form` element.
-   Both are validated: `archival_form.pdf` at PDF/A-2a, 2b and 2u and at
-   PDF/UA-1, and `tagged_form.pdf` at PDF/UA-1.
+3. ~~**Forms completed**~~ — **done** in 0.4.0. Every field type carries its
+   own appearance stream, signature widgets included, so a signed document
+   can also be PDF/A; fields may use embedded fonts; archival documents may
+   carry form fields; and in a tagged document each widget is owned by a
+   `Form` element. All validated: `archival_form.pdf` and
+   `signed_archival.pdf` at PDF/A-2a, 2b and 2u and at PDF/UA-1, and
+   `tagged_form.pdf` at PDF/UA-1. See [6](#6-forms-completed).
 
-   This one is worth more than its own entry. An `/AP` stream is a form
-   XObject: a nested content stream with its own resources, holding text laid
-   out and clipped. That primitive is what patterns, soft masks on drawn
-   content, and signature appearances all need — so items 5 and 6 get
-   substantially cheaper once it exists, and neither should be attempted first.
+   It was worth more than its own entry. An `/AP` stream is a form XObject: a
+   nested content stream with its own resources, holding text laid out and
+   clipped. Form XObjects are now a public primitive (`form_xobject/5`), and
+   they are what patterns and soft masks on drawn content need, so items 5
+   and 6 are substantially cheaper now.
 4. **Object and cross-reference streams** — file size; content streams are
    written uncompressed today. Grouped with incremental updates, since both
    rewrite the file's byte layout and both collide with signing. Incremental
@@ -53,11 +55,18 @@ covered by the test suite only)
    prerequisites are then in place: `/ExtGState` gives overprint a home, and
    item 3 gives patterns their XObject.
 6. **Signature timestamping** — proof of *when*. Ships as `tincture_tsa`, since
-   it needs an HTTP client. Depends on item 3 for the signature appearance a
+   it needs an HTTP client. Item 3 gave it the signature appearance a
    PAdES-over-PDF/A document cannot do without.
 7. **Complex scripts** — the largest effort, and the narrowest audience unless
    you are targeting those markets.
 8. **Reading PDFs** — a sibling library. See [10](#10-reading-pdfs).
+
+Smaller items for the next releases: XFDF as a `:submit` format, which would
+carry Unicode values safely; signing an encrypted document, which `sign/3`
+and `encrypt/2` refuse to combine since 0.4.0 (see [3](#3-digital-signatures)).
+`Tincture.Font.UnicodeRanges` has had no caller in the library since 0.4.0,
+which refuses fonts without a readable character map; it stays public API
+until 1.0.
 
 The ordering is risk-ascending by design: additive work first, the byte layout
 of the serialiser last. Where an item makes a later one cheaper, that is said
@@ -72,8 +81,8 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. At 0.3.13: 1,582 tests; coverage: CI fails below 80%, and
-measured 90.5% in CI at 0.3.13;
+dependencies. At 0.4.0: 1,867 tests; coverage: CI fails below 80%, and
+measured 91.8% in CI at 0.4.0;
 Credo `--strict` clean with pre-existing findings in `lib/` exempted inline one
 by one and `test/` and `scripts/` exempt from the structural checks, clean
 Dialyzer, CI on four Elixir versions.
@@ -172,10 +181,14 @@ publicly, and it should stay that way — that parser is the seed of
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
-profile) in CI on every commit; at 0.3.13: 106 of 106 rules, 1698 of 1698
+profile) in CI on every commit; at 0.4.0: 106 of 106 rules, 1698 of 1698
 checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
-warnings — for this document and the four other PDF/UA examples.
+warnings — for this document and the four other PDF/UA examples that
+predate 0.4.0. The three form examples 0.4.0 adds were audited with PAC
+2026.1 on 2026-11-05, with PDF/UA passed on each
+([the README](README.md#checked-against-real-validators) gives the commits
+and the findings).
 
 Reproduce it with:
 
@@ -289,7 +302,7 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit; at 0.3.13: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
+every commit; at 0.4.0: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
 (146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
 4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2255 of 2255 checks), since 2a is the accessible archival level and
@@ -298,6 +311,10 @@ subsumes the tagging requirement. PAC 2026.1 audit, 2026-10-19, on the file at
 
     verapdf --flavour 2a  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf
+
+Two more documents pass the same four profiles in CI: `archival_form.pdf`,
+an interactive form, and `signed_archival.pdf`, a signed document. Their
+counts are in [examples/README.md](examples/README.md).
 
 `Tincture.set_pdf_a/2` adds what archival validity needs: an sRGB output
 intent, XMP carrying the conformance claim, and a file identifier. The ICC
@@ -318,12 +335,22 @@ What remains:
   passing it means "nothing Tincture knows of is wrong", not "this is PDF/A".
 - **PDF/A-1.** Part 1 is stricter than part 2. It requires an accurate
   `/CIDSet` for every subset CIDFont (veraPDF 1.30.2, PDFA-1B 6.3.5-3), which
-  Tincture deliberately does not emit: subsetting can fall back to the whole
-  font while the name keeps its subset tag, so an accurate one cannot be
-  produced. Part 2 makes `/CIDSet` optional and rejects only an inaccurate one
+  Tincture deliberately does not emit: the glyphs a subset keeps are not
+  tracked as CIDs, so an accurate one cannot be produced yet. Part 2 makes
+  `/CIDSet` optional and rejects only an inaccurate one
   (PDFA-2B 6.2.11.4.2-2), which is why omitting it is right there. See the
   0.1.0 entry in [CHANGELOG.md](CHANGELOG.md). Part 1 also forbids
   transparency.
+- **A form filled in and saved by a viewer.** PDF/A describes the file
+  Tincture writes, not the file after a viewer has filled it in. A viewer
+  that saves a filled form may remove the PDF/A identification and add
+  objects of its own. Measured on 2026-11-02, on `archival_form.pdf` as it
+  was then (PDF/A-2u, untagged), filled in and saved with Save As in Acrobat
+  Reader 2026.002.22031: Reader kept Tincture's bytes and
+  appended its changes, and the saved file fails veraPDF 1.30.2 at 2b and 2u
+  on one rule, 6.6.4-1, because the metadata Reader rewrote has no PDF/A
+  identification. Reader also added two whole copies of the field font and
+  two fonts it did not embed. Tincture cannot prevent either.
 - **CMYK output intents.** The built-in intent is sRGB. Print production
   targeting a CMYK condition needs its own profile, which means accepting one
   from the caller.
@@ -337,9 +364,11 @@ Two checks, neither sharing code with the signer:
 
 - the test suite verifies SHA-256, SHA-384 and SHA-512 signatures with an
   independent verifier, and checks that altering the document breaks each;
-- CI verifies `examples/output/signed.pdf` with `openssl cms -verify` on every
-  commit, and checks that a tampered copy fails. The example's certificate is
-  self-signed, so this checks the signature's integrity, not chain trust.
+- CI verifies `examples/output/signed.pdf` and
+  `examples/output/signed_archival.pdf` with `openssl cms -verify` on every
+  commit, and checks that a tampered copy of each fails. The examples'
+  certificates are self-signed, so this checks the signature's integrity, not
+  chain trust.
 
 The CI check runs:
 
@@ -367,10 +396,16 @@ What remains:
   extension point good enough to build on without reaching for internals.
 - **Incremental updates**, without which a document can carry only one
   signature and cannot be counter-signed or amended after signing.
-- **Signed archival documents** (PAdES over PDF/A). A visible signature
+- ~~**Signed archival documents.**~~ **Done** in 0.4.0. A visible signature
   field carries its own appearance, empty or with a `:label`, and an
-  invisible one has a zero rectangle, so the PDF/A check no longer rejects a
-  signature field. What remains is a validated signed archival example.
+  invisible one has a zero rectangle, so the PDF/A check accepts a signature
+  field. `examples/output/signed_archival.pdf` is signed, PDF/A-2a and
+  PDF/UA-1, and passes veraPDF in CI, including PDF/A-2's three signature
+  rules (ISO 19005-2 clause 6.4.3). Long-term validation (PAdES B-LT) needs
+  the timestamps above.
+- **Signing an encrypted document.** `sign/3` and `encrypt/2` refuse to be
+  combined, naming the combination. The combination never produced a file in
+  any release.
 - **PAdES subfilters.** `/adbe.pkcs7.detached` is the widely supported form;
   `/ETSI.CAdES.detached` is what the European regulation names.
 
@@ -404,9 +439,21 @@ What remains:
 
 ## 6. Forms, completed
 
-**Status: the field set is complete, and every field has its appearance.**
-Text, checkbox, choice, radio group, push button and signature fields all
-exist, with reset, URL and submit actions.
+**Status: done in 0.4.0.** The field set is complete, every field has its
+appearance, fields may use embedded fonts, and forms can be tagged and
+archival. Text, checkbox, choice, radio group, push button and signature
+fields all exist, with reset, URL and submit actions. `tagged_form.pdf`
+passes veraPDF's PDF/UA-1 profile in CI with every field type, and
+`archival_form.pdf` and `signed_archival.pdf` pass PDF/A-2a, 2b and 2u and
+PDF/UA-1.
+
+In a tagged document, each widget of a field created inside a `tag/4` scope
+is owned by a `Form` structure element (ISO 14289-1 clause 7.18.4), and
+`export/2` refuses a field without a `:tooltip` or outside every scope. In a
+document that declares PDF/A, text, choice and signature fields are allowed,
+each carrying its own appearance; a field that draws text must use an
+embedded font, and push buttons are refused, since PDF/A forbids a widget's
+action.
 
 Every field carries a generated `/AP` appearance stream, so it renders
 anywhere — printing, thumbnails, server-side rasterising — not only in an
@@ -419,10 +466,21 @@ appearance. A signature field written by Tincture has been signed later by
 PDFgear 2.1.16, as an incremental update that left Tincture's bytes unchanged;
 whether a signing tool keeps or replaces a `:label` has not been observed.
 
-A limitation that sits in the viewer: when someone types characters a field's
-font cannot encode, PDFium (Chrome, Edge) adds a font of its own, unembedded,
-even when the field's embedded font has the characters. pdf.js uses the field's
-font.
+Limitations that sit in the viewer, each stated on the function it concerns:
+
+- when someone types characters a field's font cannot encode, PDFium (Chrome,
+  Edge) adds a font of its own, unembedded, even when the field's embedded
+  font has the characters. pdf.js uses the field's font;
+- in Acrobat Reader, a dropdown whose options use characters outside WinAnsi
+  shows them garbled while the list is open, and a newly selected option
+  garbled until the document is saved; the stored value is correct;
+- in Acrobat Reader, the field highlight covers an unsigned signature field
+  on screen; its `:label` shows in print;
+- a viewer that saves a filled form may remove the PDF/A identification and
+  add objects of its own ([2](#2-archival--pdfa)).
+
+Next for forms: XFDF as a `:submit` format, which would carry Unicode values
+safely.
 
 Also missing: JavaScript actions for client-side validation, and per-field
 appearance customisation (border and background colours). A bordered text or
