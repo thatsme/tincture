@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0] — 2026-11-05
+## [0.4.0] — 2026-11-06
 
 **Forms, completed.** Every form field carries its own appearance stream, so
 it displays the same in every viewer and in print; text and choice fields may
