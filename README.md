@@ -326,9 +326,9 @@ API you can call.
 | `eg_block` | `Tincture.Layout.Box` | Text box layout |
 | `eg_xml_lite` / `eg_xml2richText` | `Tincture.Layout.Template` | XML templates |
 
-Modules with no erlguten ancestor: `Font.Context`, `Font.UnicodeRanges`,
-`PDF.Archival`, `PDF.CMS`, `PDF.Encrypt`, `PDF.ICC`, `PDF.Sign`,
-`PDF.Structure`, `Telemetry`.
+Among the modules with no erlguten ancestor: `Font.Context`,
+`Font.UnicodeRanges`, `PDF.Archival`, `PDF.CMS`, `PDF.Encrypt`, `PDF.ICC`,
+`PDF.Sign`, `PDF.Structure`, `Telemetry`.
 
 ## Design decisions
 

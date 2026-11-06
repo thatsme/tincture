@@ -438,6 +438,14 @@ defmodule Tincture.Layout.Template do
 
   Returns `{:ok, template, rich_text}`, or `{:error, reason}` for malformed XML,
   a missing `<body>`, or an attribute that does not parse — see `t:xml_error/0`.
+
+  ## Non-ASCII characters
+
+  A non-ASCII character written literally in the XML, such as `é` or `✓`, is
+  rejected with `{:error, :invalid_xml}`, with or without an
+  `encoding="UTF-8"` declaration, and the XML parser logs the error. A numeric
+  character reference parses: `caf&#233;` reads as "café". Writing every
+  non-ASCII character as a reference is the workaround.
   """
   @spec parse_xml(String.t()) :: {:ok, t(), RichText.t()} | {:error, xml_error()}
   def parse_xml(xml) when is_binary(xml) do
