@@ -2248,6 +2248,9 @@ defmodule Tincture do
       structure a tagged document claims. Defaults to `true`. A document that
       declares no level and is not tagged is not checked.
 
+  Any other key is ignored, and warns once per call, naming every unknown key
+  and the known ones. It will raise in 0.5.0.
+
   A conformance claim is written into the file's metadata, so exporting a
   document that declares PDF/A and violates it produces a file that lies about
   itself — and nothing discovers that until someone tries to rely on it. Rather
@@ -2296,6 +2299,7 @@ defmodule Tincture do
   def export(%PDF{} = pdf), do: export(pdf, [], "Tincture.export/1")
 
   defp export(%PDF{} = pdf, opts, caller) do
+    warn_unknown_export_options(opts)
     PDF.refuse_in_form_xobject!(pdf, caller)
     refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
@@ -2309,6 +2313,36 @@ defmodule Tincture do
     |> check_archival(enforce?)
     |> check_accessibility(enforce?)
     |> Serialize.export()
+  end
+
+  # The options export/2 reads, in the order its documentation gives them.
+  @export_options [:enforce]
+
+  # W10. A misspelt option, such as `compres: false`, was ignored without a
+  # word: the document was exported as if it had not been passed.
+  defp warn_unknown_export_options(opts) do
+    case opts |> Enum.flat_map(&unknown_export_option/1) |> Enum.uniq() do
+      [] ->
+        :ok
+
+      unknown ->
+        IO.warn(
+          "export/2 got the unknown #{option_list(unknown)}. Known options: " <>
+            "#{Enum.map_join(@export_options, ", ", &inspect/1)}. Unknown options are " <>
+            "ignored now; this will raise in 0.5.0."
+        )
+    end
+  end
+
+  defp unknown_export_option({key, _value}) when key in @export_options, do: []
+  defp unknown_export_option({key, _value}), do: [key]
+  defp unknown_export_option(_other), do: []
+
+  defp option_list([key]), do: "option #{inspect(key)}"
+
+  defp option_list(keys) do
+    {init, [last]} = Enum.split(keys, -1)
+    "options #{Enum.map_join(init, ", ", &inspect/1)} and #{inspect(last)}"
   end
 
   # sign/3 and encrypt/2 refuse the combination, but the struct's fields can
