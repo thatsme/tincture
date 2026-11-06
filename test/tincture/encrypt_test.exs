@@ -348,7 +348,7 @@ defmodule Tincture.EncryptTest do
     end
 
     test "a checkbox's appearances, on and off" do
-      pdf = Tincture.checkbox(Tincture.new(), 72, 580, 14, "agree", checked: true)
+      pdf = Tincture.checkbox(Tincture.new(), 72, 580, 14, "agree", value: true)
 
       assert Enum.count(assert_streams_decrypt(pdf), &(&1.dict =~ "/Subtype /Form")) == 2
     end
@@ -359,7 +359,7 @@ defmodule Tincture.EncryptTest do
           Tincture.new(),
           "size",
           [[value: "s", x: 72, y: 540, size: 14], [value: "m", x: 100, y: 540, size: 14]],
-          value: "m"
+          selected: "m"
         )
 
       assert Enum.count(assert_streams_decrypt(pdf), &(&1.dict =~ "/Subtype /Form")) == 4

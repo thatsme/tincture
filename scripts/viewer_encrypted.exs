@@ -45,11 +45,11 @@ pdf =
   |> Tincture.place_form_xobject("stamp", 200, 680)
   |> Tincture.text_field(50, 580, 240, 22, "name", value: "Ada Lovelace")
   |> Tincture.choice_field(310, 580, 150, 22, "city", options: ["Oslo", "Rome"], value: "Rome")
-  |> Tincture.checkbox(50, 540, 14, "agree", checked: true)
+  |> Tincture.checkbox(50, 540, 14, "agree", value: true)
   |> Tincture.radio_group(
     "size",
     [[value: "s", x: 100, y: 540, size: 14], [value: "m", x: 130, y: 540, size: 14]],
-    value: "m"
+    selected: "m"
   )
   |> Tincture.push_button(50, 490, 90, 24, "reset", label: "Reset", action: :reset)
   |> Tincture.signature_field(50, 410, 220, 50, "approval", label: "Signature of the approver")
