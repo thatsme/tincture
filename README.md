@@ -31,31 +31,54 @@ measured on.
 [veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
 these documents as the examples regenerate them; the same job fails if any of
 them differs from its committed bytes. Each passes on every commit; the counts
-are as measured at 0.3.13:
+are as measured at 0.4.0:
 
-| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.3.13 |
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.4.0 |
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
 | | `archival.pdf` | 106 of 106 rules, 2255 of 2255 checks |
+| | `archival_form.pdf` | 106 of 106 rules, 1401 of 1401 checks |
+| | `tagged_form.pdf` | 106 of 106 rules, 1411 of 1411 checks |
+| | `signed_archival.pdf` | 106 of 106 rules, 946 of 946 checks |
 | | `linked/Main-report.pdf` | 106 of 106 rules, 830 of 830 checks |
 | | `linked/Attached documents/Appendix-A.pdf` | 106 of 106 rules, 3761 of 3761 checks |
 | **PDF/A-2b** (archival, ISO 19005-2) | `archival.pdf` | 144 of 144 rules, 3088 of 3088 checks |
+| | `archival_form.pdf` | 144 of 144 rules, 6800 of 6800 checks |
+| | `signed_archival.pdf` | 144 of 144 rules, 1538 of 1538 checks |
 | **PDF/A-2u** (archival, text extractable) | `archival.pdf` | 146 of 146 rules, 3700 of 3700 checks |
+| | `archival_form.pdf` | 146 of 146 rules, 7192 of 7192 checks |
+| | `signed_archival.pdf` | 146 of 146 rules, 1842 of 1842 checks |
 | **PDF/A-2a** (accessible archival) | `archival.pdf` | 153 of 153 rules, 4009 of 4009 checks |
+| | `archival_form.pdf` | 153 of 153 rules, 7391 of 7391 checks |
+| | `signed_archival.pdf` | 153 of 153 rules, 1997 of 1997 checks |
 
 [PAC](https://pac.pdf-accessibility.org) 2026.1, a second and independent
-PDF/UA checker, was run as a manual audit on 2026-10-19 against the five PDF/UA
-documents above, as committed at `4a75f1e`: **PDF/UA 0 errors, 0 warnings on
-all five.** PAC is a Windows desktop application with no command line, so it is
-an audit at a point in time rather than a gate. What it found and what remains
-is in [ROADMAP.md](ROADMAP.md#1-accessibility--tagged-pdf-pdfua).
+PDF/UA checker, was run as a manual audit on each PDF/UA document above, as
+committed at the commit named:
+
+- on 2026-10-19, on the five documents that predate 0.4.0, at `4a75f1e`:
+  **PDF/UA 0 errors, 0 warnings on all five;**
+- on 2026-11-05, on `tagged_form.pdf` and `archival_form.pdf` at `8bc00fb`:
+  PDF/UA, WCAG and Quality passed on both. PAC's AI-assisted check passed on
+  `archival_form.pdf`, and on `tagged_form.pdf` reported one heading as
+  possibly a paragraph, an advisory hint;
+- on 2026-11-05, on `signed_archival.pdf` at `56bae06`: PDF/UA, WCAG,
+  Quality and the AI-assisted check passed.
+
+PAC is a Windows desktop application with no command line, so it is an audit
+at a point in time rather than a gate. What it found and what remains is in
+[ROADMAP.md](ROADMAP.md#1-accessibility--tagged-pdf-pdfua).
 
 **PKCS#7 detached signatures**: the test suite verifies SHA-256, SHA-384 and
 SHA-512 signatures with an independent verifier that shares no code with the
-signer. CI verifies `signed.pdf` with `openssl cms -verify` on every commit,
-and checks that a tampered copy fails. That checks the signature's integrity
-only: the example's certificate is self-signed, so chain trust is not checked.
+signer. CI verifies `signed.pdf` and `signed_archival.pdf` with
+`openssl cms -verify` on every commit, and checks that a tampered copy of each
+fails. That checks the signature's integrity only: the examples' certificates
+are self-signed, so chain trust is not checked. `signed_archival.pdf` is a
+signed PDF/A-2a document, and veraPDF's three PDF/A-2 signature rules run on
+it: the byte range covers the whole file but the signature, the signature
+carries the signer's certificate, and it has a single signer.
 
 The veraPDF reports are uploaded as a build artifact on every run, and the
 release checklist attaches them to the GitHub release, so the claim is
@@ -71,7 +94,7 @@ verapdf --flavour ua1 "examples/output/linked/Main-report.pdf"
 verapdf --flavour ua1 "examples/output/linked/Attached documents/Appendix-A.pdf"
 ```
 
-CI validates eight of these on every push, not the two above.
+CI validates all seventeen on every push, not the two above.
 
 Validation earned its place, and keeps earning it. The first run found five
 defects the 1,200 tests of the time had not — among them every content stream
@@ -123,14 +146,19 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.3.13"}
+{:tincture, "~> 0.4.0"}
 ```
+
+Upgrading from 0.3.x: 0.4.0 turns the 0.3.x deprecation warnings into
+errors, and adds a few refusals of its own. The
+[CHANGELOG](CHANGELOG.md#upgrading-from-03x) lists each one with its message
+and what to do instead.
 
 [Docs on HexDocs](https://hexdocs.pm/tincture). `0.x` is deliberate: the engine
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-At 0.3.13: 1,582 tests · coverage: CI fails below 80%; 90.5% in CI at 0.3.13
+At 0.4.0: 1,867 tests · coverage: CI fails below 80%; 91.8% in CI at 0.4.0
 · Credo `--strict` clean,
 with pre-existing findings in `lib/` exempted inline one by one and `test/` and
 `scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir
@@ -160,11 +188,26 @@ button, signature), AES-256 encryption.
 
 Every form field carries its own appearance stream, so it displays the same in
 every viewer and in print; an invisible signature field, which draws nothing,
-is the one exception. One limitation sits in
-the viewer, not the file: when someone types characters a field's font cannot
-encode, PDFium (Chrome, Edge) draws them with a font of its own, unembedded
-and taken from the machine doing the editing, even when the field's embedded
-font has them.
+is the one exception. Fields may use embedded fonts. A form can be tagged, each
+widget owned by a `Form` structure element, and archival: a form or a signed
+document can be PDF/A-2a and PDF/UA-1 at once.
+
+Three limitations sit in the viewer, not the file, and each is documented on
+the function it concerns:
+
+- when someone types characters a field's font cannot encode, PDFium (Chrome,
+  Edge) draws them with a font of its own, unembedded and taken from the
+  machine doing the editing, even when the field's embedded font has them
+  (`text_field/7`);
+- in Acrobat Reader, a dropdown whose options use characters outside WinAnsi,
+  such as Greek, shows them garbled while the list is open; the stored value
+  and the saved appearance are correct (`choice_field/7`);
+- in Acrobat Reader, the field highlight covers an unsigned signature field on
+  screen, so its `:label` shows in print only (`signature_field/7`).
+
+A viewer that saves a filled form may remove the PDF/A identification and add
+objects of its own: PDF/A describes the file Tincture writes, not the file
+after someone has filled it in (`set_pdf_a/2`).
 
 **Standards** — tagged PDF for accessibility, PDF/A archival output with a
 built-in sRGB output intent, and detached PKCS#7 digital signatures.
@@ -175,7 +218,7 @@ holds.
 
 ## Examples
 
-Nine runnable scripts, each with its PDF committed so you can see the output
+Thirteen runnable scripts, each with its PDF committed so you can see the output
 without running anything. See [examples/README.md](https://github.com/thatsme/tincture/blob/main/examples/README.md).
 
 ```bash
@@ -195,6 +238,7 @@ mix examples
 | [`signed.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed.exs) | A digitally signed agreement |
 | [`signed_archival.exs`](https://github.com/thatsme/tincture/blob/main/examples/signed_archival.exs) | A signed document that is PDF/A-2a and PDF/UA-1 at once |
 | [`remote_links.exs`](https://github.com/thatsme/tincture/blob/main/examples/remote_links.exs) | A tagged report linking into an appendix in a separate file |
+| [`stamp.exs`](https://github.com/thatsme/tincture/blob/main/examples/stamp.exs) | An approval stamp drawn once as a form XObject and placed four times |
 | [`telemetry.exs`](https://github.com/thatsme/tincture/blob/main/examples/telemetry.exs) | The telemetry spans, printed as a document is built |
 
 ## What it does not do
@@ -282,9 +326,9 @@ API you can call.
 | `eg_block` | `Tincture.Layout.Box` | Text box layout |
 | `eg_xml_lite` / `eg_xml2richText` | `Tincture.Layout.Template` | XML templates |
 
-Modules with no erlguten ancestor: `Font.Context`, `Font.UnicodeRanges`,
-`PDF.Archival`, `PDF.CMS`, `PDF.Encrypt`, `PDF.ICC`, `PDF.Sign`,
-`PDF.Structure`, `Telemetry`.
+Among the modules with no erlguten ancestor: `Font.Context`,
+`Font.UnicodeRanges`, `PDF.Archival`, `PDF.CMS`, `PDF.Encrypt`, `PDF.ICC`,
+`PDF.Sign`, `PDF.Structure`, `Telemetry`.
 
 ## Design decisions
 

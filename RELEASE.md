@@ -52,9 +52,14 @@ gates, but a failure discovered after tagging costs a version number.
    `examples/output/*.pdf` are committed and are reproducible: the examples
    embed a font vendored under `examples/fonts/`, so regenerating on any
    machine gives identical bytes and a diff there means something actually
-   changed. CI checks this on every commit. The one exception is
-   `signed.pdf`, which differs on every run because the example mints a new
-   key each time.
+   changed. CI checks this on every commit. The two exceptions are
+   `signed.pdf` and `signed_archival.pdf`, which differ on every run because
+   each example mints a new key: CI compares them with their committed bytes
+   outside the signature's `/Contents` instead, as can be done locally after
+   `mix examples`:
+
+       elixir scripts/compare_outside_contents.exs \
+         examples/output/signed.pdf examples/output/signed_archival.pdf
 
 3. **The validators, against the documents that exercise the features.**
 
@@ -64,10 +69,20 @@ gates, but a failure discovered after tagging costs a version number.
        verapdf --flavour 2u  examples/output/archival.pdf
        verapdf --flavour 2a  examples/output/archival.pdf
        verapdf --flavour ua1 examples/output/archival.pdf
+       verapdf --flavour 2b  examples/output/archival_form.pdf
+       verapdf --flavour 2u  examples/output/archival_form.pdf
+       verapdf --flavour 2a  examples/output/archival_form.pdf
+       verapdf --flavour ua1 examples/output/archival_form.pdf
+       verapdf --flavour ua1 examples/output/tagged_form.pdf
+       verapdf --flavour 2b  examples/output/signed_archival.pdf
+       verapdf --flavour 2u  examples/output/signed_archival.pdf
+       verapdf --flavour 2a  examples/output/signed_archival.pdf
+       verapdf --flavour ua1 examples/output/signed_archival.pdf
        verapdf --flavour ua1 "examples/output/linked/Main-report.pdf"
        verapdf --flavour ua1 "examples/output/linked/Attached documents/Appendix-A.pdf"
 
-   All must report `PASS`. CI runs the same eight and uploads the reports, so
+   All must report `PASS`. CI runs the same seventeen, listed in the Examples
+   job of `.github/workflows/ci.yml`, and uploads the reports, so
    this is a pre-flight rather than the only run — but veraPDF belongs on the
    machine where the work happens too: a conformance question that has to wait
    for a tool somewhere else is a question that gets answered by reasoning
@@ -83,15 +98,22 @@ gates, but a failure discovered after tagging costs a version number.
 
 4. **The PAC claim still describes audited files.**
 
-   The README, ROADMAP and `examples/README.md` cite a PAC audit by date and by
-   the commit whose files it ran on. Compare the five PDF/UA documents at the
-   release commit with those at the cited commit:
+   The README, ROADMAP and `examples/README.md` cite each PAC audit by date
+   and by the commit whose files it ran on. The eight PDF/UA documents were
+   audited in three groups, so compare each group at the release commit with
+   its cited commit:
 
        git diff --stat <audited-commit> HEAD -- \
          examples/output/compliant.pdf examples/output/accessible.pdf \
          examples/output/archival.pdf examples/output/linked/
+       git diff --stat <audited-commit> HEAD -- \
+         examples/output/tagged_form.pdf examples/output/archival_form.pdf
+       git diff --stat <audited-commit> HEAD -- \
+         examples/output/signed_archival.pdf
 
-   If none changed, the claim stands as written. If any did, either run PAC
+   The comparison is of committed files, so a regenerated
+   `signed_archival.pdf`, which differs only in its signature, does not
+   count. If none changed, the claim stands as written. If any did, either run PAC
    again on the new files and update the date and commit everywhere the claim
    appears, or leave the claim citing the older commit exactly as it is, so it
    still names the files that were audited. A PAC result must never come to
@@ -111,7 +133,10 @@ gates, but a failure discovered after tagging costs a version number.
        mix hex.build
 
    `examples/` and `docs/` are deliberately not shipped — see `files:` in
-   `mix.exs`. Check that `priv/plts` has not crept in.
+   `mix.exs`. Check that no `examples/`, `docs/`, `test/`, `.github/` or
+   `priv/plts` file has crept in, and compare the file list with the previous
+   release's: every path added or removed should be one the release meant to
+   add or remove.
 
 7. **CHANGELOG is honest.**
 
@@ -225,9 +250,10 @@ them.
          --title "vX.Y.Z — what changed" \
          --notes-file body.md --verify-tag verapdf-reports/*.xml
 
-   The body pastes, **verbatim**, the version's lead sentence (when it has
-   one) and its `### Deprecated`, `### Changed` and `### Fixed` sections. Do
-   not summarise them. Deprecations belong there for the same reason as
+   The body pastes, **verbatim**, the version's lead paragraphs (when it has
+   them) and whichever of its `### Breaking`, `### Upgrading from …`,
+   `### Deprecated`, `### Changed` and `### Fixed` sections it has. Do not
+   summarise them. Deprecations belong there for the same reason as
    behaviour changes: they are what an upgrader has to act on before the next
    release turns them into errors. Behaviour breaks are the most valuable
    content in a release and should not live only in a file inside the package —

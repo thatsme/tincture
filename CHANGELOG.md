@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-05
+
+**Forms, completed.** Every form field carries its own appearance stream, so
+it displays the same in every viewer and in print; text and choice fields may
+use embedded fonts; a form can be tagged, each widget owned by a `Form`
+structure element, as PDF/UA-1 requires; and archival documents may carry
+form fields and signatures, so a form or a signed document can be PDF/A-2a
+and PDF/UA-1 at once. Three new examples, an accessible form, an archival
+form and a signed archival document, are validated by veraPDF in CI, which
+now checks 17 claims. Form XObjects are a public primitive.
+
+**This release breaks compatibility.** The 0.3.x deprecation warnings become
+errors, and a few refusals are new. [Upgrading from 0.3.x](#upgrading-from-03x)
+lists each one, with its message and what to do instead.
+
 ### Breaking
 
 - **`stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` and `clip_even_odd/1`
@@ -36,7 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (values `:no_content`, `:spans_pages`). Neither can occur now that a figure
   drawing nothing raises, and a page change inside a content tag, a figure
   included, raises. *Migration:* remove any match on them.
-
 - **A standard-14 field value, option or push-button label that WinAnsi
   cannot encode raises** at `text_field/7`, `choice_field/7` or
   `push_button/7`. The field's appearance is drawn in the font's own
@@ -97,12 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   announce in place of a file name. A blank title counts as none.
   *Migration:* pass `title:` to `set_metadata/2`.
 
-The first four have warned since 0.3.4, the next two since 0.3.8, the
-seventh since 0.3.9, the standard-14 field text since 0.3.6, the choice
-value since 0.3.10, the text an embedded font cannot draw since 0.3.13, and
-a tagged form field without a tooltip or outside every `tag/4` scope since
-0.3.6, so code that runs without those warnings is unaffected by them, and
-the eighth follows from them.
+Each refusal above, except the three below, warned in a 0.3.x release first,
+so code that runs without those warnings is unaffected by it;
+[Upgrading from 0.3.x](#upgrading-from-03x) names the release. The removal of
+`:bbox_unknown` follows from the figure and page-change refusals.
 
 The refusal of a font without a readable character map has no warning
 release first. This is a deliberate, recorded exception to the rule that
@@ -211,7 +223,6 @@ to protect.
   extracted from the page does not contain it. A field's value keeps it. One
   the font has is drawn as before, and so is a variation selector the font's
   format 14 cmap lists.
-
 - **Every text and choice field carries its own appearance.**
   `/NeedAppearances` is no longer written, and text and choice fields get a
   generated `/AP` stream, so they display the same in every viewer, and in
@@ -244,7 +255,6 @@ to protect.
   appearance.
 - **A list box scrolls to its selected option.** `/TI` is written when the
   selected option would otherwise be below the visible rows.
-
 - **Signing an encrypted document raises a clear error.** `sign/3` and
   `encrypt/2` refuse to be combined, naming the combination, at the call
   that creates it. Before, `export/2` failed with an internal message. The
@@ -273,6 +283,55 @@ to protect.
   cannot be subset, or any font whose subset is no smaller. ISO 32000-1
   9.6.4 reserves the tag for a font program that is a subset. The tag is now
   written only when the embedded program is one.
+
+### Upgrading from 0.3.x
+
+Each change that can stop 0.3.x code from working as before, with what it
+raises (or does instead), the 0.3.x release whose deprecation warning
+announced it, and what to do. Every raise is an `ArgumentError`.
+
+**What raises now:**
+
+| What raises now | The message begins | Warned since | What to do instead |
+|---|---|---|---|
+| `stroke/1`, `fill/1`, `fill_even_odd/1`, `clip/1` or `clip_even_odd/1` with no open path | `Tincture.stroke/1 was called with no open path, so there is nothing to paint.` | 0.3.4 | Pass the shape its own paint argument, `rectangle(pdf, x, y, w, h, :fill)`, or open a path with `move_to/3` |
+| `add_page/1` or `set_page/2` while a content tag or an `artifact/2` block is open | `Tincture.add_page/1 was called while tag(:p, ...) is open on page 1.` | 0.3.4 | Close the tag before changing page, and open a new one on the next |
+| A `:figure` that draws nothing, with no `:bbox` | `Tincture.tag(:figure, ...) with alt text "…" on page 1 draws nothing, so it has no bounding box.` | 0.3.4 | Draw the figure's content inside the tag, or pass `bbox:` |
+| A `:bbox` that is not four numbers, is not ordered, lies outside the page, or is given on a tag other than `:figure` | `Tincture.tag/4: :bbox must be {left, bottom, right, top}, four numbers` (or `… lies outside the page's MediaBox`, `… is only used on :figure`) | 0.3.4 | Pass four ordered numbers within the page, on `:figure` only, or omit it |
+| Drawing text, an image or a gradient, saving or restoring graphics state, or opening a content tag or an artifact while a path is open | `Tincture.text_at/4 was called while a path is open, so the text would be written inside the path` | 0.3.8 | Paint the path first, or draw the content before starting it |
+| A path left unpainted at `add_page/1`, at `set_page/2` to another page, or at `export/1,2` | `Tincture.export/1 was called while a path is open on page 1 that nothing has painted.` | 0.3.8 | Paint the path, or remove it |
+| Closing a content tag or an artifact while a path started inside it is open | `Tincture.tag/4 closed tag(:p, ...) with a path still open` | 0.3.9 | Paint the path before the tag or artifact closes |
+| A text field value, choice option or push-button label in a standard-14 font, with a character WinAnsi cannot encode | `text field "full_name" uses the standard font "Helvetica", which cannot draw "Ε" (U+0395): its encoding is WinAnsi.` | 0.3.6 | Use a font registered with `register_ttf_font/4` or `register_otf_font/4` for the field |
+| A choice field that is not `editable: true`, whose `:value` is not one of its `:options` | `choice field "currency" has the value "EUR", which is not one of its options.` | 0.3.10 | Add the value to `:options`, or pass `editable: true` |
+| Text in an embedded font that has no glyph for one of its characters, from any function that draws text | `font "Sans" has no glyph for "✓" (U+2713), which is drawn as a blank.` | 0.3.13 | Register a font that covers the character, or remove it |
+| Registering a font with no character map Tincture can read, or an `OTTO` file whose tables do not parse | `font file "…" has no character map (cmap) that Tincture can read` (or `… is not a readable OpenType font`) | none | Use a TrueType or OpenType font with a Unicode `cmap` subtable (format 4 or 12) |
+| Exporting a tagged document with a form field without `:tooltip` | `this document is tagged, which claims PDF/UA structure, but does not meet it:`, then `a text field "full_name" on page 1 has no tooltip.` | 0.3.6 | Pass `tooltip:` |
+| Exporting a tagged document with a form field created outside every `tag/4` scope | the same first line, then `a text field "full_name" on page 1 is not in the structure tree.` | 0.3.6 | Create the field inside the element that describes it, such as the `:p` that draws its label |
+| Exporting a tagged document with no language | the same first line, then `the document has no language.` | none | Call `set_language/2` |
+| Exporting a tagged document with no title | the same first line, then `the document has no title.` | none | Pass `title:` to `set_metadata/2` |
+
+The four export refusals for tagged documents follow `:enforce`, as the
+other PDF/UA checks do, and `pdf_ua_violations/1` lists them as
+`:field_without_description`, `:field_outside_structure`,
+`:language_missing` and `:title_missing`. Three of the refusals had no
+warning release first, as recorded under Breaking: the font without a
+readable character map, and the tagged document with no language or no
+title.
+
+**What changes without raising:**
+
+| What changes | Before | Now | What to do |
+|---|---|---|---|
+| Text and choice fields | `/NeedAppearances true` in the form, and no appearance stream | each field carries its own `/AP`, and the flag is not written | nothing, unless code reads the flag |
+| A push button's widget | `/MK << /CA (…) >>` only | `/MK` also holds `/BC` and `/BG`, with `/BS << /W 0.75 >>` | nothing, unless code matches the widget's bytes |
+| A document that declares PDF/A | `pdf_a_violations/1` and `export/2` refused text, choice and signature fields (`:value_rendered_field`, `:signature_field`) | those fields are allowed, and the two rules are gone; a field that draws text in a standard-14 font is refused as an unembedded font | remove matches on the two rules |
+| Form fields in a tagged document | widgets outside the structure tree | each widget is owned by a `Form` element; `tag/4` refuses `:form` | create fields inside a `tag/4` scope, and do not pass `:form` to `tag/4` |
+| A default-ignorable character an embedded font lacks, such as a zero-width joiner | drawn as glyph 0, with a zero width | left out of the text drawn and of its `ToUnicode` map; the undocumented `Tincture.PDF.Ops.default_ignorable?/1` moved to an internal module | nothing |
+| A font embedded whole under `subset: :used_text` or `:ascii_basic` | named with a subset tag, `ABCDEF+Name` | named without one, as ISO 32000-1 9.6.4 requires | nothing, unless code matches the tag |
+
+One change is to a type only: `Tincture.PDF.Structure`'s element type no
+longer has `:bbox_unknown` (values `:no_content`, `:spans_pages`), which
+neither refusal above leaves a way to produce. Remove any match on it.
 
 ## [0.3.13] — 2026-11-02
 
@@ -1316,7 +1375,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.3.13...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/thatsme/tincture/compare/v0.3.13...v0.4.0
 [0.3.13]: https://github.com/thatsme/tincture/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/thatsme/tincture/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/thatsme/tincture/compare/v0.3.10...v0.3.11

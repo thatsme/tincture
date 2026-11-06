@@ -22,7 +22,16 @@ README.md	1	linked_Attached_documents_Appendix-A-ua1	| `linked/Attached document
 README.md	1	archival-2b	| `archival.pdf` | {rules} rules, {checks} checks |
 README.md	1	archival-2u	| `archival.pdf` | {rules} rules, {checks} checks |
 README.md	1	archival-2a	| `archival.pdf` | {rules} rules, {checks} checks |
-ROADMAP.md	1	compliant-ua1,accessible-ua1,archival-ua1,linked_Main-report-ua1,linked_Attached_documents_Appendix-A-ua1	{rules} rules on each of five documents
+README.md	1	archival_form-ua1	| `archival_form.pdf` | {rules} rules, {checks} checks |
+README.md	1	tagged_form-ua1	| `tagged_form.pdf` | {rules} rules, {checks} checks |
+README.md	1	signed_archival-ua1	| `signed_archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival_form-2b	| `archival_form.pdf` | {rules} rules, {checks} checks |
+README.md	1	signed_archival-2b	| `signed_archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival_form-2u	| `archival_form.pdf` | {rules} rules, {checks} checks |
+README.md	1	signed_archival-2u	| `signed_archival.pdf` | {rules} rules, {checks} checks |
+README.md	1	archival_form-2a	| `archival_form.pdf` | {rules} rules, {checks} checks |
+README.md	1	signed_archival-2a	| `signed_archival.pdf` | {rules} rules, {checks} checks |
+ROADMAP.md	1	compliant-ua1,accessible-ua1,archival-ua1,archival_form-ua1,tagged_form-ua1,signed_archival-ua1,linked_Main-report-ua1,linked_Attached_documents_Appendix-A-ua1	{rules} rules on each of eight documents
 ROADMAP.md	1	archival-2a	up to {rules} rules
 ROADMAP.md	1	accessible-ua1	{rules} rules, {checks} checks. PAC
 ROADMAP.md	1	archival-2b	PDF/A-2b ({rules} rules, {checks} checks)
@@ -41,7 +50,7 @@ examples/README.md	1	archival_form-2b	| PDF/A-2b | {rules} | {checks} |
 examples/README.md	1	archival_form-2u	| PDF/A-2u | {rules} | {checks} |
 examples/README.md	1	archival_form-2a	| PDF/A-2a | {rules} | {checks} |
 examples/README.md	1	archival_form-ua1	| PDF/UA-1 | {rules} | {checks} |
-examples/README.md	1	tagged_form-ua1	New in 0.4.0, which is not yet released: {rules} rules, {checks} checks.
+examples/README.md	1	tagged_form-ua1	at 0.4.0: {rules} rules, {checks} checks. New in 0.4.0.
 examples/README.md	1	signed_archival-2b	| PDF/A-2b | {rules} | {checks} |
 examples/README.md	1	signed_archival-2u	| PDF/A-2u | {rules} | {checks} |
 examples/README.md	1	signed_archival-2a	| PDF/A-2a | {rules} | {checks} |

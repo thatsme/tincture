@@ -81,6 +81,12 @@ Shows:
   whose licence allows editable embedding. A push button's caption and a
   signature's label may use a registered font as well; checkboxes and radio
   buttons, which draw no text, use the standard 14.
+- **Viewer limitations**, each stated on the function it concerns. PDFium
+  (Chrome, Edge) draws characters a field's font cannot encode with an
+  unembedded font of its own, even when the field's embedded font has them
+  (`text_field/7`). Acrobat Reader shows a dropdown's non-WinAnsi options
+  garbled while its list is open (`choice_field/7`), and covers an unsigned
+  signature field with its field highlight on screen (`signature_field/7`).
 
 ## [`accessible.exs`](accessible.exs) → [`output/accessible.pdf`](output/accessible.pdf)
 
@@ -110,13 +116,14 @@ are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.3.13: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.4.0: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
 
 Of the other examples, `compliant.exs`, `archival.exs`, `archival_form.exs`,
-`tagged_form.exs` and `remote_links.exs` are tagged and validated below. The
+`tagged_form.exs`, `signed_archival.exs` and `remote_links.exs` are tagged and
+validated below. The
 rest are not tagged, claim no conformance, and are not validated.
 
 ## [`compliant.exs`](compliant.exs) → [`output/compliant.pdf`](output/compliant.pdf)
@@ -135,7 +142,7 @@ Every heading also gets a bookmark, so the outline matches the structure.
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.3.13: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.4.0: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
 its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
 which are best practice rather than PDF/UA-1 requirements.
@@ -167,7 +174,7 @@ ICC profile carries no creation date — so an archived file can be checked
 against a rebuild.
 
 **Validated.** Passes veraPDF 1.30.2 in CI on every commit at four
-flavours; at 0.3.13:
+flavours; at 0.4.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -214,8 +221,8 @@ Shows:
 
 The script prints a checklist of each requirement and where it came from.
 
-**Validated.** Passes veraPDF 1.30.2 in CI on every commit at four flavours.
-The example is new in 0.4.0, which is not yet released:
+**Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
+four flavours; at 0.4.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -228,6 +235,21 @@ The example is new in 0.4.0, which is not yet released:
     verapdf --flavour 2u  examples/output/archival_form.pdf
     verapdf --flavour 2a  examples/output/archival_form.pdf
     verapdf --flavour ua1 examples/output/archival_form.pdf
+
+PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG,
+Quality and the AI-assisted check passed. PAC does not check PDF/A.
+
+**Filled in and saved, it may no longer be PDF/A.** PDF/A describes the file
+Tincture writes, not the file after a viewer has filled it in: a viewer that
+saves a filled form may remove the PDF/A identification and add objects of
+its own. Measured on 2026-11-02, on this example as it was then (PDF/A-2u,
+untagged), filled in and saved with Save As in Acrobat Reader
+2026.002.22031: Reader kept Tincture's bytes and appended its changes, and
+the saved file fails veraPDF 1.30.2 at 2b and 2u on one rule, 6.6.4-1,
+because the metadata Reader rewrote has no PDF/A identification. Reader also
+added two whole copies of the field font and two fonts it did not embed.
+Tincture cannot prevent either. Archive the file as written, or validate the
+saved one before relying on it.
 
 ## [`tagged_form.exs`](tagged_form.exs) → [`output/tagged_form.pdf`](output/tagged_form.pdf)
 
@@ -259,11 +281,16 @@ Shows:
 
 The script prints a checklist of each requirement and where it came from.
 
-**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every
-commit. New in 0.4.0, which is not yet released: 106 of 106 rules, 1411 of
-1411 checks. A CI step also traces, in the file's bytes, that every widget's
-`Form` element and `/StructParent` point at each other
-(`scripts/trace_widget_ownership.py`).
+**Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
+at 0.4.0: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
+also traces, in the file's bytes, that every widget's `Form` element and
+`/StructParent` point at each other (`scripts/trace_widget_ownership.py`).
+PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG and
+Quality passed; PAC's AI-assisted check reported one heading as possibly a
+paragraph, an advisory hint.
+
+In Acrobat Reader, the field highlight covers an unsigned signature field on
+screen, so its label shows in print; `signature_field/7` describes it.
 
     verapdf --flavour ua1 examples/output/tagged_form.pdf
 
@@ -319,8 +346,8 @@ The script prints a checklist of each requirement and where it came from. CI
 verifies the signature with openssl, as it does `signed.pdf`'s, and traces
 the widget's ownership in the file's bytes.
 
-**Validated.** Passes veraPDF 1.30.2 in CI on every commit at four flavours.
-New in 0.4.0, which is not yet released:
+**Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
+four flavours; at 0.4.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -333,6 +360,19 @@ New in 0.4.0, which is not yet released:
     verapdf --flavour 2u  examples/output/signed_archival.pdf
     verapdf --flavour 2a  examples/output/signed_archival.pdf
     verapdf --flavour ua1 examples/output/signed_archival.pdf
+
+veraPDF's three PDF/A-2 signature rules (ISO 19005-2 clause 6.4.3) each run
+one check on it, and pass: the byte range covers the whole file but the
+signature, the signature carries the signer's certificate, and there is a
+single signer. PAC 2026.1 audit, 2026-11-05, on the file at `56bae06`:
+PDF/UA, WCAG, Quality and the AI-assisted check passed. Acrobat Reader
+2026.002.22031 lists the signature and reports that the document has not
+been modified since it was signed; it reports the signer's identity as
+unknown, as it must for a self-signed certificate.
+
+Like `archival_form.pdf`, its PDF/A claim describes the file as written: a
+viewer that saves it again may remove the PDF/A identification and add
+objects of its own.
 
 ## [`remote_links.exs`](remote_links.exs) → [`output/linked/`](output/linked/)
 
@@ -351,7 +391,7 @@ action whose path the reader resolves against the document carrying the link,
 so the pair can be moved, zipped or handed over as a set and still resolve.
 
 Both halves are tagged, each with a bookmark per heading, and both pass
-veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.3.13:
+veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.0:
 `Main-report.pdf` 106 of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
 3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
 errors, 0 warnings on both. A report that is accessible pointing at an
