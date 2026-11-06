@@ -424,6 +424,9 @@ jobs:
           mix run examples/archival_form.exs
           mix run examples/signed_archival.exs
 
+      - name: Build a document unencrypted and encrypted
+        run: mix run scripts/viewer_encrypted.exs tmp/viewer/encrypted
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -449,6 +452,13 @@ jobs:
       # broken step, or when Form elements and widgets differ in number.
       - name: Trace widget ownership in the tagged forms
         run: python -I scripts/trace_widget_ownership.py examples/output/tagged_form.pdf examples/output/archival_form.pdf examples/output/signed_archival.pdf
+
+      # The encryption tests decrypt with a reader written into the test
+      # suite. This asks a second engine: PDFium must draw the encrypted file
+      # exactly as the unencrypted one - the image, the form XObject and every
+      # field's appearance included.
+      - name: Check an encrypted document draws as its unencrypted twin in PDFium
+        run: python -I scripts/encrypted_render_check.py tmp/viewer/encrypted/plain.pdf tmp/viewer/encrypted/encrypted.pdf
 
       - name: Upload the renders
         if: always()

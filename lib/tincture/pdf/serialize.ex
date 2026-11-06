@@ -72,7 +72,7 @@ defmodule Tincture.PDF.Serialize do
         pdf,
         PDF.stream_keys(pdf),
         embedded_fonts_start_id,
-        field_font_plan(pdf, appearances)
+        [{:tagged_streams, true} | field_font_plan(pdf, appearances)]
       )
 
     {image_object_refs, image_objects, form_xobjects_start_id} =
@@ -265,11 +265,7 @@ defmodule Tincture.PDF.Serialize do
     # The EOL before `endstream` is a delimiter rather than stream data, so
     # a stream whose own last byte is a newline needs one of each - or
     # /Length overstates the content by one (ISO 19005-2 clause 6.1.7.1).
-    content_body = [
-      "<< /Length #{content_length} >>\nstream\n",
-      content_stream,
-      "\nendstream"
-    ]
+    content_body = {:stream, "<< /Length #{content_length} >>\nstream\n", content_stream}
 
     {resources, content_body}
   end
@@ -401,11 +397,8 @@ defmodule Tincture.PDF.Serialize do
   defp build_output_intent_objects(%PDF{}, start_id) do
     profile = ICC.srgb()
 
-    object = [
-      "<< /N #{ICC.components()} /Length #{byte_size(profile)} >>\nstream\n",
-      profile,
-      "\nendstream"
-    ]
+    object =
+      {:stream, "<< /N #{ICC.components()} /Length #{byte_size(profile)} >>\nstream\n", profile}
 
     {start_id, [object]}
   end
@@ -421,11 +414,8 @@ defmodule Tincture.PDF.Serialize do
   end
 
   defp xmp_object_body(packet) do
-    [
-      "<< /Type /Metadata /Subtype /XML /Length #{byte_size(packet)} >>\nstream\n",
-      packet,
-      "\nendstream"
-    ]
+    {:stream, "<< /Type /Metadata /Subtype /XML /Length #{byte_size(packet)} >>\nstream\n",
+     packet}
   end
 
   defp xmp_packet(%PDF{metadata: metadata} = pdf, struct_tree_ref) do
@@ -1131,11 +1121,25 @@ defmodule Tincture.PDF.Serialize do
     IO.iodata_to_binary([header, objects, xref, trailer])
   end
 
-  defp maybe_encrypt_object(body, _id, _encrypt_ref, nil), do: body
-  defp maybe_encrypt_object(body, id, id, _encryption), do: body
+  defp maybe_encrypt_object(body, _id, _encrypt_ref, nil), do: stream_iodata(body)
+  defp maybe_encrypt_object(body, id, id, _encryption), do: stream_iodata(body)
+
+  # Whether a body is a stream is what its writer said, {:stream, head, data},
+  # not something read off its shape: an image's or a form XObject's
+  # dictionary is built from more parts than a page's, and was once taken
+  # for a dictionary with strings in it. A stream goes to encrypt_object/2 in
+  # the [dictionary, data, "endstream"] form it encrypts as a stream; every
+  # other body has only its strings encrypted.
+  defp maybe_encrypt_object({:stream, head, data}, _id, _encrypt_ref, context),
+    do: Encrypt.encrypt_object([head, data, "\nendstream"], context)
 
   defp maybe_encrypt_object(body, _id, _encrypt_ref, context),
-    do: Encrypt.encrypt_object(body, context)
+    do: body |> IO.iodata_to_binary() |> Encrypt.encrypt_strings(context)
+
+  # A stream as written: its dictionary, ending in the `stream` keyword and
+  # its EOL, the data, and the EOL that delimits `endstream`.
+  defp stream_iodata({:stream, head, data}), do: [head, data, "\nendstream"]
+  defp stream_iodata(body), do: body
 
   # The resource collectors each take one content stream's operations, and
   # give the resources that stream needs. They are public, undocumented, so
@@ -1938,12 +1942,11 @@ defmodule Tincture.PDF.Serialize do
   defp form_xobject({x1, y1, x2, y2}, {content, resources}) do
     bbox = Enum.map_join([x1, y1, x2, y2], " ", &Object.num/1)
 
-    [
-      "<< /Type /XObject /Subtype /Form /BBox [#{bbox}]",
-      " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n",
-      content,
-      "\nendstream"
-    ]
+    {:stream,
+     [
+       "<< /Type /XObject /Subtype /Form /BBox [#{bbox}]",
+       " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n"
+     ], content}
   end
 
   defp button_action_entry(%{action: :reset}), do: " /A << /S /ResetForm >>"
@@ -2200,45 +2203,43 @@ defmodule Tincture.PDF.Serialize do
     {filter_name, decode_parms} = image_filter_and_decode_parms(image)
     smask_ref = if is_integer(smask_id), do: " /SMask #{smask_id} 0 R", else: ""
 
-    [
-      "<< /Type /XObject /Subtype /Image /Width ",
-      Integer.to_string(image.width),
-      " /Height ",
-      Integer.to_string(image.height),
-      " /ColorSpace ",
-      color_space,
-      " /BitsPerComponent ",
-      Integer.to_string(image.bits_per_component),
-      filter_name,
-      decode_parms,
-      smask_ref,
-      " /Length ",
-      Integer.to_string(length),
-      " >>\nstream\n",
-      image.data,
-      "\nendstream"
-    ]
+    {:stream,
+     [
+       "<< /Type /XObject /Subtype /Image /Width ",
+       Integer.to_string(image.width),
+       " /Height ",
+       Integer.to_string(image.height),
+       " /ColorSpace ",
+       color_space,
+       " /BitsPerComponent ",
+       Integer.to_string(image.bits_per_component),
+       filter_name,
+       decode_parms,
+       smask_ref,
+       " /Length ",
+       Integer.to_string(length),
+       " >>\nstream\n"
+     ], image.data}
   end
 
   defp alpha_image_object_body(image) do
     alpha_data = Map.fetch!(image, :alpha_data)
     decode_parms = Map.get(image, :alpha_decode_parms)
 
-    [
-      "<< /Type /XObject /Subtype /Image /Width ",
-      Integer.to_string(image.width),
-      " /Height ",
-      Integer.to_string(image.height),
-      " /ColorSpace /DeviceGray /BitsPerComponent ",
-      Integer.to_string(image.bits_per_component),
-      " /Filter /FlateDecode",
-      format_decode_parms(decode_parms),
-      " /Length ",
-      Integer.to_string(byte_size(alpha_data)),
-      " >>\nstream\n",
-      alpha_data,
-      "\nendstream"
-    ]
+    {:stream,
+     [
+       "<< /Type /XObject /Subtype /Image /Width ",
+       Integer.to_string(image.width),
+       " /Height ",
+       Integer.to_string(image.height),
+       " /ColorSpace /DeviceGray /BitsPerComponent ",
+       Integer.to_string(image.bits_per_component),
+       " /Filter /FlateDecode",
+       format_decode_parms(decode_parms),
+       " /Length ",
+       Integer.to_string(byte_size(alpha_data)),
+       " >>\nstream\n"
+     ], alpha_data}
   end
 
   defp image_filter_and_decode_parms(%{format: :jpeg}), do: {" /Filter /DCTDecode", ""}

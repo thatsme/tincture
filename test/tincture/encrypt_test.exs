@@ -293,6 +293,206 @@ defmodule Tincture.EncryptTest do
     end
   end
 
+  # -- every stream ----------------------------------------------------------
+  #
+  # Each document is exported twice, plainly and encrypted. Every stream of
+  # the encrypted file must say its own length and decrypt to exactly the
+  # bytes the plain file holds for the same object. Through 0.4.0 an image,
+  # a soft mask, a form XObject and every widget appearance were written with
+  # their data unencrypted or with only its strings encrypted in place, so a
+  # reader decrypting them as the format requires got nothing usable.
+
+  describe "every stream decrypts to the bytes the unencrypted document holds" do
+    @describetag :tmp_dir
+
+    test "a PNG image and its soft mask", %{tmp_dir: dir} do
+      streams =
+        assert_streams_decrypt(Tincture.image_png(Tincture.new(), 72, 600, 40, 40, png!(dir)))
+
+      assert Enum.count(streams, &(&1.dict =~ "/Subtype /Image")) == 2
+      assert Enum.any?(streams, &(&1.dict =~ "/SMask "))
+    end
+
+    test "a JPEG image", %{tmp_dir: dir} do
+      streams =
+        assert_streams_decrypt(Tincture.image_jpeg(Tincture.new(), 72, 600, 40, 40, jpeg!(dir)))
+
+      assert Enum.any?(streams, &(&1.dict =~ "/Filter /DCTDecode"))
+    end
+
+    test "a placed form XObject" do
+      pdf =
+        Tincture.new()
+        |> Tincture.form_xobject("stamp", 120, 40, fn pdf ->
+          pdf |> Tincture.set_font("Helvetica", 10) |> Tincture.text_at(6, 15, "Approved")
+        end)
+        |> Tincture.place_form_xobject("stamp", 72, 690)
+
+      assert Enum.any?(assert_streams_decrypt(pdf), &(&1.dict =~ "/Subtype /Form"))
+    end
+
+    test "a text field's appearance" do
+      pdf = Tincture.text_field(Tincture.new(), 72, 620, 200, 22, "name", value: "Ada Lovelace")
+
+      assert Enum.any?(assert_streams_decrypt(pdf), &(&1.data =~ "(Ada Lovelace) Tj"))
+    end
+
+    test "a choice field's appearance" do
+      pdf =
+        Tincture.choice_field(Tincture.new(), 72, 620, 150, 22, "city",
+          options: ["Rome", "Oslo"],
+          value: "Oslo"
+        )
+
+      assert Enum.any?(assert_streams_decrypt(pdf), &(&1.data =~ "(Oslo) Tj"))
+    end
+
+    test "a checkbox's appearances, on and off" do
+      pdf = Tincture.checkbox(Tincture.new(), 72, 580, 14, "agree", checked: true)
+
+      assert Enum.count(assert_streams_decrypt(pdf), &(&1.dict =~ "/Subtype /Form")) == 2
+    end
+
+    test "a radio group's appearances, on and off for each button" do
+      pdf =
+        Tincture.radio_group(
+          Tincture.new(),
+          "size",
+          [[value: "s", x: 72, y: 540, size: 14], [value: "m", x: 100, y: 540, size: 14]],
+          value: "m"
+        )
+
+      assert Enum.count(assert_streams_decrypt(pdf), &(&1.dict =~ "/Subtype /Form")) == 4
+    end
+
+    test "a push button's appearance" do
+      pdf =
+        Tincture.push_button(Tincture.new(), 72, 460, 90, 22, "go",
+          label: "Reset",
+          action: :reset
+        )
+
+      assert Enum.any?(assert_streams_decrypt(pdf), &(&1.data =~ "(Reset) Tj"))
+    end
+
+    test "a signature field's appearance" do
+      pdf = Tincture.signature_field(Tincture.new(), 72, 400, 200, 40, "sig", label: "Signature")
+
+      assert Enum.any?(assert_streams_decrypt(pdf), &(&1.data =~ "(Signature) Tj"))
+    end
+
+    test "the streams that already decrypted still do: page content, a font program, its ToUnicode and CIDToGIDMap" do
+      pdf =
+        Tincture.new()
+        |> Tincture.register_ttf_font("Sans", "examples/fonts/LiberationSans-Regular.ttf")
+        |> Tincture.set_font("Sans", 18)
+        |> Tincture.text_at(72, 700, "Ελλάδα")
+
+      streams = assert_streams_decrypt(pdf)
+
+      assert Enum.any?(streams, &(&1.dict =~ "/Length1 "))
+      assert Enum.any?(streams, &(&1.data =~ "begincmap"))
+      assert Enum.any?(streams, &(&1.dict =~ "/Filter /FlateDecode"))
+      assert Enum.any?(streams, &(&1.data =~ " Tj"))
+    end
+  end
+
+  # Exports `pdf` plainly and encrypted, checks every stream of the encrypted
+  # file against the plain one, and returns the plain file's streams.
+  defp assert_streams_decrypt(pdf) do
+    plain = Tincture.export(pdf)
+    binary = pdf |> Tincture.encrypt(user_password: "p") |> Tincture.export()
+    {:ok, key} = open_document(binary, "p")
+
+    expected = streams_of(plain)
+    actual = streams_of(binary)
+
+    assert Map.keys(actual) == Map.keys(expected)
+
+    for {number, stream} <- actual do
+      plain_data = Map.fetch!(expected, number).data
+
+      assert stream.after == "\nendstream",
+             "object #{number}: /Length does not count the bytes written as its data"
+
+      assert rem(byte_size(stream.data), 16) == 0 and byte_size(stream.data) >= 32,
+             "object #{number}: #{byte_size(stream.data)} bytes cannot be an AES-256 ciphertext " <>
+               "(an IV and at least one block)"
+
+      assert decrypt(stream.data, key) == plain_data,
+             "object #{number} does not decrypt to the bytes the unencrypted document holds"
+    end
+
+    Map.values(expected)
+  end
+
+  # Every stream object, by number: its dictionary and the data its /Length
+  # gives, found from the cross-reference table, never by scanning for
+  # "endstream" in data that can hold any byte.
+  defp streams_of(binary) do
+    for {number, offset} <- object_offsets(binary),
+        stream = stream_at(drop(binary, offset)),
+        stream != nil,
+        into: %{},
+        do: {number, stream}
+  end
+
+  defp stream_at(object) do
+    {end_of_object, _} = :binary.match(object, "endobj")
+
+    case :binary.match(object, ">>\nstream\n") do
+      {position, marker} when position < end_of_object ->
+        dict = binary_part(object, 0, position + 2)
+        [_, length] = Regex.run(~r|/Length (\d+)[ >]|, dict)
+        length = String.to_integer(length)
+        start = position + marker
+
+        %{
+          dict: dict,
+          data: binary_part(object, start, length),
+          after: binary_part(object, start + length, min(10, byte_size(object) - start - length))
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  # 2 x 2 RGBA, one pixel half transparent, so the image has a soft mask.
+  defp png!(dir) do
+    chunk = fn type, data ->
+      <<byte_size(data)::32>> <> type <> data <> <<:erlang.crc32(type <> data)::32>>
+    end
+
+    rows = <<0, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 0, 128, 255, 255, 255, 255>>
+
+    path = Path.join(dir, "image.png")
+
+    File.write!(
+      path,
+      <<137, 80, 78, 71, 13, 10, 26, 10>> <>
+        chunk.("IHDR", <<2::32, 2::32, 8, 6, 0, 0, 0>>) <>
+        chunk.("IDAT", :zlib.compress(rows)) <> chunk.("IEND", "")
+    )
+
+    path
+  end
+
+  # A 1 x 1 baseline JPEG header, enough for Tincture to embed it as written.
+  defp jpeg!(dir) do
+    path = Path.join(dir, "image.jpg")
+
+    File.write!(
+      path,
+      <<0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00,
+        0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x01, 0x00, 0x01, 0x03,
+        0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00, 0xFF, 0xDA, 0x00, 0x0C, 0x03, 0x01,
+        0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F, 0x00, 0x00, 0xFF, 0xD9>>
+    )
+
+    path
+  end
+
   describe "permissions" do
     test "the P value has the reserved high bits set, so it is negative" do
       assert Encrypt.permission_flags([:print]) < 0

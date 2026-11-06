@@ -117,7 +117,7 @@ defmodule Tincture.PDF.FontEmbed do
               {_ref, objects, _next, _mode} = result
 
               measurements = %{
-                byte_size: IO.iodata_length(objects),
+                byte_size: objects |> Enum.map(&stream_iodata/1) |> IO.iodata_length(),
                 source_size: byte_size(Map.get(embedded_font, :data, ""))
               }
 
@@ -133,8 +133,19 @@ defmodule Tincture.PDF.FontEmbed do
         end
       )
 
+    # A font program, ToUnicode and CIDToGIDMap are {:stream, head, data}, so
+    # the serialiser, which asks for them that way, knows them for streams
+    # when it encrypts. Anyone else gets the bytes as written, as before.
+    objects =
+      if Keyword.get(opts, :tagged_streams, false),
+        do: objects,
+        else: Enum.map(objects, &stream_iodata/1)
+
     {refs, objects, text_modes, next_object_id}
   end
+
+  defp stream_iodata({:stream, head, data}), do: [head, data, "\nendstream"]
+  defp stream_iodata(body), do: body
 
   # One text operation per character of the font's cmap, so every collector
   # below counts it exactly as it counts drawn text. One per character, not
@@ -380,14 +391,10 @@ defmodule Tincture.PDF.FontEmbed do
 
     case Map.fetch!(embedded_font, :format) do
       :ttf ->
-        ["<< /Length #{length} /Length1 #{length} >>\nstream\n", data, "\nendstream"]
+        {:stream, "<< /Length #{length} /Length1 #{length} >>\nstream\n", data}
 
       :otf ->
-        [
-          "<< /Length #{length} /Length1 #{length} /Subtype /OpenType >>\nstream\n",
-          data,
-          "\nendstream"
-        ]
+        {:stream, "<< /Length #{length} /Length1 #{length} /Subtype /OpenType >>\nstream\n", data}
     end
   end
 
@@ -2044,7 +2051,7 @@ defmodule Tincture.PDF.FontEmbed do
   defp cid_to_gid_map_object(data) when is_binary(data) do
     compressed = :zlib.compress(data)
     length = byte_size(compressed)
-    ["<< /Length #{length} /Filter /FlateDecode >>\nstream\n", compressed, "\nendstream"]
+    {:stream, "<< /Length #{length} /Filter /FlateDecode >>\nstream\n", compressed}
   end
 
   defp embedded_cid_default_width(embedded_font) do
@@ -2114,7 +2121,7 @@ defmodule Tincture.PDF.FontEmbed do
     ]
 
     length = IO.iodata_length(cmap_stream)
-    ["<< /Length #{length} >>\nstream\n", cmap_stream, "\nendstream"]
+    {:stream, "<< /Length #{length} >>\nstream\n", cmap_stream}
   end
 
   defp normalize_to_unicode_mappings(used_mappings) do
