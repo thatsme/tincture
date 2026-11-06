@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-11-06
+
+**In an encrypted document, images, form XObjects and form-field appearances
+could not be decrypted by other readers.** Their stream data was written
+unencrypted, or with only the strings inside it encrypted in place and
+`/Length` left at the unencrypted size. A reader decrypting the file as ISO
+32000-1 7.6.2 requires got nothing usable. pypdf 6.14.2 read those streams as
+empty. MuPDF 1.28.2 and PDFium 156.0.8076.0 drew the page without them: no
+image, no form XObject, and no field appearance. Images and their soft masks
+were affected from 0.1.0, checkbox, radio-button and push-button appearances
+from 0.2.0, and form XObjects and text, choice and signature-field
+appearances, which are new in 0.4.0, in 0.4.0. Page content, embedded fonts,
+ToUnicode CMaps, CIDToGIDMaps and XMP metadata were not affected. Regenerate
+any encrypted document that holds one of these. Unencrypted output is
+byte-identical to 0.4.0.
+
+### Fixed
+
+- **Every stream of an encrypted document is encrypted as a stream.** The
+  encryption step took an object for a stream only when its writer had built
+  it from exactly three parts: dictionary, data and `endstream`. Image, soft
+  mask and form XObject bodies are built from more, so they were treated as
+  dictionaries. Data holding no PDF string, such as an image or a checkbox
+  appearance, was written in the clear. Data holding strings, such as a text
+  field's appearance or a placed form XObject, had those strings encrypted in
+  place, which made it longer than its `/Length`. Every stream writer now says
+  that it wrote a stream, and the encryption step encrypts the data whole and
+  sets `/Length` to the ciphertext's size, as it already did for page
+  content. Strings in a stream's dictionary are encrypted as before.
+  Every stream kind is tested by decrypting it with the test suite's own
+  reader, which is written from ISO 32000-1 rather than from the encryptor, and
+  comparing it with the unencrypted document. CI's Viewer job now also renders
+  an encrypted and an unencrypted build of one document in PDFium and requires
+  identical pixels (`scripts/viewer_encrypted.exs`,
+  `scripts/encrypted_render_check.py`).
+
+### Deprecated
+
+This warns now and raises in 0.5.0:
+
+- **An option `export/2` does not know** (W10). It was ignored without a word,
+  so a misspelt `compres: false` exported the document as if nothing had been
+  passed. `export/2`, and `save/3`, which passes its options to it, now warn
+  once per call, naming every unknown key and the known ones:
+  `export/2 got the unknown option :compres. Known options: :enforce. Unknown
+  options are ignored now; this will raise in 0.5.0.` The option is still
+  ignored, and the output does not change.
+  *Migration:* remove the key, or correct its spelling. `:enforce` is the one
+  option `export/2` takes.
+
+### Documentation
+
+- **The page span's `:byte_size`.** `Tincture.Telemetry` described
+  `[:tincture, :page]`'s `:byte_size` as the size of the compressed content
+  stream. Content streams are not compressed. It is the stream's size as
+  written, its `/Length`.
+- **Which streams are compressed.** The ROADMAP said every object is written
+  uncompressed. The CIDToGIDMap and PNG image data, with a PNG's soft mask, are
+  Flate-compressed already. It now says which streams are which, and that
+  0.5.0 compresses the rest, except the XMP metadata.
+
 ## [0.4.0] — 2026-11-06
 
 **Forms, completed.** Every form field carries its own appearance stream, so
@@ -1375,7 +1436,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/thatsme/tincture/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/thatsme/tincture/compare/v0.3.13...v0.4.0
 [0.3.13]: https://github.com/thatsme/tincture/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/thatsme/tincture/compare/v0.3.11...v0.3.12
