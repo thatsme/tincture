@@ -40,11 +40,12 @@ defmodule Tincture.Telemetry do
 
   ### `[:tincture, :page, :start | :stop | :exception]`
 
-  One page's content stream being built and compressed. Emitted per page, so a
-  slow page in a long document is visible rather than averaged away.
+  One page's content stream being built. Emitted per page, so a slow page in a
+  long document is visible rather than averaged away.
 
-    * measurements — `:duration` and `:byte_size` (the compressed content
-      stream) on stop.
+    * measurements — `:duration` and `:byte_size` on stop. `:byte_size` is the
+      size of the content stream as written into the file, its `/Length`. The
+      stream is not compressed, so that is also its size uncompressed.
     * metadata — `:page_number` and `:operation_count`.
 
   ### `[:tincture, :font, :embed, :start | :stop | :exception]`

@@ -520,11 +520,19 @@ Worth being honest that this is the largest single item on the list, and that
 **Status: absent.** No object streams, no cross-reference streams, no
 linearisation.
 
-Every object is written uncompressed into a classic xref table. Object streams
-and xref streams (PDF 1.5, 2001) would meaningfully shrink documents with many
-small objects. Linearisation ("fast web view") lets a viewer render page one
-before the whole file arrives, which matters when documents are served over
-HTTP.
+Every object is written into a classic xref table. Most streams are written
+uncompressed: page content, form XObjects and field appearances, font
+programs, ToUnicode CMaps, the ICC output intent and the XMP metadata. Two
+kinds are Flate-compressed already: a CIDToGIDMap, and the data of a PNG image
+with its soft mask. JPEG data is embedded as it is, DCT-encoded. 0.5.0
+compresses every other stream with FlateDecode except the XMP metadata, which
+stays unfiltered so that tools which do not read PDF can still find it (ISO
+32000-1 14.3.2).
+
+Object streams and xref streams (PDF 1.5, 2001) would meaningfully shrink
+documents with many small objects. Linearisation ("fast web view") lets a viewer
+render page one before the whole file arrives, which matters when documents are
+served over HTTP.
 
 All of this stays in core: `:zlib` ships with OTP, so compression costs no
 dependency.
