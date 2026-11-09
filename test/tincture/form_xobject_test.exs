@@ -14,6 +14,7 @@ defmodule Tincture.FormXObjectTest do
   alias Tincture.PDF
   alias Tincture.Test.ContentStreamState
   alias Tincture.Test.MeasurableFont
+  alias Tincture.Test.PDFObjects
 
   @refusal " A form XObject is a content stream with no page, structure or annotations " <>
              "of its own, so only drawing, text, images and fonts are allowed inside it."
@@ -27,11 +28,22 @@ defmodule Tincture.FormXObjectTest do
     end)
   end
 
-  # The form XObject's object body, from its dictionary to `endstream`.
+  # Every form XObject as {its dictionary as written, its decoded content}.
+  defp xobjects(binary) do
+    for [_whole, number, dictionary] <-
+          Regex.scan(
+            ~r{\n(\d+) 0 obj\n(<< /Type /XObject /Subtype /Form .*? >>)\nstream\n}s,
+            binary
+          ) do
+      {dictionary, PDFObjects.stream!(binary, String.to_integer(number))}
+    end
+  end
+
+  # The form XObject's object body, from its dictionary to `endstream`, with
+  # the stream's data decoded.
   defp xobject_bodies(binary) do
-    ~r{<< /Type /XObject /Subtype /Form .*?endstream}s
-    |> Regex.scan(binary)
-    |> Enum.map(&hd/1)
+    for {dictionary, content} <- xobjects(binary),
+        do: dictionary <> "\nstream\n" <> content <> "\nendstream"
   end
 
   defp xobject_body(binary) do
@@ -39,15 +51,7 @@ defmodule Tincture.FormXObjectTest do
     body
   end
 
-  # Every page content stream's data, in page order. Page content streams are
-  # the only streams whose dictionary is just a /Length.
-  defp page_contents(binary) do
-    ~r{<< /Length \d+ >>\nstream\n(.*?)\nendstream}s
-    |> Regex.scan(binary)
-    |> Enum.map(fn [_whole, data] -> data end)
-  end
-
-  defp page_content(binary), do: binary |> page_contents() |> hd()
+  defp page_content(binary), do: PDFObjects.page_content!(binary)
 
   defp refusal(caller, name \\ "stamp") do
     function = caller |> String.split(".") |> List.last()
@@ -208,10 +212,15 @@ defmodule Tincture.FormXObjectTest do
         |> Tincture.place_form_xobject(:stamp, 72, 100, width: 200)
         |> Tincture.export()
 
-      assert xobject_body(binary) ==
+      # The /Length that follows is the stream's size as written, which
+      # PDFObjects.stream!/2 has located the data by.
+      assert [{dictionary, content}] = xobjects(binary)
+
+      assert dictionary =~
                "<< /Type /XObject /Subtype /Form /BBox [0 0 200 40] /Resources << /Font << " <>
-                 "/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Length 58 >>\n" <>
-                 "stream\nBT\n/F1 10 Tf\n4 14 Td\n(APPROVED) Tj\nET\n0.5 0.5 199 39 re\nS\n\nendstream"
+                 "/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Length "
+
+      assert content == "BT\n/F1 10 Tf\n4 14 Td\n(APPROVED) Tj\nET\n0.5 0.5 199 39 re\nS\n"
 
       assert page_content(binary) ==
                "q\n1 0 0 1 72 600 cm\n/Fm1 Do\nQ\n" <>
@@ -627,7 +636,7 @@ defmodule Tincture.FormXObjectTest do
 
       assert length(xobject_bodies(binary)) == 1
       assert binary =~ "/FontFile2"
-      refute binary =~ "Do\n"
+      refute PDFObjects.page_content!(binary) =~ "Do\n"
     end
   end
 

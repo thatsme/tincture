@@ -21,6 +21,7 @@ defmodule Tincture.EncryptTest do
   import ExUnit.CaptureIO, only: [with_io: 2]
 
   alias Tincture.PDF.Encrypt
+  alias Tincture.Test.PDFObjects
 
   @zero_iv <<0::size(16)-unit(8)>>
 
@@ -108,12 +109,22 @@ defmodule Tincture.EncryptTest do
     binary_part(plain, 0, byte_size(plain) - :binary.last(plain))
   end
 
-  # The first content stream, taken by its declared length rather than by
-  # scanning for "endstream" — ciphertext can contain anything.
-  defp content_stream(binary) do
-    [_, length] = Regex.run(~r|/Length (\d+) >>\nstream\n|, binary)
-    {start, marker_length} = :binary.match(binary, "stream\n")
-    binary_part(binary, start + marker_length, String.to_integer(length))
+  # The first page's content stream, %{dict, data, after}, its data taken by
+  # its declared length rather than by scanning for "endstream" — ciphertext
+  # can contain anything.
+  defp page_content_stream(binary) do
+    [_, number] = Regex.run(~r|/Contents (\d+) 0 R|, binary)
+    Map.fetch!(streams_of(binary), String.to_integer(number))
+  end
+
+  defp content_stream(binary), do: page_content_stream(binary).data
+
+  # The first page's content, decrypted, then decoded: the order ISO 32000-1
+  # 7.6.2 gives, filters applied before encryption.
+  defp content_text(binary, key) do
+    stream = page_content_stream(binary)
+    data = decrypt(stream.data, key)
+    if stream.dict =~ "/FlateDecode", do: PDFObjects.inflate!(data), else: data
   end
 
   defp encrypted_document(opts \\ [], text \\ "Confidential") do
@@ -131,7 +142,7 @@ defmodule Tincture.EncryptTest do
       binary = encrypted_document(user_password: "hunter2")
 
       assert {:ok, key} = open_document(binary, "hunter2")
-      assert decrypt(content_stream(binary), key) =~ "(Confidential) Tj"
+      assert content_text(binary, key) =~ "(Confidential) Tj"
     end
 
     test "the wrong password is rejected" do
@@ -156,7 +167,7 @@ defmodule Tincture.EncryptTest do
       binary = encrypted_document([user_password: "p"], "a (b) c \\ d")
 
       assert {:ok, key} = open_document(binary, "p")
-      assert decrypt(content_stream(binary), key) =~ "a \\(b\\) c"
+      assert content_text(binary, key) =~ "a \\(b\\) c"
     end
 
     test "a long password is truncated to 127 bytes rather than rejected" do
@@ -287,7 +298,7 @@ defmodule Tincture.EncryptTest do
       # Ciphertext is longer than plaintext by the IV plus padding; a stale
       # /Length would make the file unreadable.
       binary = encrypted_document(user_password: "p")
-      [_, length] = Regex.run(~r|/Length (\d+) >>\nstream\n|, binary)
+      [_, length] = Regex.run(~r|/Length (\d+)[ >]|, page_content_stream(binary).dict)
 
       assert rem(String.to_integer(length) - 16, 16) == 0
     end
@@ -398,7 +409,8 @@ defmodule Tincture.EncryptTest do
   end
 
   # Exports `pdf` plainly and encrypted, checks every stream of the encrypted
-  # file against the plain one, and returns the plain file's streams.
+  # file against the plain one, and returns the plain file's streams, each
+  # with its data decoded (PDFObjects.stream!/2).
   defp assert_streams_decrypt(pdf) do
     plain = Tincture.export(pdf)
     binary = pdf |> Tincture.encrypt(user_password: "p") |> Tincture.export()
@@ -423,7 +435,7 @@ defmodule Tincture.EncryptTest do
              "object #{number} does not decrypt to the bytes the unencrypted document holds"
     end
 
-    Map.values(expected)
+    for {number, stream} <- expected, do: %{stream | data: PDFObjects.stream!(plain, number)}
   end
 
   # Every stream object, by number: its dictionary and the data its /Length

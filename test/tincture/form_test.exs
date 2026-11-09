@@ -430,7 +430,7 @@ defmodule Tincture.FormTest do
         |> Tincture.push_button(72, 700, 90, 24, "b", label: label, action: :reset)
         |> export()
 
-      [_, shown] = Regex.run(~r|Td\n(.*?) Tj\nET|s, binary)
+      [_, shown] = Regex.run(~r|Td\n(.*?) Tj\nET|s, PDFObjects.decoded(binary))
       {shown, binary}
     end
 

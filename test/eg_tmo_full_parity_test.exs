@@ -48,13 +48,14 @@ defmodule Tincture.EgTmoFullParityTest do
     assert table_result.columns == 2
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
-    assert pdf_binary =~ "/Count 2"
-    assert pdf_binary =~ "(TMO Full Fixture 1/2) Tj"
-    assert pdf_binary =~ "(TMO Full Fixture 2/2) Tj"
-    assert pdf_binary =~ "(Confidential p.1) Tj"
-    assert pdf_binary =~ "(Confidential p.2) Tj"
-    assert pdf_binary =~ "(Metric) Tj"
-    assert pdf_binary =~ "(Status) Tj"
+    assert content =~ "/Count 2"
+    assert content =~ "(TMO Full Fixture 1/2) Tj"
+    assert content =~ "(TMO Full Fixture 2/2) Tj"
+    assert content =~ "(Confidential p.1) Tj"
+    assert content =~ "(Confidential p.2) Tj"
+    assert content =~ "(Metric) Tj"
+    assert content =~ "(Status) Tj"
   end
 end

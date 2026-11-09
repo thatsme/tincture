@@ -13,6 +13,7 @@ defmodule Tincture.CaptionAndLabelTest do
   """
   use ExUnit.Case, async: true
 
+  alias Tincture.Test.PDFObjects
   alias Tincture.Test.PKI
 
   @sans "examples/fonts/LiberationSans-Regular.ttf"
@@ -31,17 +32,15 @@ defmodule Tincture.CaptionAndLabelTest do
     end
   end
 
-  # The appearance stream of the widget `name`: {dictionary, content}.
+  # The appearance stream of the widget `name`: {dictionary as written,
+  # decoded content}.
   defp appearance(binary, name) do
     [_, id] = Regex.run(~r/\/AP << \/N (\d+) 0 R >>/, widget(binary, name))
 
-    [_, dictionary, content] =
-      Regex.run(
-        ~r/\n#{id} 0 obj\n(<< \/Type \/XObject .*? >>)\nstream\n(.*?)\nendstream/s,
-        binary
-      )
+    [_, dictionary] =
+      Regex.run(~r/\n#{id} 0 obj\n(<< \/Type \/XObject .*? >>)\nstream\n/s, binary)
 
-    {dictionary, content}
+    {dictionary, PDFObjects.stream!(binary, String.to_integer(id))}
   end
 
   # The object number /DR gives the font alias `alias`.
@@ -119,7 +118,7 @@ defmodule Tincture.CaptionAndLabelTest do
       assert base_font =~ ~r/^[A-Z]{6}\+Sans$/
 
       [_, to_unicode] = Regex.run(~r"\n#{id} 0 obj\n<< [^>]*/ToUnicode (\d+) 0 R", binary)
-      [_, cmap] = Regex.run(~r/\n#{to_unicode} 0 obj\n.*?stream\n(.*?)endstream/s, binary)
+      cmap = PDFObjects.stream!(binary, String.to_integer(to_unicode))
 
       for code <- ["0391", "03C0", "03BF", "03C3", "03C4", "03BB", "03AE", "0053", "006E"] do
         assert cmap =~ "<#{code}>", "the subset's ToUnicode has no #{code}"
@@ -149,7 +148,7 @@ defmodule Tincture.CaptionAndLabelTest do
 
       assert widget(binary, "s") =~ "/AP << /N "
       {dictionary, content} = appearance(binary, "s")
-      assert dictionary =~ "/BBox [0 0 200 40] /Resources << >> /Length 0 >>"
+      assert dictionary =~ "/BBox [0 0 200 40] /Resources << >> /Length "
       assert content == ""
     end
 
@@ -163,7 +162,7 @@ defmodule Tincture.CaptionAndLabelTest do
       {dictionary, content} = appearance(binary, "s")
       {_dictionary, text} = appearance(binary, "t")
 
-      assert dictionary =~ "/BBox [0 0 200 40] /Resources << >> /Length 29 >>"
+      assert dictionary =~ "/BBox [0 0 200 40] /Resources << >> /Length "
       assert content == "0 0 0 RG\n2 w\n1 1 198 38 re\nS\n"
       # The text field draws the same border, then its empty /Tx marking.
       assert text == content <> "/Tx BMC\nEMC\n"
@@ -363,11 +362,19 @@ defmodule Tincture.CaptionAndLabelTest do
 
     test "has its label inside the bytes the signature covers", %{binary: binary} do
       [start_one, length_one, start_two, length_two] = byte_range(binary)
-      {position, _length} = :binary.match(binary, "(Signed by A. Lovelace) Tj")
+      # The data of the stream that draws the label, as written.
+      [number] =
+        for {number, _dictionary, data} <- PDFObjects.streams(binary),
+            data =~ "(Signed by A. Lovelace) Tj",
+            do: number
+
+      %{objects: objects} = PDFObjects.read(binary)
+      position = objects[number].stream_at
+      length = PDFObjects.resolve(objects[number].value["Length"], objects)
 
       covered =
-        position + 26 <= start_one + length_one or
-          (position >= start_two and position + 26 <= start_two + length_two)
+        position + length <= start_one + length_one or
+          (position >= start_two and position + length <= start_two + length_two)
 
       assert covered
       assert start_one == 0 and start_two + length_two == byte_size(binary)

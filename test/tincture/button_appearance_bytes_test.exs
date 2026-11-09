@@ -1,7 +1,7 @@
 defmodule Tincture.ButtonAppearanceBytesTest do
   @moduledoc """
   The checkbox, radio, push-button and signature widgets, and every
-  appearance stream they carry, byte for byte.
+  appearance stream they carry, byte for byte: each stream as it decodes.
 
   Pinned before the button builders moved from assembled strings to
   operation lists, so that the move is proved to write the same bytes: each
@@ -21,16 +21,37 @@ defmodule Tincture.ButtonAppearanceBytesTest do
   """
   use ExUnit.Case, async: true
 
-  # The document's widget, field and form XObject objects, in order, whole.
+  alias Tincture.Test.PDFObjects
+
+  # The document's widget, field and form XObject objects, in order, whole,
+  # with each stream's data decoded (Tincture.Test.PDFObjects.decoded/1). A
+  # stream dictionary's /Length and /Filter describe the data as written, not
+  # as decoded, so they are left out; PDFObjects locates the data by /Length,
+  # and raises if it is wrong.
   defp objects(pdf) do
-    binary = Tincture.export(pdf)
+    binary = pdf |> Tincture.export() |> PDFObjects.decoded()
 
     ~r/\n(\d+ 0 obj\n.*?\nendobj)/s
     |> Regex.scan(binary, capture: :all_but_first)
     |> List.flatten()
     |> Enum.filter(&(&1 =~ ~r"/Widget|/FT /Btn|/Subtype /Form"))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &without_stream_extent/1)
     |> Kernel.<>("\n")
+  end
+
+  defp without_stream_extent(object) do
+    case String.split(object, ">>\nstream\n", parts: 2) do
+      [dictionary, rest] ->
+        dictionary =
+          dictionary
+          |> String.replace(~r/ \/Length \d+/, "", global: false)
+          |> String.replace(" /Filter /FlateDecode", "", global: false)
+
+        dictionary <> ">>\nstream\n" <> rest
+
+      [_not_a_stream] ->
+        object
+    end
   end
 
   test "a checked checkbox" do
@@ -39,7 +60,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            << /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /Rect [72 700 86 714] /P 3 0 R /F 4 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /V /Yes /DV /Yes /AS /Yes /AP << /N << /Yes 6 0 R /Off 7 0 R >> >> >>
            endobj
            6 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 14 14] /Resources << >> /Length 71 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 14 14] /Resources << >> >>
            stream
            0 G 0 g 1 w
            0.5 0.5 13 13 re
@@ -52,7 +73,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            endstream
            endobj
            7 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 14 14] /Resources << >> /Length 31 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 14 14] /Resources << >> >>
            stream
            0 G 0 g 1 w
            0.5 0.5 13 13 re
@@ -80,7 +101,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            << /Type /Annot /Subtype /Widget /Parent 5 0 R /Rect [72 700 84 712] /P 3 0 R /F 4 /Border [0 0 0] /MK << /BC [0] /BG [1] >> /AS /a /AP << /N << /a 7 0 R /Off 8 0 R >> >> >>
            endobj
            7 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> /Length 336 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> >>
            stream
            0 G 0 g 1 w
            11.5 6.0 m
@@ -99,7 +120,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            endstream
            endobj
            8 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> /Length 167 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> >>
            stream
            0 G 0 g 1 w
            11.5 6.0 m
@@ -115,7 +136,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            << /Type /Annot /Subtype /Widget /Parent 5 0 R /Rect [92 700 104 712] /P 3 0 R /F 4 /Border [0 0 0] /MK << /BC [0] /BG [1] >> /AS /Off /AP << /N << /b 10 0 R /Off 11 0 R >> >> >>
            endobj
            10 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> /Length 336 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> >>
            stream
            0 G 0 g 1 w
            11.5 6.0 m
@@ -134,7 +155,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            endstream
            endobj
            11 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> /Length 167 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Resources << >> >>
            stream
            0 G 0 g 1 w
            11.5 6.0 m
@@ -162,7 +183,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv 7 0 R >> >> /Length 128 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Helv 7 0 R >> >> >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
@@ -195,7 +216,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 168 726] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 96 26] /Resources << /Font << /Helv 7 0 R >> >> /Length 126 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 96 26] /Resources << /Font << /Helv 7 0 R >> >> >>
              stream
              0.93 0.93 0.94 rg
              0 0 96 26 re
@@ -229,7 +250,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Courier 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Courier 7 0 R >> >> /Length 130 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << /Font << /Courier 7 0 R >> >> >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
@@ -258,7 +279,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
              << /Type /Annot /Subtype /Widget /FT /Btn /T (send) /Rect [72 700 162 724] /P 3 0 R /F 4 /Ff 65536 /Border [0 0 0] /DA (/Helv 12.0 Tf 0 g) /A << /S /ResetForm >> /MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] >> /BS << /W 0.75 >> /AP << /N 6 0 R >> >>
              endobj
              6 0 obj
-             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << >> /Length 80 >>
+             << /Type /XObject /Subtype /Form /BBox [0 0 90 24] /Resources << >> >>
              stream
              0.93 0.93 0.94 rg
              0 0 90 24 re
@@ -282,7 +303,7 @@ defmodule Tincture.ButtonAppearanceBytesTest do
            << /Type /Annot /Subtype /Widget /FT /Sig /T (sig) /Rect [72 600 272 640] /P 3 0 R /F 4 /Border [0 0 0] /DA (/Helv 0 Tf 0 g) /AP << /N 6 0 R >> >>
            endobj
            6 0 obj
-           << /Type /XObject /Subtype /Form /BBox [0 0 200 40] /Resources << >> /Length 0 >>
+           << /Type /XObject /Subtype /Form /BBox [0 0 200 40] /Resources << >> >>
            stream
 
            endstream

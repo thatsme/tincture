@@ -45,14 +45,7 @@ defmodule Tincture.FieldFontsTest do
 
   defp count(binary, pattern), do: length(Regex.scan(pattern, binary))
 
-  defp stream_of(binary, object_id) do
-    [_, header, length] =
-      Regex.run(~r/\n#{object_id} 0 obj\n(<< \/Length (\d+)[^>]*>>)\nstream\n/, binary)
-
-    {start, _} = :binary.match(binary, "#{header}\nstream\n")
-    data = binary_part(binary, start + byte_size(header) + 8, String.to_integer(length))
-    if header =~ "FlateDecode", do: :zlib.uncompress(data), else: data
-  end
+  defp stream_of(binary, object_id), do: PDFObjects.stream!(binary, object_id)
 
   defp referenced(binary, key) do
     [_, id] = Regex.run(~r/\/#{key} (\d+) 0 R/, binary)
@@ -199,7 +192,7 @@ defmodule Tincture.FieldFontsTest do
     end
 
     test "F13: ASCII page text in a field's font is written through Identity-H", %{binary: binary} do
-      [_, content] = Regex.run(~r/<< \/Length \d+ >>\nstream\n(.*?)\nendstream/s, binary)
+      content = PDFObjects.page_content!(binary)
 
       assert content =~ ~r/^BT\n\/F1 12 Tf\n72 700 Td\n<[0-9A-F]+> Tj\nET\n$/
       refute content =~ "(Hello)"

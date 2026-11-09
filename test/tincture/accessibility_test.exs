@@ -1,6 +1,8 @@
 defmodule Tincture.AccessibilityTest do
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   alias Tincture.Layout.Box
   alias Tincture.Layout.Template
   alias Tincture.Typography.RichText
@@ -24,7 +26,7 @@ defmodule Tincture.AccessibilityTest do
         end)
         |> Tincture.export()
 
-      assert binary =~ "/Tabs /S"
+      assert decoded(binary) =~ "/Tabs /S"
     end
 
     # Without structure there is no order to follow, and emitting it anyway
@@ -36,7 +38,7 @@ defmodule Tincture.AccessibilityTest do
         |> Tincture.text_at(50, 700, "Hello")
         |> Tincture.export()
 
-      refute binary =~ "/Tabs"
+      refute decoded(binary) =~ "/Tabs"
     end
   end
 
@@ -52,14 +54,14 @@ defmodule Tincture.AccessibilityTest do
         end)
         |> Tincture.export()
 
-      assert binary =~ "/P <</MCID"
+      assert decoded(binary) =~ "/P <</MCID"
     end
 
     test "flowed text is not tagged in an untagged document" do
       {pdf, _result} = Box.flow_text(Tincture.new(), 50, 700, 200, 100, rich())
       binary = Tincture.export(pdf)
 
-      refute binary =~ "BDC"
+      refute decoded(binary) =~ "BDC"
     end
 
     test "tag: true tags even when the document is not otherwise tagged" do
@@ -76,7 +78,7 @@ defmodule Tincture.AccessibilityTest do
           tag: true
         )
 
-      assert Tincture.export(pdf) =~ "/P <</MCID"
+      assert decoded(Tincture.export(pdf)) =~ "/P <</MCID"
     end
 
     test "tag: false suppresses tagging inside a tagged document" do
@@ -90,7 +92,7 @@ defmodule Tincture.AccessibilityTest do
         end)
         |> Tincture.export()
 
-      refute binary =~ "/P <</MCID"
+      refute decoded(binary) =~ "/P <</MCID"
     end
 
     test "tag_as picks the structure element" do
@@ -108,7 +110,7 @@ defmodule Tincture.AccessibilityTest do
           tag_as: :h2
         )
 
-      assert Tincture.export(pdf) =~ "/H2 <</MCID"
+      assert decoded(Tincture.export(pdf)) =~ "/H2 <</MCID"
     end
 
     # Decorative text announced as content is the failure PAC catches and
@@ -123,8 +125,8 @@ defmodule Tincture.AccessibilityTest do
 
       binary = Tincture.export(pdf)
 
-      assert binary =~ "/Artifact BMC"
-      refute binary =~ "/P <</MCID"
+      assert decoded(binary) =~ "/Artifact BMC"
+      refute decoded(binary) =~ "/P <</MCID"
     end
 
     test "an invalid :tag is refused" do
@@ -153,7 +155,7 @@ defmodule Tincture.AccessibilityTest do
 
       # Running furniture repeats on every page and says nothing about the
       # content: marked as an artifact, a reader skips it.
-      assert binary =~ "/Artifact BMC"
+      assert decoded(binary) =~ "/Artifact BMC"
     end
 
     test "no artifact marking in an untagged document" do
@@ -163,7 +165,7 @@ defmodule Tincture.AccessibilityTest do
 
       {pdf, _result} = Template.render(Tincture.new(), template, rich(), page_number: 1)
 
-      refute Tincture.export(pdf) =~ "/Artifact"
+      refute decoded(Tincture.export(pdf)) =~ "/Artifact"
     end
   end
 
@@ -371,7 +373,7 @@ defmodule Tincture.AccessibilityTest do
         |> Stamp.place("Rendered", x: 60, y: 690)
         |> Tincture.export()
 
-      assert binary =~ "Rendered"
+      assert decoded(binary) =~ "Rendered"
     end
   end
 end

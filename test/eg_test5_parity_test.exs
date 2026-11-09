@@ -35,9 +35,10 @@ defmodule Tincture.EgTest5ParityTest do
     assert Enum.any?(rotated_ops, &match?({:text_at_rotated, _, _, 180, _, _}, &1))
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
-    assert pdf_binary =~ "0.7071067812 0.7071067812 -0.7071067812 0.7071067812"
-    assert pdf_binary =~ "0.0 1.0 -1.0 0.0"
-    assert pdf_binary =~ "-1.0 0.0 -0.0 -1.0"
+    assert content =~ "0.7071067812 0.7071067812 -0.7071067812 0.7071067812"
+    assert content =~ "0.0 1.0 -1.0 0.0"
+    assert content =~ "-1.0 0.0 -0.0 -1.0"
   end
 end

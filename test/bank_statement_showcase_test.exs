@@ -12,6 +12,7 @@ defmodule Tincture.BankStatementShowcaseTest do
     } = BankStatement.build_document()
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
     assert doc_result.pages_used == 3
     assert length(transaction_results) == 3
@@ -20,18 +21,18 @@ defmodule Tincture.BankStatementShowcaseTest do
     assert summary_result.rows == 4
     assert summary_result.columns == 2
 
-    assert pdf_binary =~ "/Count 3"
-    assert pdf_binary =~ "/Subtype /Image"
-    assert pdf_binary =~ "/Type /Outlines"
-    assert pdf_binary =~ "/Title (Bank Statement Showcase Demo)"
-    assert pdf_binary =~ "/Title (Account Overview)"
-    assert pdf_binary =~ "/Title (Transactions - Continued)"
-    assert pdf_binary =~ "/Title (Disclosures and Support)"
-    assert pdf_binary =~ "(Fjord Community Bank - Statement 1/3) Tj"
-    assert pdf_binary =~ "(Fjord Community Bank - Statement 3/3) Tj"
-    assert pdf_binary =~ "(Account: 5550010420) Tj"
-    assert pdf_binary =~ "(POS PURCHASE 0001) Tj"
-    assert pdf_binary =~ "(ENDING BALANCE) Tj"
+    assert content =~ "/Count 3"
+    assert content =~ "/Subtype /Image"
+    assert content =~ "/Type /Outlines"
+    assert content =~ "/Title (Bank Statement Showcase Demo)"
+    assert content =~ "/Title (Account Overview)"
+    assert content =~ "/Title (Transactions - Continued)"
+    assert content =~ "/Title (Disclosures and Support)"
+    assert content =~ "(Fjord Community Bank - Statement 1/3) Tj"
+    assert content =~ "(Fjord Community Bank - Statement 3/3) Tj"
+    assert content =~ "(Account: 5550010420) Tj"
+    assert content =~ "(POS PURCHASE 0001) Tj"
+    assert content =~ "(ENDING BALANCE) Tj"
   end
 
   test "joint fee/interest statement variant renders with variant-specific markers" do
@@ -43,6 +44,7 @@ defmodule Tincture.BankStatementShowcaseTest do
     } = BankStatement.build_document(:joint_fee_interest)
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
     assert doc_result.pages_used == 3
     assert length(transaction_results) == 3
@@ -50,12 +52,12 @@ defmodule Tincture.BankStatementShowcaseTest do
     assert summary_result.rows == 4
     assert summary_result.columns == 2
 
-    assert pdf_binary =~ "/Count 3"
-    assert pdf_binary =~ "/Title (Bank Statement Joint Fee/Interest Showcase Demo)"
-    assert pdf_binary =~ "/Title (Fees and Interest Activity)"
-    assert pdf_binary =~ "(JOINT ACCOUNT STATEMENT) Tj"
-    assert pdf_binary =~ "(Account: 5550099911) Tj"
-    assert pdf_binary =~ "MONTHLY SERVICE FEE"
-    assert pdf_binary =~ "INTEREST PAYMENT"
+    assert content =~ "/Count 3"
+    assert content =~ "/Title (Bank Statement Joint Fee/Interest Showcase Demo)"
+    assert content =~ "/Title (Fees and Interest Activity)"
+    assert content =~ "(JOINT ACCOUNT STATEMENT) Tj"
+    assert content =~ "(Account: 5550099911) Tj"
+    assert content =~ "MONTHLY SERVICE FEE"
+    assert content =~ "INTEREST PAYMENT"
   end
 end

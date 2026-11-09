@@ -12,6 +12,7 @@ defmodule Tincture.SignatureTest do
   use ExUnit.Case, async: true
 
   alias Tincture.PDF.CMS
+  alias Tincture.Test.PDFObjects
   alias Tincture.Test.PKI
 
   setup_all do
@@ -153,8 +154,7 @@ defmodule Tincture.SignatureTest do
       binary = signed_document(pki)
 
       # Change the visible text, exactly as a forger would.
-      {offset, length} = :binary.match(binary, "This document has been")
-      tampered = replace_at(binary, offset, length, "THIS document has been")
+      tampered = alter_visible_text(binary)
 
       assert {:error, :digest_mismatch} =
                PKI.verify_detached(
@@ -185,8 +185,7 @@ defmodule Tincture.SignatureTest do
                  ),
                "#{digest} signature does not verify"
 
-        {offset, length} = :binary.match(binary, "This document has been")
-        tampered = replace_at(binary, offset, length, "THIS document has been")
+        tampered = alter_visible_text(binary)
 
         assert {:error, :digest_mismatch} =
                  PKI.verify_detached(
@@ -333,6 +332,21 @@ defmodule Tincture.SignatureTest do
     test "the same document and signing time produce the same bytes", %{pki: pki} do
       assert signed_document(pki) == signed_document(pki)
     end
+  end
+
+  # One byte changed in the data of the stream that draws "This document has
+  # been", found decoded, so the change lands in the visible text whether or
+  # not the stream is compressed.
+  defp alter_visible_text(binary) do
+    [number] =
+      for {number, _dictionary, data} <- PDFObjects.streams(binary),
+          data =~ "This document has been",
+          do: number
+
+    %{objects: objects} = PDFObjects.read(binary)
+    at = objects[number].stream_at
+    <<byte>> = binary_part(binary, at, 1)
+    replace_at(binary, at, 1, <<Bitwise.bxor(byte, 0x20)>>)
   end
 
   defp replace_at(binary, offset, length, replacement) do

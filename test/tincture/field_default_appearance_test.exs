@@ -34,9 +34,7 @@ defmodule Tincture.FieldDefaultAppearanceTest do
   # Every Tf in the field's appearance stream: [{font alias, size as written}].
   defp appearance_sizes(binary, name) do
     [_, id] = Regex.run(~r/\/AP << \/N (\d+) 0 R >>/, widget(binary, name))
-
-    [_, content] =
-      Regex.run(~r/\n#{id} 0 obj\n<< \/Type \/XObject .*? >>\nstream\n(.*?)\nendstream/s, binary)
+    content = Tincture.Test.PDFObjects.stream!(binary, String.to_integer(id))
 
     ~r"/(\S+) (\S+) Tf"
     |> Regex.scan(content, capture: :all_but_first)

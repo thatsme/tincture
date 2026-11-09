@@ -34,16 +34,17 @@ defmodule Tincture.EgTmoReducedParityTest do
       )
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
     assert template_result.overflow? == false
     assert table_result.rows == 2
     assert table_result.columns == 2
 
-    assert pdf_binary =~ "(TMO Reduced Fixture) Tj"
-    assert pdf_binary =~ "(Confidential) Tj"
-    assert pdf_binary =~ "(Metric) Tj"
-    assert pdf_binary =~ "(Status) Tj"
-    assert pdf_binary =~ "/BaseFont /Helvetica-Bold"
-    assert pdf_binary =~ "/BaseFont /Times-Roman"
+    assert content =~ "(TMO Reduced Fixture) Tj"
+    assert content =~ "(Confidential) Tj"
+    assert content =~ "(Metric) Tj"
+    assert content =~ "(Status) Tj"
+    assert content =~ "/BaseFont /Helvetica-Bold"
+    assert content =~ "/BaseFont /Times-Roman"
   end
 end

@@ -13,6 +13,8 @@ defmodule Tincture.PDF.FontEmbedTest do
   """
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   import ExUnit.CaptureLog
 
   # -- font builders ---------------------------------------------------------
@@ -149,7 +151,7 @@ defmodule Tincture.PDF.FontEmbedTest do
           ] do
         pdf = render(font(os2: [width_class: width_class]))
 
-        assert pdf =~ "/FontStretch /#{expected}",
+        assert decoded(pdf) =~ "/FontStretch /#{expected}",
                "usWidthClass #{width_class} should map to #{expected}"
       end
     end
@@ -192,7 +194,7 @@ defmodule Tincture.PDF.FontEmbedTest do
       # Bit 0 is ITALIC. The descriptor flags carry it, and it changes how a
       # viewer synthesises a substitute.
       pdf = render(font(os2: [fs_selection: 1]))
-      assert pdf =~ "/ItalicAngle" or pdf =~ "/Flags"
+      assert decoded(pdf) =~ "/ItalicAngle" or decoded(pdf) =~ "/Flags"
     end
 
     test "fsSelection bit 5 marks the font bold" do
@@ -270,24 +272,24 @@ defmodule Tincture.PDF.FontEmbedTest do
       # has to become Type0 with Identity-H.
       pdf = render(font(chars: [{0x4E2D, 1}]), text: <<0x4E2D::utf8>>)
 
-      assert pdf =~ "/Type0"
-      assert pdf =~ "Identity-H"
-      assert pdf =~ "/CIDFontType2"
+      assert decoded(pdf) =~ "/Type0"
+      assert decoded(pdf) =~ "Identity-H"
+      assert decoded(pdf) =~ "/CIDFontType2"
     end
 
     test "a composite font carries a ToUnicode CMap so the text stays copyable" do
       # Without ToUnicode the glyphs render but copy out as gibberish.
       pdf = render(font(chars: [{0x4E2D, 1}]), text: <<0x4E2D::utf8>>)
 
-      assert pdf =~ "/ToUnicode"
-      assert pdf =~ "beginbfchar" or pdf =~ "beginbfrange"
+      assert decoded(pdf) =~ "/ToUnicode"
+      assert decoded(pdf) =~ "beginbfchar" or decoded(pdf) =~ "beginbfrange"
     end
 
     test "plain ASCII stays a simple font" do
       pdf = render(font())
 
-      assert pdf =~ "/Subtype /TrueType"
-      refute pdf =~ "/Type0"
+      assert decoded(pdf) =~ "/Subtype /TrueType"
+      refute decoded(pdf) =~ "/Type0"
     end
 
     test "a codepoint outside the BMP that the probe font does not map is refused" do
@@ -465,9 +467,9 @@ defmodule Tincture.PDF.FontEmbedTest do
     test "embeds CFF outlines as FontFile3, not FontFile2" do
       pdf = render_otf(otf())
 
-      assert pdf =~ "/FontFile3"
-      assert pdf =~ "/Subtype /OpenType"
-      refute pdf =~ "/FontFile2"
+      assert decoded(pdf) =~ "/FontFile3"
+      assert decoded(pdf) =~ "/Subtype /OpenType"
+      refute decoded(pdf) =~ "/FontFile2"
     end
 
     test "subsetting rewrites the CFF and tags the base font" do
@@ -491,28 +493,28 @@ defmodule Tincture.PDF.FontEmbedTest do
     test "subset: :none embeds the CFF table verbatim" do
       pdf = render_otf(otf(), register: [subset: :none])
 
-      assert pdf =~ "/BaseFont /Probe"
-      refute pdf =~ ~r|/BaseFont /[A-Z]{6}\+|
+      assert decoded(pdf) =~ "/BaseFont /Probe"
+      refute decoded(pdf) =~ ~r|/BaseFont /[A-Z]{6}\+|
     end
 
     test "drawing every glyph still produces a valid document" do
       pdf = render_otf(otf(), text: "AB")
 
-      assert pdf =~ "/FontFile3"
+      assert decoded(pdf) =~ "/FontFile3"
       assert String.starts_with?(pdf, "%PDF-1.4")
       assert String.ends_with?(String.trim_trailing(pdf), "%%EOF")
     end
 
     test "a CFF with a single charstring subsets without error" do
       pdf = render_otf(otf(charstrings: [<<14>>]))
-      assert pdf =~ "/FontFile3"
+      assert decoded(pdf) =~ "/FontFile3"
     end
 
     test "charstrings of equal size subset correctly" do
       # Equal sizes mean the INDEX offset arithmetic has no size differences to
       # hide a mistake behind.
       pdf = render_otf(otf(charstrings: [<<14>>, <<14>>, <<14>>]))
-      assert pdf =~ "/FontFile3"
+      assert decoded(pdf) =~ "/FontFile3"
     end
 
     test "a CFF whose offsets are longints subsets without corruption" do
@@ -526,8 +528,8 @@ defmodule Tincture.PDF.FontEmbedTest do
       # naming this test after it would be a lie.
       pdf = render_otf(otf(offset_padding: 2000))
 
-      assert pdf =~ "/FontFile3"
-      assert pdf =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
+      assert decoded(pdf) =~ "/FontFile3"
+      assert decoded(pdf) =~ ~r|/BaseFont /[A-Z]{6}\+Probe|
       assert String.starts_with?(pdf, "%PDF-1.4")
     end
 

@@ -39,6 +39,205 @@ defmodule Tincture.Test.PDFObjects do
   def resolve({:ref, number}, objects), do: objects |> Map.fetch!(number) |> Map.fetch!(:value)
   def resolve(value, _objects), do: value
 
+  ## Stream data, decoded
+
+  @doc """
+  A stream's data, decoded: the bytes its filters encode, which is what a
+  reader sees.
+
+  The data is located by the stream's `/Length` (resolved if it is a
+  reference), never by searching for `endstream`: Flate output can contain
+  any byte, `endstream` and end-of-line bytes included. The `/Length` bytes
+  must be followed by an end-of-line marker and `endstream`, or it raises.
+
+  - `/FlateDecode` is inflated, and it raises if the data does not inflate to
+    the end of a zlib stream, or if bytes are left over after it.
+  - `/DCTDecode` is passed through as it is: JPEG data is what is embedded.
+  - Any other filter raises, so a test never reads bytes it cannot decode as
+    if they were the content.
+  - Image data (`/Subtype /Image`) is returned as written unless
+    `images: true` is given. Then its Flate is inflated too, but a predictor
+    in `/DecodeParms` is not undone: PNG data keeps its per-row filter bytes.
+  """
+  @spec stream!(binary(), non_neg_integer(), keyword()) :: binary()
+  def stream!(pdf, number, opts \\ []) when is_binary(pdf) do
+    %{objects: objects} = read(pdf)
+    stream!(pdf, objects, number, opts)
+  end
+
+  @doc """
+  `stream!/3` for a file already read with `read/1`, given its objects, so a
+  caller reading many streams parses the file once.
+  """
+  @spec stream!(binary(), %{non_neg_integer() => object()}, non_neg_integer(), keyword()) ::
+          binary()
+  def stream!(pdf, objects, number, opts) when is_binary(pdf) and is_map(objects) do
+    decoded_stream!(pdf, objects, number, opts)
+  end
+
+  @doc """
+  Every stream in the file, in object-number order, as
+  `{number, dictionary, decoded data}` (`stream!/3`; image data as written
+  unless `images: true` is given).
+  """
+  @spec streams(binary(), keyword()) :: [{non_neg_integer(), map(), binary()}]
+  def streams(pdf, opts \\ []) when is_binary(pdf) do
+    %{objects: objects} = read(pdf)
+
+    for {number, %{stream_at: at, value: dictionary}} <- Enum.sort(objects), at != nil do
+      {number, dictionary, stream!(pdf, objects, number, opts)}
+    end
+  end
+
+  @doc """
+  The decoded content of page `number` (from 1, in `/Kids` order), its
+  `/Contents` streams joined in order.
+  """
+  @spec page_content!(binary(), pos_integer()) :: binary()
+  def page_content!(pdf, number \\ 1) when is_binary(pdf) do
+    %{objects: objects, trailer: trailer} = read(pdf)
+    catalog = trailer |> Map.fetch!("Root") |> resolve(objects)
+    pages = catalog |> Map.fetch!("Pages") |> resolve(objects)
+
+    page_ref = pages |> Map.fetch!("Kids") |> resolve(objects) |> Enum.at(number - 1)
+
+    unless page_ref, do: raise(ArgumentError, "the document has no page #{number}")
+
+    page_ref
+    |> resolve(objects)
+    |> Map.get("Contents", [])
+    |> List.wrap()
+    |> Enum.map_join(fn {:ref, stream} -> stream!(pdf, objects, stream, []) end)
+  end
+
+  @doc """
+  The file with every stream's data replaced by its decoded data
+  (`stream!/3`), for matching the content of a document as text.
+
+  The result is for matching only. Offsets and `/Length` values are those of
+  the file as written, so it is not itself a readable PDF. Image data is kept
+  as written unless `images: true` is given.
+  """
+  @spec decoded(binary(), keyword()) :: binary()
+  def decoded(pdf, opts \\ []) when is_binary(pdf) do
+    %{objects: objects} = read(pdf)
+
+    streams =
+      objects
+      |> Enum.filter(fn {_number, object} -> object.stream_at end)
+      |> Enum.sort_by(fn {_number, object} -> object.stream_at end)
+
+    {parts, rest_at} =
+      Enum.reduce(streams, {[], 0}, fn {number, object}, {parts, from} ->
+        data = decoded_stream!(pdf, objects, number, opts)
+        length = stream_length(objects, object)
+        before = binary_part(pdf, from, object.stream_at - from)
+        {[data, before | parts], object.stream_at + length}
+      end)
+
+    IO.iodata_to_binary(
+      Enum.reverse([binary_part(pdf, rest_at, byte_size(pdf) - rest_at) | parts])
+    )
+  end
+
+  defp decoded_stream!(pdf, objects, number, opts) do
+    object = Map.fetch!(objects, number)
+
+    unless object.stream_at do
+      raise ArgumentError, "object #{number} is not a stream"
+    end
+
+    length = stream_length(objects, object)
+    data = binary_part(pdf, object.stream_at, length)
+    check_stream_end!(pdf, object.stream_at + length, number)
+
+    dictionary = object.value
+
+    if Map.get(dictionary, "Subtype") == {:name, "Image"} and
+         not Keyword.get(opts, :images, false) do
+      data
+    else
+      dictionary |> Map.get("Filter") |> resolve(objects) |> filters() |> decode(data, number)
+    end
+  end
+
+  defp stream_length(objects, object) do
+    case object.value |> Map.fetch!("Length") |> resolve(objects) do
+      length when is_integer(length) and length >= 0 -> length
+      other -> raise ArgumentError, "a stream /Length of #{inspect(other)}"
+    end
+  end
+
+  # ISO 32000-1 §7.3.8.1: an end-of-line marker, not counted in /Length, then
+  # endstream.
+  defp check_stream_end!(pdf, at, number) do
+    tail = binary_part(pdf, at, min(12, byte_size(pdf) - at))
+
+    unless String.starts_with?(tail, ["\r\nendstream", "\nendstream", "\rendstream"]) do
+      raise ArgumentError,
+            "object #{number}: its /Length bytes are followed by #{inspect(tail)}, " <>
+              "not an end-of-line marker and endstream"
+    end
+  end
+
+  defp filters(nil), do: []
+  defp filters({:name, name}), do: [name]
+  defp filters(list) when is_list(list), do: Enum.map(list, fn {:name, name} -> name end)
+
+  defp decode([], data, _number), do: data
+
+  defp decode(["FlateDecode" | rest], data, number),
+    do: decode(rest, inflate!(data, number), number)
+
+  defp decode(["DCTDecode"], data, _number), do: data
+
+  defp decode([filter | _rest], _data, number),
+    do: raise(ArgumentError, "object #{number}: no decoder for the /#{filter} filter")
+
+  # :zlib.inflate/2 neither notices bytes left after the end of the zlib
+  # stream nor, by itself, a stream cut short. So the data must end the stream
+  # (inflateEnd/1 raises otherwise), and the data less its last byte must not:
+  # a stream ends with its 4-byte Adler-32, so if it is still complete without
+  # the last byte, that byte was left over.
+  @doc """
+  Inflates Flate data as `stream!/3` does: it raises if the data does not
+  inflate to the end of a zlib stream, or if bytes are left over after it.
+  For stream data this module cannot locate itself, such as an encrypted
+  stream once decrypted.
+  """
+  @spec inflate!(binary()) :: binary()
+  def inflate!(data) when is_binary(data), do: inflate!(data, "?")
+
+  defp inflate!(data, number) do
+    case inflate_whole(data) do
+      {:ok, inflated} ->
+        if byte_size(data) > 0 and
+             match?({:ok, _}, inflate_whole(binary_part(data, 0, byte_size(data) - 1))) do
+          raise ArgumentError, "object #{number}: bytes are left over after its Flate data"
+        end
+
+        inflated
+
+      :error ->
+        raise ArgumentError, "object #{number}: its Flate data does not inflate"
+    end
+  end
+
+  defp inflate_whole(data) do
+    z = :zlib.open()
+
+    try do
+      :ok = :zlib.inflateInit(z)
+      inflated = z |> :zlib.inflate(data) |> IO.iodata_to_binary()
+      :ok = :zlib.inflateEnd(z)
+      {:ok, inflated}
+    rescue
+      ErlangError -> :error
+    after
+      :zlib.close(z)
+    end
+  end
+
   ## The file structure
 
   defp read_xref(pdf) do

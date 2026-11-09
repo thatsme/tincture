@@ -1,6 +1,8 @@
 defmodule Tincture.ShadingTest do
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   # Both /ExtGState and /Shading are written inline into the page's resource
   # dictionary rather than as indirect objects, so these assertions read the
   # resource entry and the content stream operator together - the pair is what
@@ -14,8 +16,8 @@ defmodule Tincture.ShadingTest do
         |> Tincture.rectangle(20, 600, 120, 40, :fill)
         |> Tincture.export()
 
-      assert binary =~ "/ExtGState << /GS0 << /Type /ExtGState /ca 0.4 /CA 0.4 >> >>"
-      assert binary =~ "/GS0 gs"
+      assert decoded(binary) =~ "/ExtGState << /GS0 << /Type /ExtGState /ca 0.4 /CA 0.4 >> >>"
+      assert decoded(binary) =~ "/GS0 gs"
     end
 
     test "sets fill and stroke alpha separately" do
@@ -25,7 +27,7 @@ defmodule Tincture.ShadingTest do
         |> Tincture.rectangle(20, 600, 120, 40, :fill_and_stroke)
         |> Tincture.export()
 
-      assert binary =~ "/ca 0.25 /CA 1"
+      assert decoded(binary) =~ "/ca 0.25 /CA 1"
     end
 
     test "an unspecified channel stays opaque" do
@@ -35,7 +37,7 @@ defmodule Tincture.ShadingTest do
         |> Tincture.rectangle(20, 600, 120, 40, :fill)
         |> Tincture.export()
 
-      assert binary =~ "/ca 0.5 /CA 1"
+      assert decoded(binary) =~ "/ca 0.5 /CA 1"
     end
 
     test "identical states share one resource, distinct ones do not" do
@@ -49,9 +51,9 @@ defmodule Tincture.ShadingTest do
         |> Tincture.rectangle(140, 600, 40, 40, :fill)
         |> Tincture.export()
 
-      assert binary =~ "/GS0 << /Type /ExtGState /ca 0.5 /CA 0.5 >>"
-      assert binary =~ "/GS1 << /Type /ExtGState /ca 0.9 /CA 0.9 >>"
-      refute binary =~ "/GS2"
+      assert decoded(binary) =~ "/GS0 << /Type /ExtGState /ca 0.5 /CA 0.5 >>"
+      assert decoded(binary) =~ "/GS1 << /Type /ExtGState /ca 0.9 /CA 0.9 >>"
+      refute decoded(binary) =~ "/GS2"
     end
 
     test "rejects an alpha outside 0..1" do
@@ -71,13 +73,13 @@ defmodule Tincture.ShadingTest do
         ])
         |> Tincture.export()
 
-      assert binary =~ "/ShadingType 2"
-      assert binary =~ "/ColorSpace /DeviceRGB"
-      assert binary =~ "/FunctionType 2"
-      assert binary =~ "/C0 [0.05 0.32 0.55]"
-      assert binary =~ "/C1 [0.02 0.06 0.12]"
-      assert binary =~ "/Extend [true true]"
-      assert binary =~ "/Sh0 sh"
+      assert decoded(binary) =~ "/ShadingType 2"
+      assert decoded(binary) =~ "/ColorSpace /DeviceRGB"
+      assert decoded(binary) =~ "/FunctionType 2"
+      assert decoded(binary) =~ "/C0 [0.05 0.32 0.55]"
+      assert decoded(binary) =~ "/C1 [0.02 0.06 0.12]"
+      assert decoded(binary) =~ "/Extend [true true]"
+      assert decoded(binary) =~ "/Sh0 sh"
     end
 
     test "vertical runs the first stop from the top of the rectangle" do
@@ -88,7 +90,7 @@ defmodule Tincture.ShadingTest do
 
       # y + height down to y: PDF's y axis points up, so the top is the larger
       # coordinate.
-      assert binary =~ "/Coords [0 842 0 500]"
+      assert decoded(binary) =~ "/Coords [0 842 0 500]"
     end
 
     test "horizontal runs left to right" do
@@ -99,7 +101,7 @@ defmodule Tincture.ShadingTest do
         )
         |> Tincture.export()
 
-      assert binary =~ "/Coords [40 700 555 700]"
+      assert decoded(binary) =~ "/Coords [40 700 555 700]"
     end
 
     test "an explicit axis is used as given" do
@@ -110,7 +112,7 @@ defmodule Tincture.ShadingTest do
         )
         |> Tincture.export()
 
-      assert binary =~ "/Coords [10 20 30 40]"
+      assert decoded(binary) =~ "/Coords [10 20 30 40]"
     end
 
     test "more than two stops are stitched" do
@@ -123,12 +125,12 @@ defmodule Tincture.ShadingTest do
         ])
         |> Tincture.export()
 
-      assert binary =~ "/FunctionType 3"
+      assert decoded(binary) =~ "/FunctionType 3"
       # One interpolation per adjacent pair, handing over at the interior stop.
-      assert binary =~ "/Bounds [0.5]"
-      assert binary =~ "/Encode [0 1 0 1]"
-      assert binary =~ "/C0 [0.85 0.2 0.3]"
-      assert binary =~ "/C1 [0.2 0.55 0.45]"
+      assert decoded(binary) =~ "/Bounds [0.5]"
+      assert decoded(binary) =~ "/Encode [0 1 0 1]"
+      assert decoded(binary) =~ "/C0 [0.85 0.2 0.3]"
+      assert decoded(binary) =~ "/C1 [0.2 0.55 0.45]"
     end
 
     test "extend can be turned off" do
@@ -139,7 +141,7 @@ defmodule Tincture.ShadingTest do
         )
         |> Tincture.export()
 
-      assert binary =~ "/Extend [false false]"
+      assert decoded(binary) =~ "/Extend [false false]"
     end
 
     test "the gradient clips to its rectangle and restores the state" do
@@ -148,7 +150,7 @@ defmodule Tincture.ShadingTest do
         |> Tincture.linear_gradient(10, 20, 30, 40, [{0.0, {1, 1, 1}}, {1.0, {0, 0, 0}}])
         |> Tincture.export()
 
-      assert binary =~ "q\n10 20 30 40 re\nW\nn\n/Sh0 sh\nQ\n"
+      assert decoded(binary) =~ "q\n10 20 30 40 re\nW\nn\n/Sh0 sh\nQ\n"
     end
   end
 
@@ -162,9 +164,9 @@ defmodule Tincture.ShadingTest do
         ])
         |> Tincture.export()
 
-      assert binary =~ "/ShadingType 3"
+      assert decoded(binary) =~ "/ShadingType 3"
       # Centre of the rectangle, from radius 0 out to half the longer side.
-      assert binary =~ "/Coords [300 600 0 300 600 120]"
+      assert decoded(binary) =~ "/Coords [300 600 0 300 600 120]"
     end
 
     test "centre, radius and inner radius can be given" do
@@ -177,7 +179,7 @@ defmodule Tincture.ShadingTest do
         )
         |> Tincture.export()
 
-      assert binary =~ "/Coords [25 75 10 25 75 60]"
+      assert decoded(binary) =~ "/Coords [25 75 10 25 75 60]"
     end
   end
 
@@ -228,8 +230,8 @@ defmodule Tincture.ShadingTest do
         |> Tincture.text_at(50, 700, "Plain")
         |> Tincture.export()
 
-      refute binary =~ "/ExtGState"
-      refute binary =~ "/Shading"
+      refute decoded(binary) =~ "/ExtGState"
+      refute decoded(binary) =~ "/Shading"
     end
   end
 end

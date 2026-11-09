@@ -26,15 +26,11 @@ defmodule Tincture.PathStateTest do
 
   alias Tincture.PDF.PathState
   alias Tincture.Test.ContentStreamState
+  alias Tincture.Test.PDFObjects
 
   defp open_path, do: Tincture.new() |> Tincture.move_to(10, 10) |> Tincture.line_to(50, 50)
 
-  defp content(pdf) do
-    [_, stream] =
-      Regex.run(~r/stream\n(.*?)\nendstream/s, Tincture.export(pdf, enforce: false))
-
-    stream
-  end
+  defp content(pdf), do: PDFObjects.page_content!(Tincture.export(pdf, enforce: false))
 
   defp quiet(fun) do
     {result, stderr} = with_io(:stderr, fun)
@@ -472,10 +468,7 @@ defmodule Tincture.PathStateTest do
 
     # export/2 refuses these documents (W6), so the serialiser, which is
     # published for internal use too, is called directly.
-    defp serialised(pdf) do
-      [_, stream] = Regex.run(~r/stream\n(.*?)\nendstream/s, Tincture.PDF.Serialize.export(pdf))
-      stream
-    end
+    defp serialised(pdf), do: PDFObjects.page_content!(Tincture.PDF.Serialize.export(pdf))
 
     test "the checker sees the faults the guarantee prevents" do
       refute ContentStreamState.check_stream("0 0 m\n10 10 l\n") == []

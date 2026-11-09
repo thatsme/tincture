@@ -30,10 +30,11 @@ defmodule Tincture.Test.ContentStreamState do
   this checker needs to learn about it.
 
   `check_pdf/1` covers every page `/Contents` stream and every form XObject,
-  reached through the cross-reference table. It reads the file as written, and
-  refuses rather than skips anything it cannot read faithfully: a filtered
-  stream it has to check, an encrypted document, an incremental update,
-  object streams or a cross-reference stream.
+  reached through the cross-reference table. It reads each stream decoded,
+  through `Tincture.Test.PDFObjects.stream!/4`, and refuses rather than skips
+  anything it cannot read faithfully: a stream it has no decoder for, an
+  encrypted document, an incremental update, object streams or a
+  cross-reference stream.
   """
 
   alias Tincture.Test.PDFObjects
@@ -391,21 +392,12 @@ defmodule Tincture.Test.ContentStreamState do
         "object #{owner}: /Contents entry #{inspect(other)} is not a reference"
       )
 
-  defp stream_data!(pdf, number, %{value: %{} = dict, stream_at: start}, objects)
-       when is_integer(start) do
-    if Map.has_key?(dict, "Filter") do
-      raise ArgumentError,
-            "object #{number} carries /Filter #{inspect(Map.get(dict, "Filter"))}; " <>
-              "the checker reads unfiltered content streams only"
-    end
-
-    length =
-      case Map.get(dict, "Length") do
-        length when is_integer(length) -> length
-        {:ref, target} -> objects |> Map.fetch!(target) |> Map.fetch!(:value)
-      end
-
-    {start, binary_part(pdf, start, length)}
+  # The stream's decoded data, located by /Length (PDFObjects.stream!/4): what
+  # a viewer interprets, whether or not the stream is compressed. Offsets are
+  # into the decoded data from the stream's first byte, so they point into the
+  # file only for an unfiltered stream.
+  defp stream_data!(pdf, number, %{stream_at: start}, objects) when is_integer(start) do
+    {start, PDFObjects.stream!(pdf, objects, number, [])}
   end
 
   defp stream_data!(_pdf, number, _object, _objects),
