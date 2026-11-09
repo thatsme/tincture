@@ -9,6 +9,8 @@ defmodule Tincture.Layout.TaggedTableTest do
   """
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   alias Tincture.Layout.Table
 
   @rows [["Region", "Revenue"], ["North", "1,204"], ["South", "986"]]
@@ -61,12 +63,12 @@ defmodule Tincture.Layout.TaggedTableTest do
       # Six cells, each with a border rectangle. Untagged content in a tagged
       # document is read out as noise and fails conformance, so decoration has
       # to say what it is.
-      assert length(Regex.scan(~r|/Artifact BMC|, binary)) == 6
+      assert length(Regex.scan(~r|/Artifact BMC|, decoded(binary))) == 6
     end
 
     test "every marked-content sequence is closed", %{binary: binary} do
-      opened = length(Regex.scan(~r/BDC|BMC/, binary))
-      closed = length(Regex.scan(~r/EMC/, binary))
+      opened = length(Regex.scan(~r/BDC|BMC/, decoded(binary)))
+      closed = length(Regex.scan(~r/EMC/, decoded(binary)))
 
       # Six cells and six border artifacts; the containers emit nothing.
       assert opened == 12
@@ -121,9 +123,9 @@ defmodule Tincture.Layout.TaggedTableTest do
       # so a caller who has not opted into tagging does not silently get it.
       binary = render(Tincture.new(), header_rows: 1)
 
-      refute binary =~ "/StructTreeRoot"
-      refute binary =~ "BDC"
-      refute binary =~ "Artifact"
+      refute decoded(binary) =~ "/StructTreeRoot"
+      refute decoded(binary) =~ "BDC"
+      refute decoded(binary) =~ "Artifact"
     end
 
     test "a document already carrying structure gets a tagged table" do
@@ -151,7 +153,7 @@ defmodule Tincture.Layout.TaggedTableTest do
 
       binary = render(pdf, header_rows: 1, tag: true)
 
-      assert binary =~ "/StructTreeRoot"
+      assert decoded(binary) =~ "/StructTreeRoot"
       assert count_elements(binary, "Table") == 1
     end
 
@@ -159,7 +161,7 @@ defmodule Tincture.Layout.TaggedTableTest do
       binary = tagged_document(header_rows: 1, tag: false)
 
       assert count_elements(binary, "Table") == 0
-      refute binary =~ "/Artifact BMC"
+      refute decoded(binary) =~ "/Artifact BMC"
     end
 
     test "rejects anything else" do
@@ -175,8 +177,8 @@ defmodule Tincture.Layout.TaggedTableTest do
       tagged = tagged_document(header_rows: 1)
 
       for text <- ["Region", "Revenue", "North", "1,204", "South", "986"] do
-        assert plain =~ text
-        assert tagged =~ text
+        assert decoded(plain) =~ text
+        assert decoded(tagged) =~ text
       end
     end
 
@@ -192,7 +194,7 @@ defmodule Tincture.Layout.TaggedTableTest do
     test "border: false draws no artifacts, since there is nothing to skip" do
       binary = tagged_document(header_rows: 1, border: false)
 
-      refute binary =~ "/Artifact BMC"
+      refute decoded(binary) =~ "/Artifact BMC"
       assert count_elements(binary, "TD") == 4
     end
 
@@ -232,8 +234,8 @@ defmodule Tincture.Layout.TaggedTableTest do
         end)
         |> Tincture.export()
 
-      assert binary =~ "/Artifact BMC"
-      assert binary =~ "EMC"
+      assert decoded(binary) =~ "/Artifact BMC"
+      assert decoded(binary) =~ "EMC"
     end
 
     test "rejects a callback that does not return a document" do

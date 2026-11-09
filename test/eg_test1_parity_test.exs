@@ -46,24 +46,25 @@ defmodule Tincture.EgTest1ParityTest do
       |> Tincture.text_at(50, 520, "Back on page 1")
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
     assert String.starts_with?(pdf_binary, "%PDF-1.4")
-    assert pdf_binary =~ "/Type /Catalog"
-    assert pdf_binary =~ "/Type /Pages"
-    assert pdf_binary =~ "/Count 2"
-    assert pdf_binary =~ "/Type /Outlines"
-    assert pdf_binary =~ "/Info "
-    assert pdf_binary =~ "/Title (EG Test 1)"
-    assert pdf_binary =~ "/Author (Tincture)"
-    assert pdf_binary =~ "/Dest [3 0 R /Fit]"
-    assert pdf_binary =~ "/Dest [5 0 R /Fit]"
-    assert pdf_binary =~ "/BaseFont /Helvetica"
-    assert pdf_binary =~ "/BaseFont /Times-Roman"
-    assert pdf_binary =~ "f*\n"
-    assert pdf_binary =~ "W*\nn\n"
-    assert pdf_binary =~ "7.5 M\n"
-    assert pdf_binary =~ "/Filter /DCTDecode"
-    assert pdf_binary =~ "/Filter /FlateDecode"
+    assert content =~ "/Type /Catalog"
+    assert content =~ "/Type /Pages"
+    assert content =~ "/Count 2"
+    assert content =~ "/Type /Outlines"
+    assert content =~ "/Info "
+    assert content =~ "/Title (EG Test 1)"
+    assert content =~ "/Author (Tincture)"
+    assert content =~ "/Dest [3 0 R /Fit]"
+    assert content =~ "/Dest [5 0 R /Fit]"
+    assert content =~ "/BaseFont /Helvetica"
+    assert content =~ "/BaseFont /Times-Roman"
+    assert content =~ "f*\n"
+    assert content =~ "W*\nn\n"
+    assert content =~ "7.5 M\n"
+    assert content =~ "/Filter /DCTDecode"
+    assert content =~ "/Filter /FlateDecode"
 
     assert_structural_pdf_consistency(pdf_binary)
 

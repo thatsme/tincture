@@ -57,16 +57,17 @@ defmodule Tincture.KdTest1ParityTest do
     assert table_result.columns == 3
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
-    assert pdf_binary =~ "/Subtype /Image"
-    assert pdf_binary =~ "/Filter /FlateDecode"
-    assert pdf_binary =~ "(ACME Billing Statement 1/1) Tj"
-    assert pdf_binary =~ "(Due in 30 days - Page 1) Tj"
-    assert pdf_binary =~ "(Consulting) Tj"
-    assert pdf_binary =~ "(Total Due) Tj"
-    assert pdf_binary =~ "/Type /Outlines"
-    assert pdf_binary =~ "/Title (Invoice Start)"
-    assert pdf_binary =~ "/Title (KD Test 1)"
+    assert content =~ "/Subtype /Image"
+    assert content =~ "/Filter /FlateDecode"
+    assert content =~ "(ACME Billing Statement 1/1) Tj"
+    assert content =~ "(Due in 30 days - Page 1) Tj"
+    assert content =~ "(Consulting) Tj"
+    assert content =~ "(Total Due) Tj"
+    assert content =~ "/Type /Outlines"
+    assert content =~ "/Title (Invoice Start)"
+    assert content =~ "/Title (KD Test 1)"
 
     File.rm(logo_path)
   end

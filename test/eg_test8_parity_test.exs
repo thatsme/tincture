@@ -53,8 +53,9 @@ defmodule Tincture.EgTest8ParityTest do
     assert Enum.any?(pdf.operations, &match?({:text_at, _, _, "\\b", {"Helvetica", 10.0}}, &1))
 
     pdf_binary = Tincture.export(pdf)
-    assert pdf_binary =~ "(\\\\b) Tj"
-    assert pdf_binary =~ "(\\\\n) Tj"
-    assert pdf_binary =~ "(\\\\t) Tj"
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
+    assert content =~ "(\\\\b) Tj"
+    assert content =~ "(\\\\n) Tj"
+    assert content =~ "(\\\\t) Tj"
   end
 end

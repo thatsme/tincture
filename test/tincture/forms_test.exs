@@ -11,7 +11,10 @@ defmodule Tincture.FormsTest do
   """
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   alias Tincture.PDF
+  alias Tincture.Test.PDFObjects
 
   defp form_pdf do
     Tincture.new() |> Tincture.add_page()
@@ -60,9 +63,9 @@ defmodule Tincture.FormsTest do
 
     test "the parent carries the value as a name object", %{binary: binary} do
       # A name, not a string: it names one of the kids' appearance states.
-      assert binary =~ "/V /express"
-      assert binary =~ "/DV /express"
-      refute binary =~ "/V (express)"
+      assert decoded(binary) =~ "/V /express"
+      assert decoded(binary) =~ "/DV /express"
+      refute decoded(binary) =~ "/V (express)"
     end
 
     test "the parent references every kid", %{binary: binary} do
@@ -80,13 +83,13 @@ defmodule Tincture.FormsTest do
 
     test "each kid names its export value as an appearance state", %{binary: binary} do
       for value <- ["standard", "express", "collect"] do
-        assert binary =~ ~r|/AP << /N << /#{value} \d+ 0 R /Off \d+ 0 R >> >>|
+        assert decoded(binary) =~ ~r|/AP << /N << /#{value} \d+ 0 R /Off \d+ 0 R >> >>|
       end
     end
 
     test "only the selected button is in its on state", %{binary: binary} do
-      assert binary =~ "/AS /express"
-      refute binary =~ "/AS /standard"
+      assert decoded(binary) =~ "/AS /express"
+      refute decoded(binary) =~ "/AS /standard"
       assert length(Regex.scan(~r|/AS /Off|, binary)) == 2
     end
 
@@ -96,8 +99,8 @@ defmodule Tincture.FormsTest do
         |> Tincture.radio_group("delivery", [[value: "standard", x: 50, y: 700, size: 12]])
         |> export()
 
-      assert binary =~ "/V /Off"
-      refute binary =~ "/AS /standard"
+      assert decoded(binary) =~ "/V /Off"
+      refute decoded(binary) =~ "/AS /standard"
     end
 
     test "sets the radio flag, and no-toggle-to-off by default", %{pdf: pdf} do
@@ -127,9 +130,10 @@ defmodule Tincture.FormsTest do
 
     test "the on appearance draws a dot the off appearance does not", %{binary: binary} do
       # Both stroke a ring; only the on state also fills one.
-      assert binary =~ "f\n"
-      streams = Regex.scan(~r/stream\n(.*?)endstream/s, binary)
-      filled = Enum.count(streams, fn [_, body] -> body =~ "c\nf\n" end)
+      assert decoded(binary) =~ "f
+"
+      streams = PDFObjects.streams(binary)
+      filled = Enum.count(streams, fn {_number, _dictionary, body} -> body =~ "c\nf\n" end)
 
       assert filled == 3
     end
@@ -228,8 +232,8 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "clear", action: :reset)
         |> export()
 
-      assert binary =~ "/A << /S /ResetForm >>"
-      assert binary =~ "/FT /Btn"
+      assert decoded(binary) =~ "/A << /S /ResetForm >>"
+      assert decoded(binary) =~ "/FT /Btn"
     end
 
     test "emits a URL action" do
@@ -238,7 +242,7 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "help", action: {:url, "https://example.com"})
         |> export()
 
-      assert binary =~ "/S /URI /URI (https://example.com)"
+      assert decoded(binary) =~ "/S /URI /URI (https://example.com)"
     end
 
     test "emits a submit action" do
@@ -247,8 +251,8 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "send", action: {:submit, "https://example.com/f"})
         |> export()
 
-      assert binary =~ "/S /SubmitForm"
-      assert binary =~ "/FS /URL /F (https://example.com/f)"
+      assert decoded(binary) =~ "/S /SubmitForm"
+      assert decoded(binary) =~ "/FS /URL /F (https://example.com/f)"
     end
 
     test "sets the push button flag" do
@@ -264,10 +268,10 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "go", action: :reset, label: "Send")
         |> export()
 
-      assert binary =~ "/MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >>"
-      assert binary =~ "/AP << /N "
-      assert binary =~ "/Subtype /Form /BBox [0 0 80 20]"
-      assert binary =~ "(Send) Tj"
+      assert decoded(binary) =~ "/MK << /BC [0.55 0.57 0.6] /BG [0.93 0.93 0.94] /CA (Send) >>"
+      assert decoded(binary) =~ "/AP << /N "
+      assert decoded(binary) =~ "/Subtype /Form /BBox [0 0 80 20]"
+      assert decoded(binary) =~ "(Send) Tj"
     end
 
     test "a button with no label still gets a face" do
@@ -276,8 +280,8 @@ defmodule Tincture.FormsTest do
         |> Tincture.push_button(0, 0, 80, 20, "go", action: :reset)
         |> export()
 
-      assert binary =~ "/Subtype /Form /BBox [0 0 80 20]"
-      refute binary =~ "Tj"
+      assert decoded(binary) =~ "/Subtype /Form /BBox [0 0 80 20]"
+      refute decoded(binary) =~ "Tj"
     end
   end
 
@@ -288,8 +292,8 @@ defmodule Tincture.FormsTest do
         |> Tincture.signature_field(50, 500, 200, 40, "signature")
         |> export()
 
-      assert binary =~ "/FT /Sig"
-      assert binary =~ "/T (signature)"
+      assert decoded(binary) =~ "/FT /Sig"
+      assert decoded(binary) =~ "/T (signature)"
     end
 
     test "carries no value, signed or otherwise" do
@@ -298,7 +302,7 @@ defmodule Tincture.FormsTest do
         |> Tincture.signature_field(50, 500, 200, 40, "signature")
         |> export()
 
-      refute binary =~ "/V "
+      refute decoded(binary) =~ "/V "
     end
 
     test "rejects a value" do
@@ -317,7 +321,7 @@ defmodule Tincture.FormsTest do
         |> Tincture.checkbox(50, 700, 14, "terms")
         |> export()
 
-      assert binary =~ "/AP << /N << /Yes "
+      assert decoded(binary) =~ "/AP << /N << /Yes "
       assert length(Regex.scan(~r|/Subtype /Form /BBox|, binary)) == 2
     end
 
@@ -338,10 +342,7 @@ defmodule Tincture.FormsTest do
     test "exactly one of the two states draws a tick" do
       binary = form_pdf() |> Tincture.checkbox(50, 700, 14, "terms") |> export()
 
-      streams =
-        ~r/stream\n(.*?)endstream/s
-        |> Regex.scan(binary)
-        |> Enum.map(fn [_, body] -> body end)
+      streams = for {_number, _dictionary, body} <- PDFObjects.streams(binary), do: body
 
       # The tick is three points joined by `l` and stroked; the box alone is a
       # rectangle, so counting `l` operators separates them.

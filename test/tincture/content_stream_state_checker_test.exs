@@ -154,17 +154,34 @@ defmodule Tincture.ContentStreamStateCheckerTest do
                ContentStreamState.check_pdf(pdf)
     end
 
-    test "refuses a filtered stream it has to read, naming the object" do
+    test "reads a Flate stream decoded, so a violation inside it is found" do
       pdf =
         hand_written_pdf([
           "<< /Type /Catalog /Pages 2 0 R >>",
           "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
           "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 10 10] /Contents [4 0 R] >>",
-          stream_object(" /Filter /FlateDecode", "x")
+          stream_object(" /Filter /FlateDecode", :zlib.compress("S"))
         ])
 
-      assert_raise ArgumentError, ~r/object 4 carries \/Filter/, fn ->
-        ContentStreamState.check_pdf(pdf)
+      assert %{streams: 1, violations: [%{object: 4, operator: "S"}]} =
+               ContentStreamState.check_pdf(pdf)
+    end
+
+    test "refuses a stream it cannot decode, naming the object" do
+      for {filter, data} <- [{" /Filter /FlateDecode", "x"}, {" /Filter /LZWDecode", "x"}] do
+        pdf =
+          hand_written_pdf([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 10 10] /Contents [4 0 R] >>",
+            stream_object(filter, data)
+          ])
+
+        assert_raise ArgumentError,
+                     ~r/object 4: (its Flate data does not inflate|no decoder)/,
+                     fn ->
+                       ContentStreamState.check_pdf(pdf)
+                     end
       end
     end
 

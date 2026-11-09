@@ -21,7 +21,9 @@ read against the page and each Form against the label it sits under.
 Prints one Markdown table per file, in structure order. Exits 1 if any step
 fails or leads elsewhere, or if a file's Form elements and widgets differ in
 number. Standard library only; written for the files Tincture produces (one
-classic cross-reference table, uncompressed objects, Flate content streams).
+classic cross-reference table, no object streams). Stream data is located by
+its /Length and Flate data inflated; a stream that cannot be read so is a
+failure, never skipped.
 """
 
 import re
@@ -31,23 +33,55 @@ import zlib
 OBJ = re.compile(rb"(?m)^(\d+) 0 obj\r?\n(<<.*?>>)\r?\n(stream\r?\n|endobj)", re.S)
 
 
+class Unreadable(Exception):
+    """A stream this script cannot read as the format defines it."""
+
+
+LENGTH = re.compile(r"/Length (\d+)(?! \d+ R)(?![\d])")
+
+
+def inflate(raw, number):
+    """Flate data, inflated; it must end the zlib stream and leave nothing over."""
+    inflater = zlib.decompressobj()
+    try:
+        out = inflater.decompress(raw) + inflater.flush()
+    except zlib.error as error:
+        raise Unreadable("object %d: its Flate data does not inflate (%s)" % (number, error))
+    if not inflater.eof or inflater.unused_data:
+        raise Unreadable("object %d: its Flate data is cut short or has bytes left over" % number)
+    return out
+
+
 def load(data):
-    """Every object's dictionary, and the decoded data of each stream."""
+    """Every object's dictionary, and the decoded data of each stream.
+
+    A stream's data is the /Length bytes after the `stream` keyword's end of
+    line, never found by searching for `endstream`: Flate data can hold any
+    byte, end-of-line bytes and `endstream` included. Scanning for the next
+    object resumes after the data, for the same reason."""
     dictionaries, streams = {}, {}
-    for match in OBJ.finditer(data):
+    position = 0
+    while True:
+        match = OBJ.search(data, position)
+        if match is None:
+            return dictionaries, streams
         number = int(match.group(1))
-        dictionaries[number] = match.group(2).decode("latin-1")
-        if match.group(3).startswith(b"stream"):
-            start = match.end()
-            end = data.index(b"endstream", start)
-            raw = data[start:end].rstrip(b"\r\n")
-            if "/FlateDecode" in dictionaries[number]:
-                try:
-                    raw = zlib.decompress(raw)
-                except zlib.error:
-                    pass
-            streams[number] = raw.decode("latin-1")
-    return dictionaries, streams
+        dictionary = match.group(2).decode("latin-1")
+        dictionaries[number] = dictionary
+        position = match.end()
+        if not match.group(3).startswith(b"stream"):
+            continue
+        length = LENGTH.search(dictionary)
+        if length is None:
+            raise Unreadable("object %d: no direct /Length" % number)
+        start, end = match.end(), match.end() + int(length.group(1))
+        if not re.match(rb"\r?\nendstream|\rendstream", data[end : end + 12]):
+            raise Unreadable("object %d: its /Length does not end at an end of line and endstream" % number)
+        raw = data[start:end]
+        if "/FlateDecode" in dictionary:
+            raw = inflate(raw, number)
+        streams[number] = raw.decode("latin-1")
+        position = end
 
 
 def ref(body, key):
@@ -245,7 +279,13 @@ def trace(path):
 
 def main(paths):
     sys.stdout.reconfigure(encoding="utf-8")
-    results = [trace(path) for path in paths]
+    results = []
+    for path in paths:
+        try:
+            results.append(trace(path))
+        except Unreadable as error:
+            print("%s: %s" % (path, error))
+            results.append(False)
     sys.exit(0 if all(results) else 1)
 
 

@@ -11,6 +11,8 @@ defmodule Tincture.FieldAppearanceTest do
   """
   use ExUnit.Case, async: true
 
+  alias Tincture.Test.PDFObjects
+
   @sans "examples/fonts/LiberationSans-Regular.ttf"
 
   defp export(pdf), do: Tincture.export(pdf)
@@ -27,17 +29,15 @@ defmodule Tincture.FieldAppearanceTest do
     end
   end
 
-  # The appearance stream of the field `name`: {dictionary, content}.
+  # The appearance stream of the field `name`: {dictionary as written,
+  # decoded content}.
   defp appearance(binary, name) do
     [_, id] = Regex.run(~r/\/AP << \/N (\d+) 0 R >>/, widget(binary, name))
 
-    [_, dictionary, content] =
-      Regex.run(
-        ~r/\n#{id} 0 obj\n(<< \/Type \/XObject .*? >>)\nstream\n(.*?)\nendstream/s,
-        binary
-      )
+    [_, dictionary] =
+      Regex.run(~r/\n#{id} 0 obj\n(<< \/Type \/XObject .*? >>)\nstream\n/s, binary)
 
-    {dictionary, content}
+    {dictionary, PDFObjects.stream!(binary, String.to_integer(id))}
   end
 
   defp content(binary, name), do: binary |> appearance(name) |> elem(1)
@@ -474,14 +474,7 @@ defmodule Tincture.FieldAppearanceTest do
   end
 
   describe "fonts: section C, acceptance 1" do
-    defp stream_of(binary, object_id) do
-      [_, header, length] =
-        Regex.run(~r/\n#{object_id} 0 obj\n(<< \/Length (\d+)[^>]*>>)\nstream\n/, binary)
-
-      {start, _} = :binary.match(binary, "#{header}\nstream\n")
-      data = binary_part(binary, start + byte_size(header) + 8, String.to_integer(length))
-      if header =~ "FlateDecode", do: :zlib.uncompress(data), else: data
-    end
+    defp stream_of(binary, object_id), do: PDFObjects.stream!(binary, object_id)
 
     defp referenced(binary, key) do
       [_, id] = Regex.run(~r/\/#{key} (\d+) 0 R/, binary)

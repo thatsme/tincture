@@ -10,12 +10,13 @@ defmodule Tincture.PaintTest do
   """
   use ExUnit.Case, async: true
 
-  # The capture now keeps the stream's own trailing newline: an EOL before
-  # `endstream` is a delimiter, so a stream ending in a newline needs one of
-  # each, and previously the content's last byte was being eaten.
+  # The page's content, decoded and read by /Length, without its trailing
+  # newlines.
   defp content(pdf) do
-    [_, stream] = Regex.run(~r/stream\n(.*?)\nendstream/s, Tincture.export(pdf))
-    String.trim_trailing(stream, "\n")
+    pdf
+    |> Tincture.export()
+    |> Tincture.Test.PDFObjects.page_content!()
+    |> String.trim_trailing("\n")
   end
 
   describe "paint modes" do

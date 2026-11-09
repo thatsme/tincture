@@ -1,7 +1,10 @@
 defmodule TinctureTest do
   use ExUnit.Case
-  import ExUnit.CaptureLog
 
+  import ExUnit.CaptureLog
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
+  alias Tincture.Test.PDFObjects
   alias Tincture.Typography.RichText
 
   test "new/0 builds a pdf state struct" do
@@ -78,14 +81,14 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Hello TTF")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /TrueType"
+    assert decoded(pdf_binary) =~ "/Subtype /TrueType"
     # The fixture has no glyf table, so subsetting falls back to the whole
     # font, and a whole font carries no subset tag (ISO 32000-1 9.6.4).
-    assert pdf_binary =~ "/BaseFont /DemoTTF"
-    refute pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoTTF|
-    assert pdf_binary =~ "/FontFile2 "
-    assert pdf_binary =~ "/F1 "
-    assert pdf_binary =~ "/F1 14 Tf"
+    assert decoded(pdf_binary) =~ "/BaseFont /DemoTTF"
+    refute decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoTTF|
+    assert decoded(pdf_binary) =~ "/FontFile2 "
+    assert decoded(pdf_binary) =~ "/F1 "
+    assert decoded(pdf_binary) =~ "/F1 14 Tf"
 
     File.rm(path)
   end
@@ -100,9 +103,9 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Subset text")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /TrueType"
-    assert pdf_binary =~ "/FirstChar 32 /LastChar 126"
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubset|
+    assert decoded(pdf_binary) =~ "/Subtype /TrueType"
+    assert decoded(pdf_binary) =~ "/FirstChar 32 /LastChar 126"
+    assert decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubset|
 
     File.rm(path)
   end
@@ -117,11 +120,11 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Snowman ☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Type0"
-    assert pdf_binary =~ "/Encoding /Identity-H"
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubsetUnicode|
-    refute pdf_binary =~ "/FirstChar "
+    assert decoded(pdf_binary) =~ "/Subtype /Type0"
+    assert decoded(pdf_binary) =~ "/Encoding /Identity-H"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
+    assert decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoSubsetUnicode|
+    refute decoded(pdf_binary) =~ "/FirstChar "
 
     File.rm(path)
   end
@@ -136,8 +139,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "AZ")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FirstChar 65 /LastChar 90"
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubset|
+    assert decoded(pdf_binary) =~ "/FirstChar 65 /LastChar 90"
+    assert decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubset|
 
     File.rm(path)
   end
@@ -152,7 +155,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A Z!")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FirstChar 32 /LastChar 90"
+    assert decoded(pdf_binary) =~ "/FirstChar 32 /LastChar 90"
 
     File.rm(path)
   end
@@ -167,18 +170,18 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Snowman ☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Type0"
-    assert pdf_binary =~ "/Encoding /Identity-H"
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
+    assert decoded(pdf_binary) =~ "/Subtype /Type0"
+    assert decoded(pdf_binary) =~ "/Encoding /Identity-H"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
     # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
     # identify exactly the CIDs present in the embedded program. Subsetting
     # falls back to the whole font on several paths, so an accurate one
     # cannot be produced here - and veraPDF
     # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
     # one is conformant.
-    refute pdf_binary =~ "/CIDSet "
-    assert pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubsetUnicode|
-    refute pdf_binary =~ "/FirstChar "
+    refute decoded(pdf_binary) =~ "/CIDSet "
+    assert decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoUsedSubsetUnicode|
+    refute decoded(pdf_binary) =~ "/FirstChar "
 
     File.rm(path)
   end
@@ -193,8 +196,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "B")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FirstChar 66 /LastChar 66"
-    assert pdf_binary =~ "/Widths [700]"
+    assert decoded(pdf_binary) =~ "/FirstChar 66 /LastChar 66"
+    assert decoded(pdf_binary) =~ "/Widths [700]"
 
     File.rm(path)
   end
@@ -384,7 +387,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontBBox [0 -20 700 750]"
+    assert decoded(pdf_binary) =~ "/FontBBox [0 -20 700 750]"
 
     File.rm(path)
   end
@@ -399,7 +402,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontBBox [-50 -200 1100 900]"
+    assert decoded(pdf_binary) =~ "/FontBBox [-50 -200 1100 900]"
 
     File.rm(path)
   end
@@ -414,10 +417,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Ascent 780"
-    assert pdf_binary =~ "/Descent -220"
-    assert pdf_binary =~ "/XHeight 510"
-    assert pdf_binary =~ "/CapHeight 730"
+    assert decoded(pdf_binary) =~ "/Ascent 780"
+    assert decoded(pdf_binary) =~ "/Descent -220"
+    assert decoded(pdf_binary) =~ "/XHeight 510"
+    assert decoded(pdf_binary) =~ "/CapHeight 730"
 
     File.rm(path)
   end
@@ -432,7 +435,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Leading 140"
+    assert decoded(pdf_binary) =~ "/Leading 140"
 
     File.rm(path)
   end
@@ -447,8 +450,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Ascent 840"
-    assert pdf_binary =~ "/Descent -260"
+    assert decoded(pdf_binary) =~ "/Ascent 840"
+    assert decoded(pdf_binary) =~ "/Descent -260"
 
     File.rm(path)
   end
@@ -463,7 +466,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/StemV 180"
+    assert decoded(pdf_binary) =~ "/StemV 180"
 
     File.rm(path)
   end
@@ -478,7 +481,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/StemH 180"
+    assert decoded(pdf_binary) =~ "/StemH 180"
 
     File.rm(path)
   end
@@ -493,7 +496,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontWeight 900"
+    assert decoded(pdf_binary) =~ "/FontWeight 900"
 
     File.rm(path)
   end
@@ -508,7 +511,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/StemV 140"
+    assert decoded(pdf_binary) =~ "/StemV 140"
 
     File.rm(path)
   end
@@ -523,7 +526,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/StemV 120"
+    assert decoded(pdf_binary) =~ "/StemV 120"
 
     File.rm(path)
   end
@@ -538,7 +541,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/StemH 120"
+    assert decoded(pdf_binary) =~ "/StemH 120"
 
     File.rm(path)
   end
@@ -553,7 +556,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 262176"
+    assert decoded(pdf_binary) =~ "/Flags 262176"
 
     File.rm(path)
   end
@@ -568,8 +571,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontWeight 700"
-    assert pdf_binary =~ "/StemV 140"
+    assert decoded(pdf_binary) =~ "/FontWeight 700"
+    assert decoded(pdf_binary) =~ "/StemV 140"
 
     File.rm(path)
   end
@@ -584,7 +587,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontWeight 700"
+    assert decoded(pdf_binary) =~ "/FontWeight 700"
 
     File.rm(path)
   end
@@ -599,7 +602,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontWeight 650"
+    assert decoded(pdf_binary) =~ "/FontWeight 650"
 
     File.rm(path)
   end
@@ -614,7 +617,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontWeight 600"
+    assert decoded(pdf_binary) =~ "/FontWeight 600"
 
     File.rm(path)
   end
@@ -629,7 +632,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontStretch /Condensed"
+    assert decoded(pdf_binary) =~ "/FontStretch /Condensed"
 
     File.rm(path)
   end
@@ -644,7 +647,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FSType 2"
+    assert decoded(pdf_binary) =~ "/FSType 2"
 
     File.rm(path)
   end
@@ -887,7 +890,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/AvgWidth 540"
+    assert decoded(pdf_binary) =~ "/AvgWidth 540"
 
     File.rm(path)
   end
@@ -902,7 +905,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MaxWidth 700"
+    assert decoded(pdf_binary) =~ "/MaxWidth 700"
 
     File.rm(path)
   end
@@ -917,7 +920,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MaxWidth 900"
+    assert decoded(pdf_binary) =~ "/MaxWidth 900"
 
     File.rm(path)
   end
@@ -932,7 +935,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MissingWidth 500"
+    assert decoded(pdf_binary) =~ "/MissingWidth 500"
 
     File.rm(path)
   end
@@ -947,7 +950,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MissingWidth 700"
+    assert decoded(pdf_binary) =~ "/MissingWidth 700"
 
     File.rm(path)
   end
@@ -962,7 +965,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MissingWidth 700"
+    assert decoded(pdf_binary) =~ "/MissingWidth 700"
 
     File.rm(path)
   end
@@ -977,8 +980,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "B")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FirstChar 65 /LastChar 66"
-    assert pdf_binary =~ "/Widths [500 700]"
+    assert decoded(pdf_binary) =~ "/FirstChar 65 /LastChar 66"
+    assert decoded(pdf_binary) =~ "/Widths [500 700]"
 
     File.rm(path)
   end
@@ -993,8 +996,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 96"
-    assert pdf_binary =~ "/ItalicAngle -12"
+    assert decoded(pdf_binary) =~ "/Flags 96"
+    assert decoded(pdf_binary) =~ "/ItalicAngle -12"
 
     File.rm(path)
   end
@@ -1009,8 +1012,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 33"
-    assert pdf_binary =~ "/ItalicAngle 0"
+    assert decoded(pdf_binary) =~ "/Flags 33"
+    assert decoded(pdf_binary) =~ "/ItalicAngle 0"
 
     File.rm(path)
   end
@@ -1025,8 +1028,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 262176"
-    assert pdf_binary =~ "/ItalicAngle 0"
+    assert decoded(pdf_binary) =~ "/Flags 262176"
+    assert decoded(pdf_binary) =~ "/ItalicAngle 0"
 
     File.rm(path)
   end
@@ -1041,7 +1044,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontFamily (Demo Family)"
+    assert decoded(pdf_binary) =~ "/FontFamily (Demo Family)"
 
     File.rm(path)
   end
@@ -1056,7 +1059,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontFamily (CFF Demo Family)"
+    assert decoded(pdf_binary) =~ "/FontFamily (CFF Demo Family)"
 
     File.rm(path)
   end
@@ -1071,7 +1074,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontFamily (Regular)"
+    assert decoded(pdf_binary) =~ "/FontFamily (Regular)"
 
     File.rm(path)
   end
@@ -1086,7 +1089,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontFamily (CFF Demo FullName)"
+    assert decoded(pdf_binary) =~ "/FontFamily (CFF Demo FullName)"
 
     File.rm(path)
   end
@@ -1101,7 +1104,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FontFamily (CFF FontName Demo)"
+    assert decoded(pdf_binary) =~ "/FontFamily (CFF FontName Demo)"
 
     File.rm(path)
   end
@@ -1116,8 +1119,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 262240"
-    assert pdf_binary =~ "/ItalicAngle 0"
+    assert decoded(pdf_binary) =~ "/Flags 262240"
+    assert decoded(pdf_binary) =~ "/ItalicAngle 0"
 
     File.rm(path)
   end
@@ -1132,8 +1135,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Flags 96"
-    assert pdf_binary =~ "/ItalicAngle 0"
+    assert decoded(pdf_binary) =~ "/Flags 96"
+    assert decoded(pdf_binary) =~ "/ItalicAngle 0"
 
     File.rm(path)
   end
@@ -1148,7 +1151,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "A")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Style << /Panose <020B0604020202020204> >>"
+    assert decoded(pdf_binary) =~ "/Style << /Panose <020B0604020202020204> >>"
 
     File.rm(path)
   end
@@ -1163,11 +1166,11 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Snowman ☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Type0"
-    assert pdf_binary =~ "/Encoding /Identity-H"
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
-    assert pdf_binary =~ "/DescendantFonts ["
-    assert pdf_binary =~ "<0053006E006F0077006D0061006E00202603> Tj"
+    assert decoded(pdf_binary) =~ "/Subtype /Type0"
+    assert decoded(pdf_binary) =~ "/Encoding /Identity-H"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
+    assert decoded(pdf_binary) =~ "/DescendantFonts ["
+    assert decoded(pdf_binary) =~ "<0053006E006F0077006D0061006E00202603> Tj"
 
     File.rm(path)
   end
@@ -1182,10 +1185,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Snowman ☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/ToUnicode "
-    assert pdf_binary =~ "begincmap"
-    assert pdf_binary =~ "beginbfchar"
-    assert pdf_binary =~ "<2603> <2603>"
+    assert decoded(pdf_binary) =~ "/ToUnicode "
+    assert decoded(pdf_binary) =~ "begincmap"
+    assert decoded(pdf_binary) =~ "beginbfchar"
+    assert decoded(pdf_binary) =~ "<2603> <2603>"
 
     File.rm(path)
   end
@@ -1217,8 +1220,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
-    refute pdf_binary =~ "/CIDToGIDMap /Identity"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
+    refute decoded(pdf_binary) =~ "/CIDToGIDMap /Identity"
 
     cid_to_gid_map = cid_to_gid_map_data_from_pdf!(pdf_binary)
     assert cid_to_gid_for_cid!(cid_to_gid_map, 9731) == 1
@@ -1254,9 +1257,9 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "😀")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
-    refute pdf_binary =~ "/CIDToGIDMap /Identity"
-    assert pdf_binary =~ "/Filter /FlateDecode"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
+    refute decoded(pdf_binary) =~ "/CIDToGIDMap /Identity"
+    assert decoded(pdf_binary) =~ "/Filter /FlateDecode"
 
     cid_to_gid_map = cid_to_gid_map_data_from_pdf!(pdf_binary)
     assert cid_to_gid_for_cid!(cid_to_gid_map, 0xD83D) == 1
@@ -1275,9 +1278,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "😀😁")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /CIDFontType2"
-    assert pdf_binary =~ "/CIDToGIDMap /Identity"
-    refute pdf_binary =~ "/Filter /FlateDecode"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType2"
+    assert decoded(pdf_binary) =~ "/CIDToGIDMap /Identity"
+    # No CIDToGIDMap stream: the map is the name /Identity, not a reference.
+    refute decoded(pdf_binary) =~ ~r|/CIDToGIDMap \d+ 0 R|
 
     File.rm(path)
   end
@@ -1292,7 +1296,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "😀😁")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [55357 [600] 56832 56833 600]"
+    assert decoded(pdf_binary) =~ "/W [55357 [600] 56832 56833 600]"
 
     File.rm(path)
   end
@@ -1327,8 +1331,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "beginbfrange"
-    assert pdf_binary =~ "<2603> <2605> <2603>"
+    assert decoded(pdf_binary) =~ "beginbfrange"
+    assert decoded(pdf_binary) =~ "<2603> <2605> <2603>"
 
     File.rm(path)
   end
@@ -1360,7 +1364,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9733 [700]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9733 [700]]"
 
     File.rm(path)
   end
@@ -1375,7 +1379,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9732 [650]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9732 [650]]"
 
     File.rm(path)
   end
@@ -1390,7 +1394,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "😀")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [55357 [700] 56832 [0]]"
+    assert decoded(pdf_binary) =~ "/W [55357 [700] 56832 [0]]"
 
     File.rm(path)
   end
@@ -1405,7 +1409,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 9733 650]"
+    assert decoded(pdf_binary) =~ "/W [9731 9733 650]"
 
     File.rm(path)
   end
@@ -1420,7 +1424,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9732 [650]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9732 [650]]"
 
     File.rm(path)
   end
@@ -1435,7 +1439,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9732 [650]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9732 [650]]"
 
     File.rm(path)
   end
@@ -1450,7 +1454,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃☄")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9732 [650]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9732 [650]]"
 
     File.rm(path)
   end
@@ -1482,7 +1486,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃️")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [650] 65039 [0]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [650] 65039 [0]]"
 
     File.rm(path)
   end
@@ -1497,7 +1501,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃️")
       |> Tincture.export()
 
-    refute pdf_binary =~ "/CIDToGIDMap /Identity"
+    refute decoded(pdf_binary) =~ "/CIDToGIDMap /Identity"
     assert extract_cid_to_gid_value(pdf_binary, 9731) == 2
     assert extract_cid_to_gid_value(pdf_binary, 65_039) == 0
 
@@ -1516,8 +1520,8 @@ defmodule TinctureTest do
 
     # The text is written as "☃★": the ZWJ is not drawn as glyph 0, so text
     # extracted from the page no longer contains it.
-    assert pdf_binary =~ "<26032605> Tj"
-    refute pdf_binary =~ "<200D>"
+    assert decoded(pdf_binary) =~ "<26032605> Tj"
+    refute decoded(pdf_binary) =~ "<200D>"
 
     File.rm(path)
   end
@@ -1549,7 +1553,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃‍★")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/W [9731 [700] 9733 [700]]"
+    assert decoded(pdf_binary) =~ "/W [9731 [700] 9733 [700]]"
 
     File.rm(path)
   end
@@ -1598,11 +1602,11 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Type0"
-    assert pdf_binary =~ "/Encoding /Identity-H"
-    assert pdf_binary =~ "/Subtype /CIDFontType0"
-    assert pdf_binary =~ "/W [9731 [700]]"
-    refute pdf_binary =~ "/CIDToGIDMap /Identity"
+    assert decoded(pdf_binary) =~ "/Subtype /Type0"
+    assert decoded(pdf_binary) =~ "/Encoding /Identity-H"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType0"
+    assert decoded(pdf_binary) =~ "/W [9731 [700]]"
+    refute decoded(pdf_binary) =~ "/CIDToGIDMap /Identity"
 
     File.rm(path)
   end
@@ -1617,17 +1621,17 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Type0"
-    assert pdf_binary =~ "/Subtype /CIDFontType0"
-    assert pdf_binary =~ "/Encoding /Identity-H"
+    assert decoded(pdf_binary) =~ "/Subtype /Type0"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType0"
+    assert decoded(pdf_binary) =~ "/Encoding /Identity-H"
     # No /CIDSet: optional in PDF 1.7, deprecated in PDF 2.0, and it must
     # identify exactly the CIDs present in the embedded program. Subsetting
     # falls back to the whole font on several paths, so an accurate one
     # cannot be produced here - and veraPDF
     # rejects an inaccurate one (ISO 14289-1 clause 7.21.4.2) where an absent
     # one is conformant.
-    refute pdf_binary =~ "/CIDSet "
-    assert pdf_binary =~ "/ToUnicode "
+    refute decoded(pdf_binary) =~ "/CIDSet "
+    assert decoded(pdf_binary) =~ "/ToUnicode "
 
     File.rm(path)
   end
@@ -1642,11 +1646,11 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "😀")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /CIDFontType0"
-    assert pdf_binary =~ "<D83DDE00> Tj"
-    assert pdf_binary =~ "<D83DDE00> <D83DDE00>"
-    assert pdf_binary =~ "<00000000> <FFFFFFFF>"
-    assert pdf_binary =~ "/W [55357 [700] 56832 [0]]"
+    assert decoded(pdf_binary) =~ "/Subtype /CIDFontType0"
+    assert decoded(pdf_binary) =~ "<D83DDE00> Tj"
+    assert decoded(pdf_binary) =~ "<D83DDE00> <D83DDE00>"
+    assert decoded(pdf_binary) =~ "<00000000> <FFFFFFFF>"
+    assert decoded(pdf_binary) =~ "/W [55357 [700] 56832 [0]]"
 
     File.rm(path)
   end
@@ -1663,11 +1667,11 @@ defmodule TinctureTest do
 
     # The fixture has no CFF table, so subsetting falls back to the whole
     # font, and a whole font carries no subset tag (ISO 32000-1 9.6.4).
-    assert pdf_binary =~ "/BaseFont /DemoOTF"
-    refute pdf_binary =~ ~r|/BaseFont /[A-Z]{6}\+DemoOTF|
-    assert pdf_binary =~ "/FontFile3 "
-    assert pdf_binary =~ "/Subtype /OpenType"
-    assert pdf_binary =~ "/F1 12 Tf"
+    assert decoded(pdf_binary) =~ "/BaseFont /DemoOTF"
+    refute decoded(pdf_binary) =~ ~r|/BaseFont /[A-Z]{6}\+DemoOTF|
+    assert decoded(pdf_binary) =~ "/FontFile3 "
+    assert decoded(pdf_binary) =~ "/Subtype /OpenType"
+    assert decoded(pdf_binary) =~ "/F1 12 Tf"
 
     File.rm(path)
   end
@@ -1682,8 +1686,8 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "B")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/FirstChar 66 /LastChar 66"
-    assert pdf_binary =~ "/Widths [700]"
+    assert decoded(pdf_binary) =~ "/FirstChar 66 /LastChar 66"
+    assert decoded(pdf_binary) =~ "/Widths [700]"
 
     File.rm(path)
   end
@@ -3408,16 +3412,16 @@ defmodule TinctureTest do
 
     assert is_binary(pdf_binary)
     assert String.starts_with?(pdf_binary, "%PDF-1.4")
-    assert pdf_binary =~ "/Type /Catalog"
-    assert pdf_binary =~ "/Type /Pages"
-    assert pdf_binary =~ "/Type /Page"
-    assert pdf_binary =~ "/Count 1"
-    assert pdf_binary =~ "xref\n0 5\n"
+    assert decoded(pdf_binary) =~ "/Type /Catalog"
+    assert decoded(pdf_binary) =~ "/Type /Pages"
+    assert decoded(pdf_binary) =~ "/Type /Page"
+    assert decoded(pdf_binary) =~ "/Count 1"
+    assert decoded(pdf_binary) =~ "xref\n0 5\n"
 
-    assert pdf_binary =~
+    assert decoded(pdf_binary) =~
              ~r|trailer\n<< /Size 5 /Root 1 0 R /ID \[<[0-9A-F]{32}> <[0-9A-F]{32}>\] >>\n|
 
-    assert pdf_binary =~ "startxref\n"
+    assert decoded(pdf_binary) =~ "startxref\n"
     assert String.ends_with?(pdf_binary, "%%EOF\n")
   end
 
@@ -3429,10 +3433,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(10, 700, "page two")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Count 2"
+    assert decoded(pdf_binary) =~ "/Count 2"
     assert length(Regex.scan(~r|/Type /Page /Parent|, pdf_binary)) == 2
-    assert pdf_binary =~ "(page one) Tj"
-    assert pdf_binary =~ "(page two) Tj"
+    assert decoded(pdf_binary) =~ "(page one) Tj"
+    assert decoded(pdf_binary) =~ "(page two) Tj"
   end
 
   test "export/1 serializes metadata as an Info object" do
@@ -3445,10 +3449,10 @@ defmodule TinctureTest do
       )
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Info "
-    assert pdf_binary =~ "/Title (Q1 \\(Draft\\))"
-    assert pdf_binary =~ "/Author (A\\\\B)"
-    assert pdf_binary =~ "/Keywords (finance,roadmap)"
+    assert decoded(pdf_binary) =~ "/Info "
+    assert decoded(pdf_binary) =~ "/Title (Q1 \\(Draft\\))"
+    assert decoded(pdf_binary) =~ "/Author (A\\\\B)"
+    assert decoded(pdf_binary) =~ "/Keywords (finance,roadmap)"
   end
 
   test "add_bookmark/3 serializes outlines and destinations" do
@@ -3461,12 +3465,12 @@ defmodule TinctureTest do
       |> Tincture.add_bookmark("Second", 2)
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Outlines "
-    assert pdf_binary =~ "/Type /Outlines"
-    assert pdf_binary =~ "/Title (Start)"
-    assert pdf_binary =~ "/Title (Second)"
-    assert pdf_binary =~ "/Dest [3 0 R /Fit]"
-    assert pdf_binary =~ "/Dest [5 0 R /Fit]"
+    assert decoded(pdf_binary) =~ "/Outlines "
+    assert decoded(pdf_binary) =~ "/Type /Outlines"
+    assert decoded(pdf_binary) =~ "/Title (Start)"
+    assert decoded(pdf_binary) =~ "/Title (Second)"
+    assert decoded(pdf_binary) =~ "/Dest [3 0 R /Fit]"
+    assert decoded(pdf_binary) =~ "/Dest [5 0 R /Fit]"
   end
 
   test "add_bookmark/3 rejects unknown page numbers" do
@@ -3484,14 +3488,14 @@ defmodule TinctureTest do
       |> Tincture.image_jpeg(72, 500, 144, 96, path)
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Image"
-    assert pdf_binary =~ "/Filter /DCTDecode"
-    assert pdf_binary =~ "/ColorSpace /DeviceRGB"
-    assert pdf_binary =~ "/BitsPerComponent 8"
-    assert pdf_binary =~ "/Width 1"
-    assert pdf_binary =~ "/Height 1"
-    assert pdf_binary =~ "/XObject << /Im1 "
-    assert pdf_binary =~ "q\n144 0 0 96 72 500 cm\n/Im1 Do\nQ\n"
+    assert decoded(pdf_binary) =~ "/Subtype /Image"
+    assert decoded(pdf_binary) =~ "/Filter /DCTDecode"
+    assert decoded(pdf_binary) =~ "/ColorSpace /DeviceRGB"
+    assert decoded(pdf_binary) =~ "/BitsPerComponent 8"
+    assert decoded(pdf_binary) =~ "/Width 1"
+    assert decoded(pdf_binary) =~ "/Height 1"
+    assert decoded(pdf_binary) =~ "/XObject << /Im1 "
+    assert decoded(pdf_binary) =~ "q\n144 0 0 96 72 500 cm\n/Im1 Do\nQ\n"
 
     File.rm(path)
   end
@@ -3504,13 +3508,13 @@ defmodule TinctureTest do
       |> Tincture.image_png(50, 600, 32, 32, path)
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Subtype /Image"
-    assert pdf_binary =~ "/Filter /FlateDecode"
-    assert pdf_binary =~ "/ColorSpace /DeviceRGB"
-    assert pdf_binary =~ "/SMask "
-    assert pdf_binary =~ "/ColorSpace /DeviceGray"
-    assert pdf_binary =~ "/XObject << /Im1 "
-    assert pdf_binary =~ "q\n32 0 0 32 50 600 cm\n/Im1 Do\nQ\n"
+    assert decoded(pdf_binary) =~ "/Subtype /Image"
+    assert decoded(pdf_binary) =~ "/Filter /FlateDecode"
+    assert decoded(pdf_binary) =~ "/ColorSpace /DeviceRGB"
+    assert decoded(pdf_binary) =~ "/SMask "
+    assert decoded(pdf_binary) =~ "/ColorSpace /DeviceGray"
+    assert decoded(pdf_binary) =~ "/XObject << /Im1 "
+    assert decoded(pdf_binary) =~ "q\n32 0 0 32 50 600 cm\n/Im1 Do\nQ\n"
 
     File.rm(path)
   end
@@ -3561,7 +3565,7 @@ defmodule TinctureTest do
       |> Tincture.page_size(:letter)
       |> Tincture.export()
 
-    assert pdf_binary =~ "/MediaBox [0 0 612 792]"
+    assert decoded(pdf_binary) =~ "/MediaBox [0 0 612 792]"
   end
 
   test "export/1 writes text stream and font resources" do
@@ -3571,14 +3575,14 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Hello (PDF)")
       |> Tincture.export()
 
-    assert pdf_binary =~
+    assert decoded(pdf_binary) =~
              "/Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >> >>"
 
-    assert pdf_binary =~ "BT"
-    assert pdf_binary =~ "/F1 16 Tf"
-    assert pdf_binary =~ "50 700 Td"
-    assert pdf_binary =~ "(Hello \\(PDF\\)) Tj"
-    assert pdf_binary =~ "ET"
+    assert decoded(pdf_binary) =~ "BT"
+    assert decoded(pdf_binary) =~ "/F1 16 Tf"
+    assert decoded(pdf_binary) =~ "50 700 Td"
+    assert decoded(pdf_binary) =~ "(Hello \\(PDF\\)) Tj"
+    assert decoded(pdf_binary) =~ "ET"
   end
 
   test "export/1 maps multiple fonts to distinct font resources" do
@@ -3590,10 +3594,10 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 680, "World")
       |> Tincture.export()
 
-    assert pdf_binary =~ "/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-    assert pdf_binary =~ "/F2 << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>"
-    assert pdf_binary =~ "/F1 12 Tf"
-    assert pdf_binary =~ "/F2 10 Tf"
+    assert decoded(pdf_binary) =~ "/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+    assert decoded(pdf_binary) =~ "/F2 << /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>"
+    assert decoded(pdf_binary) =~ "/F1 12 Tf"
+    assert decoded(pdf_binary) =~ "/F2 10 Tf"
   end
 
   test "export/1 encodes unicode glyphs as UTF-16BE hex text strings" do
@@ -3603,7 +3607,7 @@ defmodule TinctureTest do
       |> Tincture.text_at(50, 700, "Snowman ☃")
       |> Tincture.export()
 
-    assert pdf_binary =~ "<#{utf16be_hex_with_bom("Snowman ☃")}> Tj"
+    assert decoded(pdf_binary) =~ "<#{utf16be_hex_with_bom("Snowman ☃")}> Tj"
   end
 
   test "export/1 encodes unicode metadata and bookmark titles as UTF-16BE hex strings" do
@@ -3614,8 +3618,8 @@ defmodule TinctureTest do
       |> Tincture.add_bookmark("Résumé", 1)
       |> Tincture.export()
 
-    assert pdf_binary =~ "/Title <#{utf16be_hex_with_bom("你好世界")}>"
-    assert pdf_binary =~ "/Title <#{utf16be_hex_with_bom("Résumé")}>"
+    assert decoded(pdf_binary) =~ "/Title <#{utf16be_hex_with_bom("你好世界")}>"
+    assert decoded(pdf_binary) =~ "/Title <#{utf16be_hex_with_bom("Résumé")}>"
   end
 
   test "line/5 appends draw operations and exports stroke commands" do
@@ -3627,7 +3631,7 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "50 695 m\n200 695 l\nS\n"
+    assert decoded(pdf_binary) =~ "50 695 m\n200 695 l\nS\n"
   end
 
   test "rectangle/5 appends draw operations and exports rectangle commands" do
@@ -3639,7 +3643,7 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "20 600 120 40 re\nS\n"
+    assert decoded(pdf_binary) =~ "20 600 120 40 re\nS\n"
   end
 
   test "set_stroke_color/2 and set_fill_color/2 export rgb color operators" do
@@ -3649,8 +3653,8 @@ defmodule TinctureTest do
       |> Tincture.set_fill_color({0, 1, 0})
       |> Tincture.export()
 
-    assert pdf_binary =~ "1 0 0 RG\n"
-    assert pdf_binary =~ "0 1 0 rg\n"
+    assert decoded(pdf_binary) =~ "1 0 0 RG\n"
+    assert decoded(pdf_binary) =~ "0 1 0 rg\n"
   end
 
   test "circle/4 appends operation and exports bezier circle path" do
@@ -3662,9 +3666,9 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "130 200 m\n"
-    assert length(Regex.scan(~r/ c\n/, pdf_binary)) == 4
-    assert pdf_binary =~ "S\n"
+    assert decoded(pdf_binary) =~ "130 200 m\n"
+    assert length(Regex.scan(~r/ c\n/, decoded(pdf_binary))) == 4
+    assert decoded(pdf_binary) =~ "S\n"
   end
 
   test "path ops export move/line/bezier and stroke commands" do
@@ -3684,10 +3688,10 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "10 10 m\n"
-    assert pdf_binary =~ "40 10 l\n"
-    assert pdf_binary =~ "50 10 50 40 40 40 c\n"
-    assert pdf_binary =~ "S\n"
+    assert decoded(pdf_binary) =~ "10 10 m\n"
+    assert decoded(pdf_binary) =~ "40 10 l\n"
+    assert decoded(pdf_binary) =~ "50 10 50 40 40 40 c\n"
+    assert decoded(pdf_binary) =~ "S\n"
   end
 
   test "save_state/1 and restore_state/1 export q/Q operators" do
@@ -3698,9 +3702,9 @@ defmodule TinctureTest do
       |> Tincture.restore_state()
       |> Tincture.export()
 
-    assert pdf_binary =~ "q\n"
-    assert pdf_binary =~ "0 0 1 RG\n"
-    assert pdf_binary =~ "Q\n"
+    assert decoded(pdf_binary) =~ "q\n"
+    assert decoded(pdf_binary) =~ "0 0 1 RG\n"
+    assert decoded(pdf_binary) =~ "Q\n"
   end
 
   test "line style controls export w/J/j/d operators" do
@@ -3712,10 +3716,10 @@ defmodule TinctureTest do
       |> Tincture.set_dash([3, 2], 1)
       |> Tincture.export()
 
-    assert pdf_binary =~ "2.5 w\n"
-    assert pdf_binary =~ "1 J\n"
-    assert pdf_binary =~ "2 j\n"
-    assert pdf_binary =~ "[3 2] 1 d\n"
+    assert decoded(pdf_binary) =~ "2.5 w\n"
+    assert decoded(pdf_binary) =~ "1 J\n"
+    assert decoded(pdf_binary) =~ "2 j\n"
+    assert decoded(pdf_binary) =~ "[3 2] 1 d\n"
   end
 
   test "fill/1 and clip/1 export f and W n operators" do
@@ -3743,8 +3747,8 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "f\n"
-    assert pdf_binary =~ "W\nn\n"
+    assert decoded(pdf_binary) =~ "f\n"
+    assert decoded(pdf_binary) =~ "W\nn\n"
   end
 
   test "fill_even_odd/1, clip_even_odd/1, and set_miter_limit/2 export f*, W* n, and M operators" do
@@ -3762,9 +3766,9 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "7.5 M\n"
-    assert pdf_binary =~ "f*\n"
-    assert pdf_binary =~ "W*\nn\n"
+    assert decoded(pdf_binary) =~ "7.5 M\n"
+    assert decoded(pdf_binary) =~ "f*\n"
+    assert decoded(pdf_binary) =~ "W*\nn\n"
   end
 
   test "text_paragraph/6 renders wrapped text lines at positioned coordinates" do
@@ -4063,9 +4067,12 @@ defmodule TinctureTest do
 
     pdf_binary = Tincture.export(pdf)
 
-    assert pdf_binary =~ "/F1 24 Tf"
-    assert pdf_binary =~ "0.7071067812 0.7071067812 -0.7071067812 0.7071067812 100 200 Tm"
-    assert pdf_binary =~ "(Rotation) Tj"
+    assert decoded(pdf_binary) =~ "/F1 24 Tf"
+
+    assert decoded(pdf_binary) =~
+             "0.7071067812 0.7071067812 -0.7071067812 0.7071067812 100 200 Tm"
+
+    assert decoded(pdf_binary) =~ "(Rotation) Tj"
   end
 
   defp write_test_jpeg! do
@@ -6640,36 +6647,10 @@ defmodule TinctureTest do
 
   defp extract_cid_to_gid_value(pdf_binary, cid)
        when is_binary(pdf_binary) and is_integer(cid) and cid >= 0 do
-    ref_prefix = "/CIDToGIDMap "
-    {ref_idx, _} = :binary.match(pdf_binary, ref_prefix)
-    ref_start = ref_idx + byte_size(ref_prefix)
-    rest = binary_part(pdf_binary, ref_start, byte_size(pdf_binary) - ref_start)
-    {object_id, _rest_after_id} = parse_leading_integer(rest)
-    object_marker = Integer.to_string(object_id) <> " 0 obj"
-    {obj_idx, _} = :binary.match(pdf_binary, object_marker)
-    stream_search = binary_part(pdf_binary, obj_idx, byte_size(pdf_binary) - obj_idx)
-    {stream_idx, _} = :binary.match(stream_search, "stream\n")
-    data_start = obj_idx + stream_idx + byte_size("stream\n")
-    tail = binary_part(pdf_binary, data_start, byte_size(pdf_binary) - data_start)
-    {endstream_idx, _} = :binary.match(tail, "\nendstream")
-    compressed = binary_part(pdf_binary, data_start, endstream_idx)
-    data = :zlib.uncompress(compressed)
+    data = cid_to_gid_map_data_from_pdf!(pdf_binary)
     offset = cid * 2
     <<_prefix::binary-size(offset), gid::16-big, _::binary>> = data
     gid
-  end
-
-  defp parse_leading_integer(binary) when is_binary(binary) do
-    {digits, rest} =
-      binary
-      |> :binary.bin_to_list()
-      |> Enum.split_while(fn ch -> ch >= ?0 and ch <= ?9 end)
-
-    if digits == [] do
-      raise "expected leading integer in binary payload"
-    end
-
-    {digits |> to_string() |> String.to_integer(), IO.iodata_to_binary(rest)}
   end
 
   defp layout_table_with_script_and_feature(script_tag, feature_tag)
@@ -8460,64 +8441,11 @@ defmodule TinctureTest do
     <<30, 0x0A, 0x00, 0x1F>>
   end
 
+  # The CIDToGIDMap stream's data, decoded (PDFObjects.stream!/2).
   defp cid_to_gid_map_data_from_pdf!(pdf_binary) when is_binary(pdf_binary) do
     case Regex.run(~r/\/CIDToGIDMap\s+(\d+)\s+0\s+R/, pdf_binary) do
-      [_, object_id_str] ->
-        object_id = String.to_integer(object_id_str)
-        object_marker = "\n#{object_id} 0 obj\n<< /Length "
-
-        case :binary.match(pdf_binary, object_marker) do
-          {marker_pos, _marker_len} ->
-            length_start = marker_pos + byte_size(object_marker)
-            tail = binary_part(pdf_binary, length_start, byte_size(pdf_binary) - length_start)
-
-            case Regex.run(~r/^(\d+)/, tail) do
-              [_, length_str] ->
-                length = String.to_integer(length_str)
-                after_length = length_start + byte_size(length_str)
-                stream_marker = ">>\nstream\n"
-
-                case :binary.match(pdf_binary, stream_marker, [
-                       {:scope, {after_length, byte_size(pdf_binary) - after_length}}
-                     ]) do
-                  {stream_pos, _stream_len} ->
-                    stream_start = stream_pos + byte_size(stream_marker)
-                    dict_data_start = marker_pos + byte_size("\n#{object_id} 0 obj\n<<")
-                    dict_data_size = stream_pos - dict_data_start
-
-                    dict_data =
-                      if dict_data_size >= 0 do
-                        binary_part(pdf_binary, dict_data_start, dict_data_size)
-                      else
-                        ""
-                      end
-
-                    if stream_start + length <= byte_size(pdf_binary) do
-                      stream_data = binary_part(pdf_binary, stream_start, length)
-
-                      if String.contains?(dict_data, "/Filter /FlateDecode") do
-                        :zlib.uncompress(stream_data)
-                      else
-                        stream_data
-                      end
-                    else
-                      flunk("expected CIDToGIDMap stream payload to fit within PDF binary")
-                    end
-
-                  :nomatch ->
-                    flunk("expected CIDToGIDMap object stream marker")
-                end
-
-              _ ->
-                flunk("expected numeric /Length for CIDToGIDMap object")
-            end
-
-          :nomatch ->
-            flunk("expected CIDToGIDMap object definition")
-        end
-
-      _ ->
-        flunk("expected CIDToGIDMap object reference in CID font dictionary")
+      [_, object_id] -> PDFObjects.stream!(pdf_binary, String.to_integer(object_id))
+      _ -> flunk("expected CIDToGIDMap object reference in CID font dictionary")
     end
   end
 
@@ -8543,41 +8471,24 @@ defmodule TinctureTest do
     end
   end
 
+  # The first embedded font program (the first stream carrying /Length1),
+  # decoded and located by its /Length. /Length1 is the program's decoded
+  # size (ISO 32000-1 Table 127), so it must equal the decoded data's.
   defp font_file_data_from_pdf!(pdf_binary) when is_binary(pdf_binary) do
-    marker = "/Length1 "
+    %{objects: objects} = PDFObjects.read(pdf_binary)
 
-    case :binary.match(pdf_binary, marker) do
-      {length_pos, _marker_size} ->
-        digits_start = length_pos + byte_size(marker)
-        tail = binary_part(pdf_binary, digits_start, byte_size(pdf_binary) - digits_start)
+    case for(
+           {number, %{value: %{"Length1" => _}, stream_at: at}} <- Enum.sort(objects),
+           at,
+           do: number
+         ) do
+      [number | _] ->
+        data = PDFObjects.stream!(pdf_binary, objects, number, [])
+        length1 = PDFObjects.resolve(objects[number].value["Length1"], objects)
+        assert byte_size(data) == length1, "/Length1 is not the font program's decoded size"
+        data
 
-        case Regex.run(~r/^(\d+)/, tail) do
-          [_, length_str] ->
-            length = String.to_integer(length_str)
-            after_digits = digits_start + byte_size(length_str)
-            stream_marker = ">>\nstream\n"
-
-            case :binary.match(pdf_binary, stream_marker, [
-                   {:scope, {after_digits, byte_size(pdf_binary) - after_digits}}
-                 ]) do
-              {stream_marker_pos, _} ->
-                stream_data_start = stream_marker_pos + byte_size(stream_marker)
-
-                if stream_data_start + length <= byte_size(pdf_binary) do
-                  binary_part(pdf_binary, stream_data_start, length)
-                else
-                  flunk("expected /Length1 stream payload to fit within PDF binary")
-                end
-
-              :nomatch ->
-                flunk("expected /Length1 stream marker in embedded FontFile object")
-            end
-
-          _ ->
-            flunk("expected numeric /Length1 value in embedded FontFile object")
-        end
-
-      :nomatch ->
+      [] ->
         flunk("expected embedded FontFile object with /Length1")
     end
   end

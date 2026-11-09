@@ -110,11 +110,12 @@ defmodule Tincture.Layout.TemplateTest do
     assert pdf.current_page == 2
 
     pdf_binary = Tincture.export(pdf)
-    assert pdf_binary =~ "/Count 2"
-    assert pdf_binary =~ "(Report 1/2) Tj"
-    assert pdf_binary =~ "(Report 2/2) Tj"
-    assert pdf_binary =~ "(Page 1) Tj"
-    assert pdf_binary =~ "(Page 2) Tj"
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
+    assert content =~ "/Count 2"
+    assert content =~ "(Report 1/2) Tj"
+    assert content =~ "(Report 2/2) Tj"
+    assert content =~ "(Page 1) Tj"
+    assert content =~ "(Page 2) Tj"
   end
 
   test "parse_xml/1 builds template layout and body rich text from XML" do
@@ -158,9 +159,10 @@ defmodule Tincture.Layout.TemplateTest do
     assert result.overflow? == false
 
     pdf_binary = Tincture.export(pdf)
-    assert pdf_binary =~ "(Report 1/1) Tj"
-    assert pdf_binary =~ "(p.1) Tj"
-    assert pdf_binary =~ "(one) Tj"
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
+    assert content =~ "(Report 1/1) Tj"
+    assert content =~ "(p.1) Tj"
+    assert content =~ "(one) Tj"
   end
 
   test "parse_xml/1 returns :invalid_xml for malformed XML" do

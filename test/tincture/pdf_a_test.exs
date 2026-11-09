@@ -11,6 +11,7 @@ defmodule Tincture.PDFATest do
 
   alias Tincture.PDF.ICC
   alias Tincture.Test.MeasurableFont
+  alias Tincture.Test.PDFObjects
 
   defp export(pdf), do: Tincture.export(pdf)
 
@@ -60,8 +61,12 @@ defmodule Tincture.PDFATest do
     test "embeds the ICC profile itself, with its component count", %{font: font} do
       binary = export(archival_pdf(font))
 
-      assert binary =~ "/N 3 /Length #{byte_size(ICC.srgb())}"
-      assert String.contains?(binary, ICC.srgb())
+      [_, number] = Regex.run(~r|/DestOutputProfile (\d+) 0 R|, binary)
+      number = String.to_integer(number)
+      %{objects: objects} = PDFObjects.read(binary)
+
+      assert %{"N" => 3} = objects[number].value
+      assert PDFObjects.stream!(binary, number) == ICC.srgb()
     end
 
     test "is absent from a document not claiming PDF/A" do
@@ -174,19 +179,23 @@ defmodule Tincture.PDFATest do
         |> Tincture.text_at(50, 700, "AB BA")
         |> export()
 
-      for [_, declared, data] <-
-            Regex.scan(~r/<< [^>]*\/Length (\d+)[^>]*>>\nstream\n(.*?)\nendstream/s, binary) do
-        assert byte_size(data) == String.to_integer(declared)
-      end
+      # Each stream's data is taken by its /Length, which must end at an EOL
+      # and endstream (PDFObjects.stream!/4 raises otherwise).
+      assert checked_streams(binary) > 0
     end
 
     test "at least one stream is checked, so the test above cannot pass vacuously", %{font: font} do
-      binary = export(archival_pdf(font))
-
-      matches = Regex.scan(~r/<< [^>]*\/Length (\d+)[^>]*>>\nstream\n(.*?)\nendstream/s, binary)
-
-      refute matches == []
+      assert font |> archival_pdf() |> export() |> checked_streams() > 0
     end
+  end
+
+  defp checked_streams(binary) do
+    %{objects: objects} = PDFObjects.read(binary)
+
+    for {number, %{stream_at: at}} <- objects, at != nil do
+      PDFObjects.stream!(binary, objects, number, [])
+    end
+    |> length()
   end
 
   describe "the built-in sRGB profile" do

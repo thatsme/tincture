@@ -38,11 +38,12 @@ defmodule Tincture.EgTest3ParityTest do
     assert Enum.any?(pdf.operations, &match?({:text_at, _, 580.0, "code", {"Courier", 12}}, &1))
 
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
-    assert pdf_binary =~ "/BaseFont /Times-Roman"
-    assert pdf_binary =~ "/BaseFont /Times-Italic"
-    assert pdf_binary =~ "/BaseFont /Courier"
-    assert pdf_binary =~ "(AWAY) Tj"
-    assert pdf_binary =~ "(code) Tj"
+    assert content =~ "/BaseFont /Times-Roman"
+    assert content =~ "/BaseFont /Times-Italic"
+    assert content =~ "/BaseFont /Courier"
+    assert content =~ "(AWAY) Tj"
+    assert content =~ "(code) Tj"
   end
 end

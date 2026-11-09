@@ -10,6 +10,8 @@ defmodule Tincture.Layout.TemplateValidationTest do
   """
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   alias Tincture.Layout.Template
   alias Tincture.Typography.RichText
 
@@ -168,19 +170,19 @@ defmodule Tincture.Layout.TemplateValidationTest do
       {pdf, result} = Template.render(Tincture.new(), Template.new(), rich("body"))
 
       assert %Tincture.Layout.Template.RenderResult{} = result
-      assert Tincture.export(pdf) =~ "(body) Tj"
+      assert decoded(Tincture.export(pdf)) =~ "(body) Tj"
     end
 
     test "defaults the total to the current page number", %{template: template} do
       {pdf, _result} = Template.render(Tincture.new(), template, rich("body"), page_number: 3)
-      assert Tincture.export(pdf) =~ "Page 3 of 3"
+      assert decoded(Tincture.export(pdf)) =~ "Page 3 of 3"
     end
 
     test "accepts an explicit total", %{template: template} do
       {pdf, _result} =
         Template.render(Tincture.new(), template, rich("body"), page_number: 2, page_total: 9)
 
-      assert Tincture.export(pdf) =~ "Page 2 of 9"
+      assert decoded(Tincture.export(pdf)) =~ "Page 2 of 9"
     end
 
     test "rejects a page number that is not a positive integer", %{template: template} do
@@ -231,7 +233,7 @@ defmodule Tincture.Layout.TemplateValidationTest do
       # With no total supplied each page reports its own number, because the
       # real total is not known until pagination finishes.
       {pdf, _result} = Template.render_document(Tincture.new(), template, rich("short"))
-      assert Tincture.export(pdf) =~ "1/1"
+      assert decoded(Tincture.export(pdf)) =~ "1/1"
     end
 
     test "an explicit page_total is used on every page", %{template: template} do
@@ -240,8 +242,8 @@ defmodule Tincture.Layout.TemplateValidationTest do
 
       binary = Tincture.export(pdf)
       assert result.pages_used > 1
-      assert binary =~ "1/7"
-      assert binary =~ "2/7"
+      assert decoded(binary) =~ "1/7"
+      assert decoded(binary) =~ "2/7"
     end
 
     test "stops at max_pages and reports the spill", %{template: template} do
@@ -269,7 +271,7 @@ defmodule Tincture.Layout.TemplateValidationTest do
       {pdf, result} = Template.render_document(Tincture.new(), template, long)
 
       assert result.pages_used > 1
-      assert Tincture.export(pdf) =~ "/Courier"
+      assert decoded(Tincture.export(pdf)) =~ "/Courier"
     end
 
     test "an empty document renders one page with no overflow" do

@@ -12,6 +12,8 @@ defmodule Tincture.TaggedPDFTest do
   """
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   alias Tincture.PDF.Structure
 
   defp export(pdf), do: Tincture.export(pdf)
@@ -45,8 +47,8 @@ defmodule Tincture.TaggedPDFTest do
       binary = export(simple_tagged())
 
       # Without /MarkInfo a reader may ignore the structure tree entirely.
-      assert binary =~ "/MarkInfo << /Marked true >>"
-      assert binary =~ ~r|/StructTreeRoot \d+ 0 R|
+      assert decoded(binary) =~ "/MarkInfo << /Marked true >>"
+      assert decoded(binary) =~ ~r|/StructTreeRoot \d+ 0 R|
     end
 
     test "carries the document language" do
@@ -56,9 +58,9 @@ defmodule Tincture.TaggedPDFTest do
     test "an untagged document gains no structure entries" do
       binary = Tincture.new() |> Tincture.text_at(10, 10, "plain") |> export()
 
-      refute binary =~ "/StructTreeRoot"
-      refute binary =~ "/MarkInfo"
-      refute binary =~ "BDC"
+      refute decoded(binary) =~ "/StructTreeRoot"
+      refute decoded(binary) =~ "/MarkInfo"
+      refute decoded(binary) =~ "BDC"
     end
 
     test "language can be set without tagging" do
@@ -69,8 +71,8 @@ defmodule Tincture.TaggedPDFTest do
         |> Tincture.text_at(10, 10, "bonjour")
         |> export()
 
-      assert binary =~ "/Lang (fr)"
-      refute binary =~ "/StructTreeRoot"
+      assert decoded(binary) =~ "/Lang (fr)"
+      refute decoded(binary) =~ "/StructTreeRoot"
     end
   end
 
@@ -78,10 +80,10 @@ defmodule Tincture.TaggedPDFTest do
     test "content elements bracket what they draw" do
       binary = export(simple_tagged())
 
-      assert binary =~ "/H1 <</MCID 0>> BDC"
-      assert binary =~ "/P <</MCID 1>> BDC"
-      assert length(Regex.scan(~r/BDC/, binary)) == 2
-      assert length(Regex.scan(~r/EMC/, binary)) == 2
+      assert decoded(binary) =~ "/H1 <</MCID 0>> BDC"
+      assert decoded(binary) =~ "/P <</MCID 1>> BDC"
+      assert length(Regex.scan(~r/BDC/, decoded(binary))) == 2
+      assert length(Regex.scan(~r/EMC/, decoded(binary))) == 2
     end
 
     test "container elements emit none, having no content of their own" do
@@ -98,8 +100,8 @@ defmodule Tincture.TaggedPDFTest do
         |> export()
 
       # :table and :tr are containers; only :td draws.
-      assert length(Regex.scan(~r/BDC/, binary)) == 1
-      assert binary =~ "/TD <</MCID 0>> BDC"
+      assert length(Regex.scan(~r/BDC/, decoded(binary))) == 1
+      assert decoded(binary) =~ "/TD <</MCID 0>> BDC"
     end
 
     test "marked-content ids are allocated per page, not per document" do
@@ -114,7 +116,7 @@ defmodule Tincture.TaggedPDFTest do
         |> export()
 
       # Both start at 0: an MCID only has to be unique within its own stream.
-      assert length(Regex.scan(~r|/P <</MCID 0>> BDC|, binary)) == 2
+      assert length(Regex.scan(~r|/P <</MCID 0>> BDC|, decoded(binary))) == 2
     end
 
     test "every BDC is closed" do
@@ -134,7 +136,8 @@ defmodule Tincture.TaggedPDFTest do
         end)
         |> export()
 
-      assert length(Regex.scan(~r/BDC/, binary)) == length(Regex.scan(~r/EMC/, binary))
+      assert length(Regex.scan(~r/BDC/, decoded(binary))) ==
+               length(Regex.scan(~r/EMC/, decoded(binary)))
     end
   end
 
@@ -248,7 +251,7 @@ defmodule Tincture.TaggedPDFTest do
         end)
         |> export()
 
-      assert binary =~ "/Alt (Bar chart of revenue)"
+      assert decoded(binary) =~ "/Alt (Bar chart of revenue)"
     end
 
     test "a header cell records the cells it governs" do
@@ -263,7 +266,7 @@ defmodule Tincture.TaggedPDFTest do
       # In an attribute dictionary owned by /Table, not as a direct key. A bare
       # /Scope is ignored by a reader, which leaves the table's structure
       # undeterminable and fails ISO 14289-1 clause 7.5. veraPDF caught this.
-      assert binary =~ "/A << /O /Table /Scope /Row >>"
+      assert decoded(binary) =~ "/A << /O /Table /Scope /Row >>"
     end
 
     test "carries actual text, for when the glyphs are not the words" do
@@ -275,7 +278,7 @@ defmodule Tincture.TaggedPDFTest do
         |> Tincture.tag(:span, [actual_text: "ffi"], &Tincture.text_at(&1, 10, 10, "ﬃ"))
         |> export()
 
-      assert binary =~ "/ActualText (ffi)"
+      assert decoded(binary) =~ "/ActualText (ffi)"
     end
 
     test "an element can override the document language" do
@@ -287,8 +290,8 @@ defmodule Tincture.TaggedPDFTest do
         |> Tincture.tag(:p, [lang: "cy"], &Tincture.text_at(&1, 10, 10, "Croeso"))
         |> export()
 
-      assert binary =~ "/Lang (en-GB)"
-      assert binary =~ "/Lang (cy)"
+      assert decoded(binary) =~ "/Lang (en-GB)"
+      assert decoded(binary) =~ "/Lang (cy)"
     end
 
     test "a title is carried through" do
@@ -302,7 +305,7 @@ defmodule Tincture.TaggedPDFTest do
         end)
         |> export()
 
-      assert binary =~ "/T (Appendix)"
+      assert decoded(binary) =~ "/T (Appendix)"
     end
   end
 

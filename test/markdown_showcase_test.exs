@@ -25,20 +25,21 @@ defmodule Tincture.MarkdownShowcaseTest do
 
     %{pdf: pdf, pages: pages} = MarkdownDoc.build_document(markdown)
     pdf_binary = Tincture.export(pdf)
+    content = Tincture.Test.PDFObjects.decoded(pdf_binary)
 
     assert pages == 1
     assert page_count(pdf_binary) == 1
-    assert pdf_binary =~ "/Title (Markdown Showcase Demo)"
-    assert pdf_binary =~ "/Title (Product Notes)"
-    assert pdf_binary =~ "(Product Notes) Tj"
-    assert pdf_binary =~ "(Roadmap) Tj"
+    assert content =~ "/Title (Markdown Showcase Demo)"
+    assert content =~ "/Title (Product Notes)"
+    assert content =~ "(Product Notes) Tj"
+    assert content =~ "(Roadmap) Tj"
 
-    assert pdf_binary =~ "(Visit) Tj"
-    assert pdf_binary =~ "(project) Tj"
-    assert pdf_binary =~ "https://example.com/docs"
-    assert pdf_binary =~ "(Ship) Tj"
-    assert pdf_binary =~ "(def add\\(a, b\\) do) Tj"
-    assert pdf_binary =~ "(  a + b) Tj"
+    assert content =~ "(Visit) Tj"
+    assert content =~ "(project) Tj"
+    assert content =~ "https://example.com/docs"
+    assert content =~ "(Ship) Tj"
+    assert content =~ "(def add\\(a, b\\) do) Tj"
+    assert content =~ "(  a + b) Tj"
   end
 
   test "markdown showcase can render from a markdown file path" do

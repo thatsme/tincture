@@ -1,6 +1,8 @@
 defmodule Tincture.LinkTest do
   use ExUnit.Case, async: true
 
+  import Tincture.Test.PDFObjects, only: [decoded: 1]
+
   defp annots(pdf_binary) do
     case Regex.run(~r/\/Annots \[(.*?)\]\s*>>\s*endobj/s, pdf_binary) do
       [_, body] -> body
@@ -15,9 +17,9 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(72, 700, 120, 14, "https://elixir-lang.org")
         |> Tincture.export()
 
-      assert binary =~ "/Type /Annot"
-      assert binary =~ "/Subtype /Link"
-      assert binary =~ "/A << /S /URI /URI (https://elixir-lang.org) >>"
+      assert decoded(binary) =~ "/Type /Annot"
+      assert decoded(binary) =~ "/Subtype /Link"
+      assert decoded(binary) =~ "/A << /S /URI /URI (https://elixir-lang.org) >>"
     end
 
     test "accepts the explicit {:url, url} form" do
@@ -26,7 +28,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(72, 700, 120, 14, {:url, "https://hex.pm"})
         |> Tincture.export()
 
-      assert binary =~ "/URI (https://hex.pm)"
+      assert decoded(binary) =~ "/URI (https://hex.pm)"
     end
 
     test "converts x/y/width/height into a lower-left/upper-right rect" do
@@ -35,7 +37,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(72, 700, 120, 14, "https://example.com")
         |> Tincture.export()
 
-      assert binary =~ "/Rect [72 700 192 714]"
+      assert decoded(binary) =~ "/Rect [72 700 192 714]"
     end
 
     test "normalises a negative width or height instead of emitting a dead rect" do
@@ -44,7 +46,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(192, 714, -120, -14, "https://example.com")
         |> Tincture.export()
 
-      assert binary =~ "/Rect [72 700 192 714]"
+      assert decoded(binary) =~ "/Rect [72 700 192 714]"
     end
 
     test "escapes characters that would break a PDF literal string" do
@@ -53,9 +55,9 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(0, 0, 10, 10, "https://example.com/a(b)c\\d")
         |> Tincture.export()
 
-      assert binary =~ "/S /URI"
+      assert decoded(binary) =~ "/S /URI"
       # The parens and backslash must not terminate the literal early.
-      assert binary =~ "\\(" and binary =~ "\\)"
+      assert decoded(binary) =~ "\\(" and decoded(binary) =~ "\\)"
     end
   end
 
@@ -69,7 +71,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.export()
 
       # Page objects are 3, 5, 7... so page 2 is object 5.
-      assert binary =~ "/Dest [5 0 R /XYZ null null null]"
+      assert decoded(binary) =~ "/Dest [5 0 R /XYZ null null null]"
     end
 
     test "supports linking forward to a page that does not exist yet" do
@@ -81,7 +83,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.add_page()
         |> Tincture.export()
 
-      assert binary =~ "/Dest [7 0 R"
+      assert decoded(binary) =~ "/Dest [7 0 R"
     end
 
     test "raises at export when the target page never materialises" do
@@ -100,7 +102,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.text_at(72, 700, "no links here")
         |> Tincture.export()
 
-      refute binary =~ "/Annots"
+      refute decoded(binary) =~ "/Annots"
     end
 
     test "links attach to the current page by default" do
@@ -160,7 +162,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(0, 0, 10, 10, "https://example.com")
         |> Tincture.export()
 
-      assert binary =~ "/Border [0 0 0]"
+      assert decoded(binary) =~ "/Border [0 0 0]"
     end
 
     test "accepts an explicit border" do
@@ -169,7 +171,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.link(0, 0, 10, 10, "https://example.com", border: {0, 0, 2})
         |> Tincture.export()
 
-      assert binary =~ "/Border [0 0 2]"
+      assert decoded(binary) =~ "/Border [0 0 2]"
     end
 
     test "rejects a malformed border" do
@@ -187,9 +189,9 @@ defmodule Tincture.LinkTest do
         |> Tincture.text_link(72, 700, "Elixir", "https://elixir-lang.org")
         |> Tincture.export()
 
-      assert binary =~ "(Elixir) Tj"
-      assert binary =~ "/Subtype /Link"
-      assert binary =~ "/URI (https://elixir-lang.org)"
+      assert decoded(binary) =~ "(Elixir) Tj"
+      assert decoded(binary) =~ "/Subtype /Link"
+      assert decoded(binary) =~ "/URI (https://elixir-lang.org)"
     end
 
     test "sizes the rect from the measured text width" do
@@ -218,7 +220,7 @@ defmodule Tincture.LinkTest do
         |> Tincture.text_link(72, 700, "plain", "https://example.com")
         |> Tincture.export()
 
-      refute binary =~ "rg"
+      refute decoded(binary) =~ "rg"
     end
 
     test ":color wraps the colour change in a save/restore so it does not leak" do
@@ -229,12 +231,13 @@ defmodule Tincture.LinkTest do
         |> Tincture.text_at(72, 680, "should not be blue")
         |> Tincture.export()
 
-      assert binary =~ "q\n0.0 0.3 0.8 rg"
-      assert binary =~ "Q"
+      assert decoded(binary) =~ "q\n0.0 0.3 0.8 rg"
+      assert decoded(binary) =~ "Q"
 
       # The restore must come before the following text is drawn.
-      restore_index = :binary.match(binary, "Q") |> elem(0)
-      later_text_index = :binary.match(binary, "(should not be blue)") |> elem(0)
+      content = Tincture.Test.PDFObjects.page_content!(binary)
+      restore_index = :binary.match(content, "Q") |> elem(0)
+      later_text_index = :binary.match(content, "(should not be blue)") |> elem(0)
       assert restore_index < later_text_index
     end
 
@@ -246,8 +249,8 @@ defmodule Tincture.LinkTest do
         |> Tincture.add_page()
         |> Tincture.export()
 
-      assert binary =~ "(See page 2) Tj"
-      assert binary =~ "/Dest [5 0 R"
+      assert decoded(binary) =~ "(See page 2) Tj"
+      assert decoded(binary) =~ "/Dest [5 0 R"
     end
   end
 

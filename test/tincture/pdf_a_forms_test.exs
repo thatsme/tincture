@@ -129,16 +129,8 @@ defmodule Tincture.PDFAFormsTest do
 
   describe "a read-only field in a subset font" do
     # A stream object's decoded content, by object number.
-    defp stream_content(binary, number) do
-      [_, length, rest] =
-        Regex.run(~r|\n#{number} 0 obj\n<<[^\n]*?/Length (\d+)[^\n]*>>\nstream\n(.*)|s, binary)
-
-      data = binary_part(rest, 0, String.to_integer(length))
-
-      if Regex.match?(~r|\n#{number} 0 obj\n<<[^\n]*/FlateDecode|, binary),
-        do: :zlib.uncompress(data),
-        else: data
-    end
+    defp stream_content(binary, number),
+      do: Tincture.Test.PDFObjects.stream!(binary, String.to_integer("#{number}"))
 
     defp ref(binary, pattern) do
       [_, number] = Regex.run(pattern, binary)

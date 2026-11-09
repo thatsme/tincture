@@ -10,14 +10,7 @@ defmodule Tincture.OpenPathTest do
   # and clip_even_odd/1 called with nothing open raise ArgumentError, and
   # write nothing to stderr.
 
-  defp content(pdf) do
-    [stream] =
-      Regex.run(~r/<< \/Length \d+ >>\nstream\n(.*?)\nendstream/s, Tincture.export(pdf),
-        capture: :all_but_first
-      )
-
-    stream
-  end
+  defp content(pdf), do: Tincture.Test.PDFObjects.page_content!(Tincture.export(pdf))
 
   # Runs fun, which must raise ArgumentError, with stderr captured. Returns the
   # exception, and asserts nothing was written to stderr: the condition raises
