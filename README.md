@@ -37,19 +37,19 @@ are as measured at 0.4.1:
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
-| | `archival.pdf` | 106 of 106 rules, 2255 of 2255 checks |
+| | `archival.pdf` | 106 of 106 rules, 2496 of 2496 checks |
 | | `archival_form.pdf` | 106 of 106 rules, 1401 of 1401 checks |
 | | `tagged_form.pdf` | 106 of 106 rules, 1411 of 1411 checks |
 | | `signed_archival.pdf` | 106 of 106 rules, 946 of 946 checks |
 | | `linked/Main-report.pdf` | 106 of 106 rules, 830 of 830 checks |
 | | `linked/Attached documents/Appendix-A.pdf` | 106 of 106 rules, 3761 of 3761 checks |
-| **PDF/A-2b** (archival, ISO 19005-2) | `archival.pdf` | 144 of 144 rules, 3112 of 3112 checks |
+| **PDF/A-2b** (archival, ISO 19005-2) | `archival.pdf` | 144 of 144 rules, 3488 of 3488 checks |
 | | `archival_form.pdf` | 144 of 144 rules, 6884 of 6884 checks |
 | | `signed_archival.pdf` | 144 of 144 rules, 1562 of 1562 checks |
-| **PDF/A-2u** (archival, text extractable) | `archival.pdf` | 146 of 146 rules, 3724 of 3724 checks |
+| **PDF/A-2u** (archival, text extractable) | `archival.pdf` | 146 of 146 rules, 4170 of 4170 checks |
 | | `archival_form.pdf` | 146 of 146 rules, 7276 of 7276 checks |
 | | `signed_archival.pdf` | 146 of 146 rules, 1866 of 1866 checks |
-| **PDF/A-2a** (accessible archival) | `archival.pdf` | 153 of 153 rules, 4033 of 4033 checks |
+| **PDF/A-2a** (accessible archival) | `archival.pdf` | 153 of 153 rules, 4514 of 4514 checks |
 | | `archival_form.pdf` | 153 of 153 rules, 7475 of 7475 checks |
 | | `signed_archival.pdf` | 153 of 153 rules, 2021 of 2021 checks |
 

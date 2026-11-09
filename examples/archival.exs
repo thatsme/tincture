@@ -104,6 +104,11 @@ table_top = page_h - 330
 table_row_height = 25
 table_bottom = table_top - table_row_height * length(details)
 
+# The two images are committed beside the examples; examples/images/README.md
+# gives the commands that made them.
+seal_path = Path.join(__DIR__, "images/seal.png")
+chart_path = Path.join(__DIR__, "images/colour-bars.jpg")
+
 pdf =
   Tincture.tag(pdf, :document, fn pdf ->
     pdf =
@@ -115,6 +120,14 @@ pdf =
         |> Tincture.set_font(sans, 9)
         |> Tincture.text_at(margin, page_h - 110, "Northgate Instruments Ltd · NGI-C-4471")
       end)
+      # A PNG with an alpha channel: its transparency is written as a soft
+      # mask, which PDF/A-2 permits (PDF/A-1 did not). Images are figures,
+      # with alternative text, like any other content a reader cannot read.
+      |> Tincture.tag(
+        :figure,
+        [alt: "The Northgate Instruments calibration seal: a blue ring around a pale disc."],
+        &Tincture.image_png(&1, page_w - margin - 56, page_h - 124, 56, 56, seal_path)
+      )
       |> rule_at.(page_h - 126)
 
     pdf =
@@ -158,17 +171,43 @@ pdf =
         pdf
       end)
 
-    Tincture.tag(pdf, :section, [title: "Authorisation"], fn pdf ->
-      pdf =
+    pdf =
+      Tincture.tag(pdf, :section, [title: "Display check"], fn pdf ->
         pdf
-        |> heading.(:h2, table_bottom - 40, "AUTHORISED BY", 8, accent, sans)
+        |> heading.(:h2, table_bottom - 26, "DISPLAY CHECK", 8, accent, sans)
         |> Tincture.tag(:p, fn pdf ->
           pdf
           |> Tincture.set_fill_color(ink)
           |> Tincture.set_font(body, 10.5)
-          |> Tincture.text_at(margin, table_bottom - 66, "R. Aldiss, Calibration Engineer")
+          |> Tincture.text_at(
+            margin + 104,
+            table_bottom - 48,
+            "The display was checked against the colour-bar pattern."
+          )
         end)
-        |> rule_at.(table_bottom - 96)
+        # A JPEG, embedded as it is: its DCT data is the image stream.
+        |> Tincture.tag(
+          :figure,
+          [
+            alt:
+              "The SMPTE colour-bar test pattern as shown on the instrument's display: " <>
+                "seven vertical bars from grey to blue above a greyscale ramp."
+          ],
+          &Tincture.image_jpeg(&1, margin, table_bottom - 92, 96, 54, chart_path)
+        )
+      end)
+
+    Tincture.tag(pdf, :section, [title: "Authorisation"], fn pdf ->
+      pdf =
+        pdf
+        |> heading.(:h2, table_bottom - 132, "AUTHORISED BY", 8, accent, sans)
+        |> Tincture.tag(:p, fn pdf ->
+          pdf
+          |> Tincture.set_fill_color(ink)
+          |> Tincture.set_font(body, 10.5)
+          |> Tincture.text_at(margin, table_bottom - 158, "R. Aldiss, Calibration Engineer")
+        end)
+        |> rule_at.(table_bottom - 188)
 
       pdf =
         Tincture.tag(pdf, :p, fn pdf ->
@@ -177,7 +216,7 @@ pdf =
           |> Tincture.set_font(sans, 7.5)
           |> Tincture.text_at(
             margin,
-            table_bottom - 112,
+            table_bottom - 204,
             "Retained under ISO/IEC 17025. Archived as PDF/A-2a."
           )
         end)
@@ -197,7 +236,7 @@ pdf =
         |> Tincture.set_font(sans, 7.5)
         |> Tincture.text_link(
           margin,
-          table_bottom - 126,
+          table_bottom - 218,
           "See the accessibility checklist, page 1",
           {:file, "compliant.pdf", 1},
           contents: "compliant.pdf, the PDF/UA checklist archived alongside this report"
@@ -231,7 +270,14 @@ checks = [
   {"fonts embedded", "register_ttf",
    if(embedded?, do: {:note, "ok"}, else: {:note, "NO - standard 14 in use"})},
   {"tagged (needed for 2a)", "tag/4", binary =~ "/StructTreeRoot"},
-  {"remote link permitted", "GoToR", binary =~ "/S /GoToR"}
+  {"remote link permitted", "GoToR", binary =~ "/S /GoToR"},
+  # Two images and the PNG's soft mask, each image drawn on the page, and
+  # each a figure carrying its alternative text.
+  {"PNG, with a soft mask", "image_png/6",
+   binary =~ ~r|/Subtype /Image[^\n]*/SMask \d+ 0 R| and binary =~ "/Im1 Do"},
+  {"JPEG", "image_jpeg/6", binary =~ ~r|/Subtype /Image[^\n]*/DCTDecode| and binary =~ "/Im2 Do"},
+  {"both figures described", ":alt",
+   length(Regex.scan(~r|/S /Figure[^\n]*/Alt \(|, binary)) == 2}
 ]
 
 IO.puts("""

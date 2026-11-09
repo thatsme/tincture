@@ -4,9 +4,14 @@
 # /Contents span ("-" in an unsigned file; the hash then covers the bytes
 # outside it).
 #
-# Every row is the file Tincture 0.4.1 committed, byte for byte.
+# Every row is the file Tincture 0.4.1 committed, byte for byte, except:
+#
+# - archival.pdf, pinned to the bytes it writes since it gained a PNG and a
+#   JPEG in 0.5.0. Before that change, built with compress: false, it
+#   matched 0.4.1's 269,339 bytes, SHA-256
+#   20bc81cc2921eafc3691e92cf2b6d94fabf3a9d6925205ffee9b4b8f74e0665c.
 accessible.pdf	259122	98f6e4a90dd7c9ca4e9052c1f6575d20f806e17af5932bf88e97c6f44eca0115	-
-archival.pdf	269339	20bc81cc2921eafc3691e92cf2b6d94fabf3a9d6925205ffee9b4b8f74e0665c	-
+archival.pdf	277720	c03510a6961155cecf1d467dd43406d9b1749f901bd45813cd309edcfaed0f8f	-
 archival_form.pdf	549306	1ccccb943f680283bd8c94f085098a1a5f4925ef6370e81dacc3b85488e33aae	-
 compliant.pdf	274930	10becb09288d7d177bfc17f77a9deeaa8fd3daca2df943d70d4816e430eba1cf	-
 form.pdf	266039	e04b4915319a01a867caf9e1191f35d9eecf9d40082d0a9414943cb7aef5d193	-

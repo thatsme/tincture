@@ -167,6 +167,13 @@ Shows:
 - **Why the standard 14 fonts are unusable here**: PDF/A requires every font to
   be embedded, and those are referenced by name for the reader to resolve,
   which is the outside dependency the format exists to remove.
+- **Images**, each a `:figure` with alternative text: a PNG with an alpha
+  channel, `Tincture.image_png/6`, written with a soft mask, which PDF/A-2
+  permits; and a baseline JPEG, `Tincture.image_jpeg/6`, embedded as it is.
+  They are the only images in a validated example, so they are what puts
+  PDF/A-2's image dictionary rules to work, clause 6.2.8 tests 1–4, which
+  have nothing to check in the other validated documents. The images and how
+  they were made are in [`images/`](images/README.md).
 - **Bookmarks** for each heading, as in the other tagged examples.
 
 Output is deterministic — the file identifier comes from the content and the
@@ -178,10 +185,10 @@ flavours; at 0.4.1:
 
 | Profile | Rules | Checks |
 |---|---|---|
-| PDF/A-2b | 144 of 144 | 3112 of 3112 |
-| PDF/A-2u | 146 of 146 | 3724 of 3724 |
-| PDF/A-2a | 153 of 153 | 4033 of 4033 |
-| PDF/UA-1 | 106 of 106 | 2255 of 2255 |
+| PDF/A-2b | 144 of 144 | 3488 of 3488 |
+| PDF/A-2u | 146 of 146 | 4170 of 4170 |
+| PDF/A-2a | 153 of 153 | 4514 of 4514 |
+| PDF/UA-1 | 106 of 106 | 2496 of 2496 |
 
 PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
 0 warnings. PAC does not check PDF/A.
