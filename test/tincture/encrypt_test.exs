@@ -411,18 +411,27 @@ defmodule Tincture.EncryptTest do
   # Exports `pdf` plainly and encrypted, checks every stream of the encrypted
   # file against the plain one, and returns the plain file's streams, each
   # with its data decoded (PDFObjects.stream!/2).
+  # Compression comes first and encryption after it (ISO 32000-1 7.6.2), so
+  # each stream must also decrypt, then inflate, to the bytes the document
+  # exported with compress: false holds: the data before either. A stream is
+  # inflated where compression gave it the Flate filter the uncompressed
+  # export does not have.
   defp assert_streams_decrypt(pdf) do
     plain = Tincture.export(pdf)
+    uncompressed = Tincture.export(pdf, compress: false)
     binary = pdf |> Tincture.encrypt(user_password: "p") |> Tincture.export()
     {:ok, key} = open_document(binary, "p")
 
     expected = streams_of(plain)
     actual = streams_of(binary)
+    before_compression = streams_of(uncompressed)
 
     assert Map.keys(actual) == Map.keys(expected)
+    assert Map.keys(before_compression) == Map.keys(expected)
 
     for {number, stream} <- actual do
       plain_data = Map.fetch!(expected, number).data
+      original = Map.fetch!(before_compression, number)
 
       assert stream.after == "\nendstream",
              "object #{number}: /Length does not count the bytes written as its data"
@@ -431,8 +440,18 @@ defmodule Tincture.EncryptTest do
              "object #{number}: #{byte_size(stream.data)} bytes cannot be an AES-256 ciphertext " <>
                "(an IV and at least one block)"
 
-      assert decrypt(stream.data, key) == plain_data,
+      decrypted = decrypt(stream.data, key)
+
+      assert decrypted == plain_data,
              "object #{number} does not decrypt to the bytes the unencrypted document holds"
+
+      decoded =
+        if stream.dict =~ "/FlateDecode" and not (original.dict =~ "/FlateDecode"),
+          do: PDFObjects.inflate!(decrypted),
+          else: decrypted
+
+      assert decoded == original.data,
+             "object #{number} does not decrypt and inflate to its uncompressed bytes"
     end
 
     for {number, stream} <- expected, do: %{stream | data: PDFObjects.stream!(plain, number)}

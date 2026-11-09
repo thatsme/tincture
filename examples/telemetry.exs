@@ -106,7 +106,7 @@ pdf =
     )
   end)
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("telemetry.pdf")
 File.write!(path, binary)
 

@@ -209,11 +209,18 @@ pdf =
 # Without an embedded font the document breaks the PDF/A claim it carries, and
 # export refuses a false claim by design. `enforce: false` is the documented way
 # past that, and this is exactly the case it exists for.
-binary = if embedded?, do: Tincture.export(pdf), else: Tincture.export(pdf, enforce: false)
+binary =
+  if embedded?,
+    do: Tincture.export(pdf, compress: Examples.Fonts.compress?()),
+    else: Tincture.export(pdf, enforce: false, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("archival.pdf")
 File.write!(path, binary)
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 checks = [
   {"sRGB output intent", "set_pdf_a/2", binary =~ "/GTS_PDFA1"},

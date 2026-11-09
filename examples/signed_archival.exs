@@ -169,11 +169,18 @@ pdf =
     signing_time: ~U[2026-11-04 15:30:00Z]
   )
 
-binary = if embedded?, do: Tincture.export(pdf), else: Tincture.export(pdf, enforce: false)
+binary =
+  if embedded?,
+    do: Tincture.export(pdf, compress: Examples.Fonts.compress?()),
+    else: Tincture.export(pdf, enforce: false, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("signed_archival.pdf")
 File.write!(path, binary)
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 signature_widget =
   case Regex.run(~r|<< [^\n]*/FT /Sig /T \(approval\)[^\n]*|, binary) do

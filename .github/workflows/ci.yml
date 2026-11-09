@@ -235,6 +235,18 @@ jobs:
           elixir scripts/compare_outside_contents.exs \
             examples/output/signed.pdf examples/output/signed_archival.pdf
 
+      # compress: false is meant to change nothing but compression. Built with
+      # it, into tmp/examples-uncompressed, every example must be the bytes
+      # pinned for it: 0.4.1's, the release before compression, unless the
+      # example itself has changed since (scripts/uncompressed_examples.tsv).
+      - name: Built uncompressed, the examples match their pinned bytes
+        env:
+          TINCTURE_EXAMPLES_UNCOMPRESSED: "1"
+        run: |
+          set -o pipefail
+          mix examples > examples-uncompressed.log 2>&1 || { cat examples-uncompressed.log; exit 1; }
+          elixir scripts/check_uncompressed_examples.exs
+
       # The signature is checked by a verifier that is not Tincture's: the
       # extraction script shares no code with Tincture.PDF.Sign or
       # Tincture.PDF.CMS, and openssl does the cryptography. -noverify skips

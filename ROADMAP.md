@@ -302,9 +302,9 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit; at 0.4.1: PDF/A-2b (144 of 144 rules, 3088 of 3088 checks), PDF/A-2u
-(146 of 146 rules, 3700 of 3700 checks) and **PDF/A-2a** (153 of 153 rules,
-4009 of 4009 checks) — and the PDF/UA-1 profile at the same time (106 of 106
+every commit; at 0.4.1: PDF/A-2b (144 of 144 rules, 3112 of 3112 checks), PDF/A-2u
+(146 of 146 rules, 3724 of 3724 checks) and **PDF/A-2a** (153 of 153 rules,
+4033 of 4033 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2255 of 2255 checks), since 2a is the accessible archival level and
 subsumes the tagging requirement. PAC 2026.1 audit, 2026-10-19, on the file at
 `4a75f1e`: PDF/UA 0 errors, 0 warnings. PAC does not check PDF/A.

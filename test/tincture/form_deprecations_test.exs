@@ -369,7 +369,9 @@ defmodule Tincture.FormDeprecationsTest do
     # /StructParent key the parent tree maps to it; the text field, created
     # outside every tag scope, has neither. The refusal itself changes no byte:
     # with enforce: false the document is written exactly as it would be.
+    # Those are the bytes with compress: false; @compressed pins the default.
     @sha256 "cff0586354d3ebef26a339c35f8c9999ae606d97770095ad000582d51c508ce5"
+    @compressed "e381ba54701e4826fa9de5255d7868c86af397f35db32fee7ed2048700c1c45f"
 
     defp both do
       Tincture.new()
@@ -400,15 +402,19 @@ defmodule Tincture.FormDeprecationsTest do
       stderr =
         capture_io(:stderr, fn ->
           ExUnit.CaptureLog.capture_log(fn ->
-            send(parent, {:binary, Tincture.export(both(), enforce: false)})
+            send(parent, {:binary, Tincture.export(both(), enforce: false, compress: false)})
+            send(parent, {:compressed, Tincture.export(both(), enforce: false)})
           end)
         end)
 
       assert_received {:binary, binary}
+      assert_received {:compressed, compressed}
       assert stderr == ""
       assert byte_size(binary) == 5282
       assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) == @sha256
       refute binary =~ "created_outside_structure"
+      assert byte_size(compressed) == 4833
+      assert :crypto.hash(:sha256, compressed) |> Base.encode16(case: :lower) == @compressed
     end
   end
 end

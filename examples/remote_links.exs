@@ -130,7 +130,7 @@ appendix =
   end)
 
 appendix_out = Examples.Fonts.output_path("linked/#{appendix_path}")
-File.write!(appendix_out, Tincture.export(appendix))
+File.write!(appendix_out, Tincture.export(appendix, compress: Examples.Fonts.compress?()))
 
 # ---------------------------------------------------------------------------
 # The main document, which links into the appendix by page.
@@ -216,9 +216,13 @@ main =
     end)
   end)
 
-main_binary = Tincture.export(main)
+main_binary = Tincture.export(main, compress: Examples.Fonts.compress?())
 main_out = Examples.Fonts.output_path("linked/Main-report.pdf")
 File.write!(main_out, main_binary)
+
+# The checks read the streams inflated; the size is the file's.
+main_size = byte_size(main_binary)
+main_binary = Examples.Checks.inflated(main_binary)
 
 root = Path.dirname(main_out)
 
@@ -234,7 +238,7 @@ checks = [
 
 IO.puts("""
 wrote #{Path.relative_to_cwd(root)}/
-  Main-report.pdf                     #{byte_size(main_binary)} bytes
+  Main-report.pdf                     #{main_size} bytes
   #{appendix_path}   #{File.stat!(appendix_out).size} bytes
 
 What the main document carries:

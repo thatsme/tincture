@@ -40,13 +40,15 @@ defmodule Tincture.ContentStreamStateTest do
     end
   end
 
+  # Each fixture is locked twice: compressed, and with compress: false.
   test "every locked fixture is covered" do
     locked =
       "test/fixtures/pdf/*.sha256"
       |> Path.wildcard()
       |> Enum.map(&Path.basename(&1, ".sha256"))
 
-    assert Enum.sort(locked) == Enum.sort(FixtureDocuments.names())
+    names = FixtureDocuments.names()
+    assert Enum.sort(locked) == Enum.sort(names ++ Enum.map(names, &(&1 <> ".compressed")))
   end
 
   describe "showcases" do

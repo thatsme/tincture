@@ -245,7 +245,7 @@ pdf =
     "Northgate Instruments Ltd · Registered in England 04471902 · VAT GB 812 4471 02"
   )
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("form.pdf")
 File.write!(path, binary)
 

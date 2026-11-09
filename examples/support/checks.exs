@@ -94,4 +94,83 @@ defmodule Examples.Checks do
 
   defp column_width(rows, index),
     do: rows |> Enum.map(&String.length(elem(&1, index))) |> Enum.max()
+
+  @doc """
+  The written file with every Flate stream's data replaced by its inflated
+  data, so that the checks read content operators and font programs as they
+  were before compression. Image data, which carries a PNG predictor, is kept
+  as written.
+
+  Each stream's data is located by its `/Length`, never by searching for
+  `endstream`, since compressed data can contain any byte. Raises if a
+  `/Length` is not followed by an end-of-line and `endstream`, or if Flate
+  data does not inflate to exactly the end of its zlib stream. The result is
+  for matching only: its offsets are not those of the file.
+  """
+  @spec inflated(binary()) :: binary()
+  def inflated(binary) when is_binary(binary), do: inflate_streams(binary, [])
+
+  @stream_start ">>\nstream\n"
+
+  defp inflate_streams(binary, acc) do
+    case :binary.match(binary, @stream_start) do
+      :nomatch ->
+        IO.iodata_to_binary(Enum.reverse([binary | acc]))
+
+      {at, size} ->
+        head = binary_part(binary, 0, at + size)
+        rest = binary_part(binary, at + size, byte_size(binary) - at - size)
+        dictionary = last_dictionary(head)
+
+        [_, length] =
+          Regex.run(~r|/Length (\d+)[ >]|, dictionary) ||
+            raise("a stream with no direct /Length: #{inspect(dictionary)}")
+
+        length = String.to_integer(length)
+        <<data::binary-size(length), tail::binary>> = rest
+
+        unless String.starts_with?(tail, "\nendstream") do
+          raise "a stream's /Length bytes are not followed by EOL and endstream: " <>
+                  inspect(dictionary)
+        end
+
+        data =
+          if dictionary =~ "/FlateDecode" and not (dictionary =~ "/Subtype /Image"),
+            do: inflate!(data),
+            else: data
+
+        inflate_streams(tail, [data, head | acc])
+    end
+  end
+
+  # The stream's dictionary: from the last object header before the
+  # `stream` keyword.
+  defp last_dictionary(head) do
+    from =
+      case :binary.matches(head, " 0 obj\n") do
+        [] -> 0
+        matches -> matches |> List.last() |> then(fn {at, size} -> at + size end)
+      end
+
+    binary_part(head, from, byte_size(head) - from)
+  end
+
+  # :zlib.uncompress/1 raises on data that does not end its zlib stream, but
+  # not on bytes left over after it. A zlib stream ends in its 4-byte
+  # Adler-32, so if the data less its last byte still uncompresses, that byte
+  # was left over.
+  defp inflate!(data) do
+    inflated = :zlib.uncompress(data)
+
+    leftover? =
+      try do
+        :zlib.uncompress(binary_part(data, 0, byte_size(data) - 1))
+        true
+      rescue
+        ErlangError -> false
+      end
+
+    if leftover?, do: raise("bytes are left over after a stream's Flate data")
+    inflated
+  end
 end

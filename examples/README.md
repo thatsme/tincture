@@ -178,9 +178,9 @@ flavours; at 0.4.1:
 
 | Profile | Rules | Checks |
 |---|---|---|
-| PDF/A-2b | 144 of 144 | 3088 of 3088 |
-| PDF/A-2u | 146 of 146 | 3700 of 3700 |
-| PDF/A-2a | 153 of 153 | 4009 of 4009 |
+| PDF/A-2b | 144 of 144 | 3112 of 3112 |
+| PDF/A-2u | 146 of 146 | 3724 of 3724 |
+| PDF/A-2a | 153 of 153 | 4033 of 4033 |
 | PDF/UA-1 | 106 of 106 | 2255 of 2255 |
 
 PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
@@ -226,9 +226,9 @@ four flavours; at 0.4.1:
 
 | Profile | Rules | Checks |
 |---|---|---|
-| PDF/A-2b | 144 of 144 | 6800 of 6800 |
-| PDF/A-2u | 146 of 146 | 7192 of 7192 |
-| PDF/A-2a | 153 of 153 | 7391 of 7391 |
+| PDF/A-2b | 144 of 144 | 6884 of 6884 |
+| PDF/A-2u | 146 of 146 | 7276 of 7276 |
+| PDF/A-2a | 153 of 153 | 7475 of 7475 |
 | PDF/UA-1 | 106 of 106 | 1401 of 1401 |
 
     verapdf --flavour 2b  examples/output/archival_form.pdf
@@ -351,9 +351,9 @@ four flavours; at 0.4.1:
 
 | Profile | Rules | Checks |
 |---|---|---|
-| PDF/A-2b | 144 of 144 | 1538 of 1538 |
-| PDF/A-2u | 146 of 146 | 1842 of 1842 |
-| PDF/A-2a | 153 of 153 | 1997 of 1997 |
+| PDF/A-2b | 144 of 144 | 1562 of 1562 |
+| PDF/A-2u | 146 of 146 | 1866 of 1866 |
+| PDF/A-2a | 153 of 153 | 2021 of 2021 |
 | PDF/UA-1 | 106 of 106 | 946 of 946 |
 
     verapdf --flavour 2b  examples/output/signed_archival.pdf

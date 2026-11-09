@@ -15,9 +15,12 @@ defmodule Tincture.PDF.Serialize do
   for simple fonts, glyph indices for composite ones. See `Tincture.PDF.Object`
   for the string encoding rules.
 
-  Content streams are written **uncompressed**. Image data carries its own
-  filter, but page content does not, which costs file size on text-heavy
-  documents — see the object and cross-reference stream item on the roadmap.
+  Every stream is Flate-compressed, except the XMP metadata, which stays
+  readable as plain text: page content, form XObjects and widget appearances,
+  font programs, ToUnicode maps and the ICC profile. Image data and the
+  CIDToGIDMap carry their own filters, as before. `compress: false` on
+  `Tincture.export/2` writes those streams uncompressed. There are no object or
+  cross-reference streams; see the roadmap.
   """
 
   require Logger
@@ -36,8 +39,11 @@ defmodule Tincture.PDF.Serialize do
   alias Tincture.Telemetry
 
   @doc false
-  @spec export(PDF.t()) :: binary()
-  def export(%PDF{} = pdf) do
+  # `compress?`: whether streams are Flate-compressed, `export/2`'s
+  # `:compress`. The XMP metadata, and the streams that carry a filter of their
+  # own, are written the same either way.
+  @spec export(PDF.t(), boolean()) :: binary()
+  def export(%PDF{} = pdf, compress? \\ true) when is_boolean(compress?) do
     metadata = %{
       page_count: length(PDF.page_numbers(pdf)),
       form_field_count: length(pdf.form_fields),
@@ -47,12 +53,12 @@ defmodule Tincture.PDF.Serialize do
     }
 
     Telemetry.span([:tincture, :export], metadata, fn ->
-      binary = do_export(pdf)
+      binary = do_export(pdf, compress?)
       {binary, %{byte_size: byte_size(binary)}}
     end)
   end
 
-  defp do_export(%PDF{} = pdf) do
+  defp do_export(%PDF{} = pdf, compress?) do
     pdf = mark_named_fonts(pdf)
     {page_width, page_height} = Page.media_box(pdf.page_size)
     page_numbers = PDF.page_numbers(pdf)
@@ -72,7 +78,7 @@ defmodule Tincture.PDF.Serialize do
         pdf,
         PDF.stream_keys(pdf),
         embedded_fonts_start_id,
-        [{:tagged_streams, true} | field_font_plan(pdf, appearances)]
+        [{:tagged_streams, true}, {:compress, compress?} | field_font_plan(pdf, appearances)]
       )
 
     {image_object_refs, image_objects, form_xobjects_start_id} =
@@ -82,7 +88,8 @@ defmodule Tincture.PDF.Serialize do
       embedded_font_refs: embedded_font_refs,
       embedded_font_text_modes: embedded_font_text_modes,
       image_object_refs: image_object_refs,
-      form_xobject_refs: %{}
+      form_xobject_refs: %{},
+      compress?: compress?
     }
 
     # Form XObjects follow the images, which their resources may name. With
@@ -130,7 +137,7 @@ defmodule Tincture.PDF.Serialize do
     output_intent_start_id = structure_start_id + length(structure_objects)
 
     {output_intent_ref, output_intent_objects} =
-      build_output_intent_objects(pdf, output_intent_start_id)
+      build_output_intent_objects(pdf, output_intent_start_id, compress?)
 
     metadata_start_id = output_intent_start_id + length(output_intent_objects)
 
@@ -253,11 +260,12 @@ defmodule Tincture.PDF.Serialize do
 
     page_metadata = %{page_number: page_number, operation_count: length(operations)}
 
-    {content_stream, content_length} =
+    # The span's :byte_size is the stream as written, compressed or not.
+    {content_stream, content_length, filter} =
       Telemetry.span([:tincture, :page], page_metadata, fn ->
-        stream = content_stream(operations, aliases, refs)
+        {stream, filter} = Object.flate(content_stream(operations, aliases, refs), refs.compress?)
         length = IO.iodata_length(stream)
-        {{stream, length}, %{byte_size: length}}
+        {{stream, length, filter}, %{byte_size: length}}
       end)
 
     resources = resource_dictionary(entries)
@@ -265,7 +273,8 @@ defmodule Tincture.PDF.Serialize do
     # The EOL before `endstream` is a delimiter rather than stream data, so
     # a stream whose own last byte is a newline needs one of each - or
     # /Length overstates the content by one (ISO 19005-2 clause 6.1.7.1).
-    content_body = {:stream, "<< /Length #{content_length} >>\nstream\n", content_stream}
+    content_body =
+      {:stream, "<< /Length #{content_length}#{filter} >>\nstream\n", content_stream}
 
     {resources, content_body}
   end
@@ -308,7 +317,12 @@ defmodule Tincture.PDF.Serialize do
   # telemetry span is emitted for it.
   defp form_xobject_object(%PDF{} = pdf, name, refs) do
     xobject = Map.fetch!(pdf.form_xobjects, name)
-    form_xobject({0, 0, xobject.width, xobject.height}, xobject_stream(xobject.operations, refs))
+
+    form_xobject(
+      {0, 0, xobject.width, xobject.height},
+      xobject_stream(xobject.operations, refs),
+      refs.compress?
+    )
   end
 
   # A public form XObject's content and resources: the page's resource
@@ -392,13 +406,14 @@ defmodule Tincture.PDF.Serialize do
       "#{metadata}#{viewer_preferences}#{output_intent} >>"
   end
 
-  defp build_output_intent_objects(%PDF{pdf_a: nil}, _start_id), do: {nil, []}
+  defp build_output_intent_objects(%PDF{pdf_a: nil}, _start_id, _compress?), do: {nil, []}
 
-  defp build_output_intent_objects(%PDF{}, start_id) do
-    profile = ICC.srgb()
+  defp build_output_intent_objects(%PDF{}, start_id, compress?) do
+    {profile, filter} = Object.flate(ICC.srgb(), compress?)
+    length = IO.iodata_length(profile)
 
     object =
-      {:stream, "<< /N #{ICC.components()} /Length #{byte_size(profile)} >>\nstream\n", profile}
+      {:stream, "<< /N #{ICC.components()} /Length #{length}#{filter} >>\nstream\n", profile}
 
     {start_id, [object]}
   end
@@ -413,6 +428,10 @@ defmodule Tincture.PDF.Serialize do
     end
   end
 
+  # Never compressed: metadata "is visible as plain text to tools that are not
+  # PDF-aware only if the metadata stream is both unfiltered and unencrypted"
+  # (ISO 32000-1 14.3.2, NOTE 2), and /EncryptMetadata false keeps it
+  # unencrypted.
   defp xmp_object_body(packet) do
     {:stream, "<< /Type /Metadata /Subtype /XML /Length #{byte_size(packet)} >>\nstream\n",
      packet}
@@ -1409,7 +1428,7 @@ defmodule Tincture.PDF.Serialize do
           build_drawn_field(field, page_object_refs, id, context)
 
         field, id ->
-          build_form_field(field, page_object_refs, id)
+          build_form_field(field, page_object_refs, id, context.stream_refs.compress?)
       end)
 
     {
@@ -1434,7 +1453,7 @@ defmodule Tincture.PDF.Serialize do
   # parent plus a kid per button. Each kid also needs a pair of appearance
   # streams, because a radio button's export value *is* the name of its "on"
   # appearance state - there is nowhere else to record it.
-  defp build_form_field(%{type: :radio} = field, page_object_refs, id) do
+  defp build_form_field(%{type: :radio} = field, page_object_refs, id, compress?) do
     {kids, next_id} =
       Enum.map_reduce(field.widgets, id + 1, fn widget, kid_id ->
         {{widget, kid_id, kid_id + 1, kid_id + 2}, kid_id + 3}
@@ -1448,8 +1467,8 @@ defmodule Tincture.PDF.Serialize do
 
         [
           radio_kid_object_body(field, widget, id, page_ref, on_id, off_id),
-          radio_appearance_object_body(widget, :on),
-          radio_appearance_object_body(widget, :off)
+          radio_appearance_object_body(widget, :on, compress?),
+          radio_appearance_object_body(widget, :off, compress?)
         ]
       end)
 
@@ -1469,7 +1488,7 @@ defmodule Tincture.PDF.Serialize do
   # reason: without an /AP it is drawn only by viewers that honour
   # /NeedAppearances, so it is invisible when printed, thumbnailed or
   # rasterised server-side.
-  defp build_form_field(%{type: :checkbox} = field, page_object_refs, id) do
+  defp build_form_field(%{type: :checkbox} = field, page_object_refs, id, compress?) do
     on_id = id + 1
     off_id = id + 2
     page_ref = Map.fetch!(page_object_refs, field.page_number)
@@ -1479,15 +1498,15 @@ defmodule Tincture.PDF.Serialize do
       widget_refs: [{id, field.page_number}],
       objects: [
         form_field_object_body(field, page_ref, checkbox_appearance_entry(on_id, off_id)),
-        checkbox_appearance_object_body(field, :on),
-        checkbox_appearance_object_body(field, :off)
+        checkbox_appearance_object_body(field, :on, compress?),
+        checkbox_appearance_object_body(field, :off, compress?)
       ]
     }
 
     {built, id + 3}
   end
 
-  defp build_form_field(field, page_object_refs, id) do
+  defp build_form_field(field, page_object_refs, id, _compress?) do
     built = %{
       field_ref: id,
       widget_refs: [{id, field.page_number}],
@@ -1532,7 +1551,7 @@ defmodule Tincture.PDF.Serialize do
         {built, id + 2}
 
       :error ->
-        build_form_field(field, page_object_refs, id)
+        build_form_field(field, page_object_refs, id, context.stream_refs.compress?)
     end
   end
 
@@ -1660,7 +1679,8 @@ defmodule Tincture.PDF.Serialize do
         {:tx, appearance.border, appearance.content},
         [widget_font(field, dr_font_refs)],
         refs
-      )
+      ),
+      refs.compress?
     )
   end
 
@@ -1839,7 +1859,7 @@ defmodule Tincture.PDF.Serialize do
   # what name the export values, so there is nowhere else to put them. These
   # are deliberately plain - a ring, and a dot when selected - because a viewer
   # honouring /NeedAppearances may well replace them anyway.
-  defp radio_appearance_object_body(widget, state) do
+  defp radio_appearance_object_body(widget, state, compress?) do
     {x1, y1, x2, y2} = widget.rect
     size = min(x2 - x1, y2 - y1)
     centre = size / 2
@@ -1855,7 +1875,8 @@ defmodule Tincture.PDF.Serialize do
 
     form_xobject(
       {0, 0, size, size},
-      widget_stream([button_line_state() | operations], [], @no_font_refs)
+      widget_stream([button_line_state() | operations], [], @no_font_refs),
+      compress?
     )
   end
 
@@ -1882,7 +1903,7 @@ defmodule Tincture.PDF.Serialize do
   defp checkbox_appearance_entry(on_id, off_id),
     do: " /AP << /N << /Yes #{on_id} 0 R /Off #{off_id} 0 R >> >>"
 
-  defp checkbox_appearance_object_body(field, state) do
+  defp checkbox_appearance_object_body(field, state, compress?) do
     {x1, y1, x2, y2} = field.rect
     size = min(x2 - x1, y2 - y1)
 
@@ -1905,7 +1926,8 @@ defmodule Tincture.PDF.Serialize do
 
     form_xobject(
       {0, 0, size, size},
-      widget_stream([button_line_state(), box | tick], [], @no_font_refs)
+      widget_stream([button_line_state(), box | tick], [], @no_font_refs),
+      compress?
     )
   end
 
@@ -1919,7 +1941,8 @@ defmodule Tincture.PDF.Serialize do
 
     form_xobject(
       {0, 0, appearance.width, appearance.height},
-      widget_stream(operations, fonts, refs)
+      widget_stream(operations, fonts, refs),
+      refs.compress?
     )
   end
 
@@ -1939,13 +1962,15 @@ defmodule Tincture.PDF.Serialize do
 
   # Every form XObject, public or a widget appearance: its bounding box, and
   # its content and resource entries from xobject_stream/2 or widget_stream/3.
-  defp form_xobject({x1, y1, x2, y2}, {content, resources}) do
+  defp form_xobject({x1, y1, x2, y2}, {content, resources}, compress?) do
     bbox = Enum.map_join([x1, y1, x2, y2], " ", &Object.num/1)
+    {content, filter} = Object.flate(content, compress?)
+    length = IO.iodata_length(content)
 
     {:stream,
      [
        "<< /Type /XObject /Subtype /Form /BBox [#{bbox}]",
-       " /Resources <<#{resources} >> /Length #{byte_size(content)} >>\nstream\n"
+       " /Resources <<#{resources} >> /Length #{length}#{filter} >>\nstream\n"
      ], content}
   end
 

@@ -126,15 +126,19 @@ pdf =
     signing_time: ~U[2026-07-26 12:00:00Z]
   )
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("signed.pdf")
 File.write!(path, binary)
+
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
 
 # --- what a verifier sees --------------------------------------------------
 [[_, entries]] = Regex.scan(~r/\/ByteRange \[([^\]]*)\]/, binary)
 [start_one, length_one, start_two, length_two] = entries |> String.split() |> Enum.map(&String.to_integer/1)
 
-IO.puts("\nwrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+IO.puts("\nwrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 checks = [
   {"/SigFlags 3", "", {binary =~ "/SigFlags 3", "ok — signed, and append-only"}},
@@ -146,7 +150,7 @@ IO.puts("""
 
 The signature covers the file except its own /Contents string:
 
-  bytes #{start_one}–#{length_one} and #{start_two}–#{start_two + length_two}, of #{byte_size(binary)} total
+  bytes #{start_one}–#{length_one} and #{start_two}–#{start_two + length_two}, of #{file_size} total
   the #{start_two - length_one} byte gap is exactly the <...> holding the signature
 
 #{Examples.Checks.table(checks)}

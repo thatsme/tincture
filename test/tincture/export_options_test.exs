@@ -17,7 +17,7 @@ defmodule Tincture.ExportOptionsTest do
     stderr = warnings(fn -> Tincture.export(document(), compres: false) end)
 
     assert stderr =~
-             "export/2 got the unknown option :compres. Known options: :enforce. " <>
+             "export/2 got the unknown option :compres. Known options: :enforce, :compress. " <>
                "Unknown options are ignored now; this will raise in 0.5.0."
   end
 
@@ -26,7 +26,7 @@ defmodule Tincture.ExportOptionsTest do
 
     assert stderr =~
              "export/2 got the unknown options :compres and :password. Known options: " <>
-               ":enforce. Unknown options are ignored now; this will raise in 0.5.0."
+               ":enforce, :compress. Unknown options are ignored now; this will raise in 0.5.0."
 
     assert length(String.split(stderr, "export/2 got the unknown")) == 2
   end
@@ -34,7 +34,9 @@ defmodule Tincture.ExportOptionsTest do
   test "a key given twice is named once" do
     stderr = warnings(fn -> Tincture.export(document(), compres: false, compres: true) end)
 
-    assert stderr =~ "export/2 got the unknown option :compres. Known options: :enforce."
+    assert stderr =~
+             "export/2 got the unknown option :compres. Known options: :enforce, :compress."
+
     assert length(String.split(stderr, "export/2 got the unknown")) == 2
   end
 
@@ -51,7 +53,8 @@ defmodule Tincture.ExportOptionsTest do
 
     stderr = warnings(fn -> :ok = Tincture.save(document(), path, compres: false) end)
 
-    assert stderr =~ "export/2 got the unknown option :compres. Known options: :enforce."
+    assert stderr =~
+             "export/2 got the unknown option :compres. Known options: :enforce, :compress."
   end
 
   test "known options and no options warn nothing" do

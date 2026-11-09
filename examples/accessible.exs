@@ -1,3 +1,4 @@
+Code.require_file("support/checks.exs", __DIR__)
 Code.require_file("support/fonts.exs", __DIR__)
 
 # A tagged document: the same report, twice over.
@@ -226,14 +227,18 @@ pdf =
     end)
   end)
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("accessible.pdf")
 File.write!(path, binary)
+
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
 
 marked = length(Regex.scan(~r/BDC/, binary))
 elements = length(Regex.scan(~r|/Type /StructElem|, binary))
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 IO.puts("tagged? #{Tincture.tagged?(pdf)}")
 IO.puts("structure elements: #{elements}, marked-content sequences: #{marked}")
 IO.puts("language: #{if binary =~ "/Lang", do: "set", else: "missing"}")

@@ -166,6 +166,19 @@ defmodule Tincture.PDF.Object do
 
   defp unescape_octal(rest, value, _count, acc), do: unescape(rest, [rem(value, 256) | acc])
 
+  @doc false
+  # A stream's data as it is written, and the dictionary entry naming its
+  # filter. Compressed, the data is Flate (ISO 32000-1 7.4.4), from
+  # `:zlib.compress/1`: level 6, window 15, memLevel 8, the settings every
+  # Flate stream Tincture writes uses, so its bytes are the same on every
+  # machine with the reference zlib. With no predictor every parameter has its
+  # default, so there is no /DecodeParms (Table 5). Uncompressed, the data is
+  # returned exactly as given, with no entry, so the stream's bytes are those
+  # of a document written without compression.
+  @spec flate(iodata(), boolean()) :: {iodata(), String.t()}
+  def flate(data, true), do: {:zlib.compress(data), " /Filter /FlateDecode"}
+  def flate(data, false), do: {data, ""}
+
   @doc """
   Reduce `name` to characters legal in a PDF name object.
 
