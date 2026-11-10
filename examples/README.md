@@ -11,8 +11,15 @@ committed, so you can see what the library produces without running anything.
 Each script embeds a real TrueType font, taken from
 [`fonts/`](fonts/) — Liberation Serif and Liberation Sans, under the SIL Open
 Font License. They are vendored so the output is identical on every machine: an
-embedded font goes into the file byte for byte, so without them running these
+embedded font's program is written into the file, so without them running these
 scripts elsewhere rewrote every PDF without a single source change.
+
+The streams are compressed with the zlib Erlang/OTP links, and identical bytes
+need classic zlib: versions 1.2.11 to 1.3.1 were measured identical, and CI
+uses 1.3.1. zlib-ng, the system zlib on Fedora 40 and later, writes different
+bytes, so on such a machine `mix examples` rewrites every PDF.
+`test/tincture/zlib_canary_test.exs` is the one test that fails there, and says
+why.
 
 [`support/fonts.exs`](support/fonts.exs) prefers those, falls back to system
 fonts if the directory is missing, and falls back again to the standard 14 if
@@ -21,6 +28,15 @@ demonstrating embedding. That last path is what a container without fonts gets,
 so CI exercises it:
 
     TINCTURE_EXAMPLES_NO_FONTS=1 mix examples
+
+The committed PDFs are compressed, as `export/2` writes by default. To read
+their content streams as text, build them uncompressed; they are then written
+to `tmp/examples-uncompressed/` and the committed files are left alone. CI
+builds them this way too, and checks each against its pinned bytes in
+`scripts/uncompressed_examples.tsv`: those 0.4.x wrote, unless the example
+itself has changed since, as `archival.exs` has:
+
+    TINCTURE_EXAMPLES_UNCOMPRESSED=1 mix examples
 
 ---
 
@@ -116,7 +132,7 @@ are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.5.0: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
@@ -142,7 +158,7 @@ Every heading also gets a bookmark, so the outline matches the structure.
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.5.0: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
 its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
 which are best practice rather than PDF/UA-1 requirements.
@@ -181,7 +197,7 @@ ICC profile carries no creation date — so an archived file can be checked
 against a rebuild.
 
 **Validated.** Passes veraPDF 1.30.2 in CI on every commit at four
-flavours; at 0.4.1:
+flavours; at 0.5.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -229,7 +245,7 @@ Shows:
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
-four flavours; at 0.4.1:
+four flavours; at 0.5.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -289,7 +305,7 @@ Shows:
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
+at 0.5.0: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
 also traces, in the file's bytes, that every widget's `Form` element and
 `/StructParent` point at each other (`scripts/trace_widget_ownership.py`).
 PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG and
@@ -354,7 +370,7 @@ verifies the signature with openssl, as it does `signed.pdf`'s, and traces
 the widget's ownership in the file's bytes.
 
 **Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
-four flavours; at 0.4.1:
+four flavours; at 0.5.0:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -398,7 +414,7 @@ action whose path the reader resolves against the document carrying the link,
 so the pair can be moved, zipped or handed over as a set and still resolve.
 
 Both halves are tagged, each with a bookmark per heading, and both pass
-veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.1:
+veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.5.0:
 `Main-report.pdf` 106 of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
 3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
 errors, 0 warnings on both. A report that is accessible pointing at an
@@ -425,13 +441,16 @@ Two things to know before relying on this, both shown in the script:
 Three pages of justified text, with the telemetry events printed as they fire:
 
 ```
-  font Body      0.38ms  370.7kB -> 83.7kB (77.4% smaller, subset: used_text)
-  page 1         0.02ms    3.6kB of content, 75 ops
-  page 2         0.16ms    7.3kB of content, 150 ops
-  page 3         0.05ms   10.9kB of content, 225 ops
-document         5.67ms  106.5kB
+  font Body      4.10ms  384.1kB -> 37.6kB (90.2% smaller, subset: used_text)
+  page 1      1.13ms  1.0kB of content, 75 ops
+  page 2      0.31ms  1.8kB of content, 150 ops
+  page 3      0.41ms  2.6kB of content, 225 ops
+document    21.61ms  44.1kB
   pages 3 · fields 0 · fonts 2 · images 0
 ```
+
+The sizes are as written into the file, so compressed: built with
+`compress: false`, the same pages are 3.6, 7.2 and 10.9 kB of content.
 
 Shows the three spans — document, page and font — and how to read them. See
 `Tincture.Telemetry`. `:telemetry` is an optional dependency; without it the

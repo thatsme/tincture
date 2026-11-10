@@ -39,20 +39,32 @@ gates, but a failure discovered after tagging costs a version number.
 
    The Examples job's gates are steps 2 and 3.
 
-2. **The examples, both ways.**
+2. **The examples, three ways.**
 
        mix examples
        TINCTURE_EXAMPLES_NO_FONTS=1 mix examples
+       TINCTURE_EXAMPLES_UNCOMPRESSED=1 mix examples
+       elixir scripts/check_uncompressed_examples.exs
 
    The second run forces the standard-14 fallback, which is what a machine with
    no fonts installed gets — a slim container, or a Windows box without the
-   candidate families. Both must complete. Examples are not covered by the test
-   suite, and they are the first thing a reader runs.
+   candidate families. All three must complete. Examples are not covered by the
+   test suite, and they are the first thing a reader runs.
+
+   The third builds every example with `compress: false`, into
+   `tmp/examples-uncompressed/`, and the check compares each with its pinned
+   bytes in `scripts/uncompressed_examples.tsv`: the bytes 0.4.1, the release
+   before compression, wrote, unless the example itself has changed since.
+   It shows that compression is the only thing that changed in the output.
 
    `examples/output/*.pdf` are committed and are reproducible: the examples
    embed a font vendored under `examples/fonts/`, so regenerating on any
    machine gives identical bytes and a diff there means something actually
-   changed. CI checks this on every commit. The two exceptions are
+   changed. CI checks this on every commit. Identical bytes also need classic
+   zlib, which compresses the streams: 1.2.11 to 1.3.1 were measured
+   identical, and CI uses 1.3.1. zlib-ng, the system zlib on Fedora 40 and
+   later, writes different bytes; `test/tincture/zlib_canary_test.exs` is the
+   one test that fails on such a machine, and says why. The two exceptions are
    `signed.pdf` and `signed_archival.pdf`, which differ on every run because
    each example mints a new key: CI compares them with their committed bytes
    outside the signature's `/Contents` instead, as can be done locally after

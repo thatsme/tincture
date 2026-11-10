@@ -2336,8 +2336,9 @@ defmodule Tincture do
       ToUnicode maps and the ICC output profile. Defaults to `true`. The XMP
       metadata is never compressed, so tools that are not PDF-aware can read
       it, and images keep the filters they always have. `compress: false`
-      writes the bytes 0.4.1 wrote, which is useful for reading a document's
-      content streams as text. Any value but `true` or `false` raises
+      writes the bytes 0.4.x wrote, which is useful for reading a document's
+      content streams as text, or for comparing output byte for byte with
+      what 0.4.x wrote. Any value but `true` or `false` raises
       `ArgumentError`.
 
   Any other key raises `ArgumentError`, naming every unknown key and the known
@@ -2527,7 +2528,10 @@ defmodule Tincture do
   @doc """
   Export and write a PDF to disk.
 
-  Takes the same options as `export/2`.
+  Takes the same options as `export/2`: `:enforce`, and `:compress`, which
+  defaults to `true`; `compress: false` writes the streams uncompressed, as
+  0.4.x did. Any other key raises `ArgumentError` before anything is written,
+  so neither the file nor its directory is created.
   """
   @spec save(PDF.t(), Path.t(), keyword()) :: :ok | {:error, term()}
   def save(%PDF{} = pdf, path, opts \\ []) when is_binary(path) and is_list(opts) do

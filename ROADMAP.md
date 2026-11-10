@@ -18,8 +18,8 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.1: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026.1 audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
-| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.4.1: up to 153 of 153 rules, on three documents: a report, a form and a signed document ([2](#2-archival--pdfa)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.5.0: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026.1 audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.5.0: up to 153 of 153 rules, on three documents: a report, a form and a signed document ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` and `signed_archival.pdf` pass `openssl cms -verify` in CI on every commit, for integrity only, since their certificates are self-signed ([3](#3-digital-signatures)) |
 | Forms | every field type with its own appearance, embedded fonts in fields, tagged and archival forms; validated by veraPDF at PDF/UA-1 and PDF/A-2a, 2b and 2u in CI ([6](#6-forms-completed)) |
 | Telemetry | covered by the test suite; no independent tool applies ([9](#9-operability)) |
@@ -46,10 +46,17 @@ covered by the test suite only)
    clipped. Form XObjects are now a public primitive (`form_xobject/5`), and
    they are what patterns and soft masks on drawn content need, so items 5
    and 6 are substantially cheaper now.
-4. **Object and cross-reference streams** — file size; content streams are
-   written uncompressed today. Grouped with incremental updates, since both
-   rewrite the file's byte layout and both collide with signing. Incremental
-   updates are also what a second signature, or any later stamping, depends on.
+4. **File size and the file's byte layout**, in three parts:
+   - ~~**4a. Stream compression**~~ — **done** in 0.5.0. Every stream but the
+     XMP metadata is Flate-compressed. See
+     [8](#8-file-size-and-streaming).
+   - **4b. Object and cross-reference streams** — file size, for a document
+     of many small objects.
+   - **4c. Incremental updates** — what a second signature, or any later
+     stamping, depends on.
+
+   4b and 4c are grouped because both rewrite the file's byte layout and both
+   collide with signing.
 5. **Colour beyond RGB, and patterns** — spot inks and ICC spaces for print
    production, plus a gradient as the fill of an arbitrary path. Both
    prerequisites are then in place: `/ExtGState` gives overprint a home, and
@@ -81,8 +88,8 @@ GPOS kerning, GSUB ligatures), page templates with pagination, tables, JPEG and
 PNG images with alpha, interactive forms with every field type, AES-256
 encryption, tagged PDF for accessibility, PDF/A archival output, digital
 signatures, links within and between documents, telemetry. No required runtime
-dependencies. At 0.4.1: 1,883 tests; coverage: CI fails below 80%, and
-measured 91.8% in CI at 0.4.1;
+dependencies. At 0.5.0: 1,990 tests; coverage: CI fails below 80%, and
+measured 91.9% in CI at 0.5.0;
 Credo `--strict` clean with pre-existing findings in `lib/` exempted inline one
 by one and `test/` and `scripts/` exempt from the structural checks, clean
 Dialyzer, CI on four Elixir versions.
@@ -181,7 +188,7 @@ publicly, and it should stay that way — that parser is the seed of
 ## 1. Accessibility — tagged PDF (PDF/UA)
 
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
-profile) in CI on every commit; at 0.4.1: 106 of 106 rules, 1698 of 1698
+profile) in CI on every commit; at 0.5.0: 106 of 106 rules, 1698 of 1698
 checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
 warnings — for this document and the four other PDF/UA examples that
@@ -302,7 +309,7 @@ What remains:
 ## 2. Archival — PDF/A
 
 **Status:** `examples/output/archival.pdf` passes veraPDF 1.30.2 in CI on
-every commit; at 0.4.1: PDF/A-2b (144 of 144 rules, 3488 of 3488 checks), PDF/A-2u
+every commit; at 0.5.0: PDF/A-2b (144 of 144 rules, 3488 of 3488 checks), PDF/A-2u
 (146 of 146 rules, 4170 of 4170 checks) and **PDF/A-2a** (153 of 153 rules,
 4514 of 4514 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2496 of 2496 checks), since 2a is the accessible archival level and
@@ -517,17 +524,17 @@ Worth being honest that this is the largest single item on the list, and that
 
 ## 8. File size and streaming
 
-**Status: absent.** No object streams, no cross-reference streams, no
-linearisation.
+**Status: partial.** Streams are compressed since 0.5.0. No object streams,
+no cross-reference streams, no linearisation.
 
-Every object is written into a classic xref table. Most streams are written
-uncompressed: page content, form XObjects and field appearances, font
-programs, ToUnicode CMaps, the ICC output intent and the XMP metadata. Two
-kinds are Flate-compressed already: a CIDToGIDMap, and the data of a PNG image
-with its soft mask. JPEG data is embedded as it is, DCT-encoded. 0.5.0
-compresses every other stream with FlateDecode except the XMP metadata, which
-stays unfiltered so that tools which do not read PDF can still find it (ISO
-32000-1 14.3.2).
+Every object is written into a classic xref table. Since 0.5.0 every stream
+is Flate-compressed (`:zlib.compress/1`, level 6) except the XMP metadata,
+which stays unfiltered so that tools which do not read PDF can still find it
+(ISO 32000-1 14.3.2). JPEG data is embedded as it is, DCT-encoded; a PNG
+image's data and soft mask, and a CIDToGIDMap, were Flate-compressed before
+0.5.0 and are unchanged. On the committed examples a file is 39%–53% of its
+uncompressed size, 45% over all fourteen. `compress: false` on `export/2`
+and `save/3` writes the streams as 0.4.x did, byte for byte.
 
 Object streams and xref streams (PDF 1.5, 2001) would meaningfully shrink
 documents with many small objects. Linearisation ("fast web view") lets a viewer
@@ -539,7 +546,8 @@ dependency.
 
 Separately, `export/1` builds the entire document in memory. A streaming
 export would bound memory for large documents — a thousand-page statement run
-currently holds everything at once.
+currently holds everything at once. What that costs is measured in
+[9](#9-operability).
 
 ## 9. Operability
 
@@ -558,9 +566,52 @@ currently holds everything at once.
   macOS 26.6.2 showed a permission alert and did not open the target. A set of
   documents that relies on these links needs a desktop reader that follows
   them; SumatraPDF is the one observed.
-- **Memory profile.** No measured figure for a large document. Worth having
-  before the streaming export in [8](#8-file-size-and-streaming), which cannot
-  be sized without knowing what a thousand-page run currently holds.
+- ~~**Memory profile.**~~ **Measured**, in 0.4.0 and again with
+  compression, for the streaming export in [8](#8-file-size-and-streaming).
+  - **The document:** A4 pages built with `Layout.Template`, one
+    `render/4` call per page, with a header and a footer in an embedded sans
+    and about 945 words of 11 pt body text a page in an embedded serif,
+    generated from a fixed seed so every run builds the same file.
+  - **The measurement:** the export runs in one process. A sampler wakes
+    every 1 ms and records the whole VM's `:erlang.memory(:total)`; the
+    export peak is its maximum less the total just before the export. The
+    file and its large streams are off-heap binaries, which a process's own
+    heap figure would miss. Sampling can miss a peak shorter than 1 ms, so
+    the peak is a lower bound.
+  - **The runs:** three of each, each in a fresh VM, on one Windows 11
+    machine with Erlang/OTP 27 and Elixir 1.19.5 (not CI's figures).
+
+  | | 0.4.0, uncompressed | 0.5.0, compressed |
+  |---|---|---|
+  | 100 pages: file size | 4,966,547 bytes | 1,029,957 bytes |
+  | 100 pages: export time | 1.67–3.83 s | 1.55–1.76 s |
+  | 100 pages: export peak | 116–119 MB | 108–112 MB |
+  | 1,000 pages: file size | 47,484,751 bytes | 9,473,532 bytes |
+  | 1,000 pages: export time | 43.8–47.2 s | 48.3–49.8 s |
+  | 1,000 pages: export peak | 793–993 MB | 936 MB |
+
+  The sizes are exact, the same bytes in every run. The export time varies
+  most at 100 pages, where one garbage collection is a large part of the
+  run, and the 1,000-page peak by ±11% in 0.4.0, with when the VM releases
+  garbage. Compression makes the file a fifth of the size and costs 5–10%
+  in export time at 1,000 pages, none measurable at 100. It does not reduce
+  the peak: a 1,000-page export still adds about 0.9 GB to the VM, which is
+  what a streaming export has to bound.
+- **Known limit: layout time on long input.** Laying out text grows faster
+  than linearly in the length of the input. Measured in 0.4.0, on the
+  machine above:
+  - `Layout.Template.render_document/4`, one page (`max_pages: 1`) from
+    1,100, 4,400 and 8,800 words of input: 0.05 s, 0.78 s and 5.9 s;
+  - the whole document: 5 pages from 5,500 words in 7.5 s, 10 pages from
+    11,000 words in 72.7 s, and 20 pages did not finish in 280 s;
+  - page by page, one `render/4` call on its own 1,000 words per page, as
+    the memory figures above were built: 10 pages in 0.92 s, 100 pages in
+    18–27 s and 1,000 pages in 337–342 s, so still superlinear in the page
+    count.
+
+  A long document is built page by page today, and the build, not the
+  export, is what makes a thousand-page run slow. The cause has not been
+  diagnosed.
 
 ## 10. Reading PDFs
 

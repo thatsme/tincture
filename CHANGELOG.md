@@ -7,28 +7,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-DD
+
+**Every stream is now Flate-compressed, except the XMP metadata.** Page
+content, form XObjects and form-field appearances, embedded font programs,
+ToUnicode maps and the ICC output profile were written uncompressed; the
+XMP stays readable to tools that do not parse PDF (ISO 32000-1 14.3.2).
+
+- **Size:** the fourteen committed example files total 1,902,552 bytes,
+  45% of the 4,214,942 they take uncompressed, from 39% to 53% each. A
+  1,000-page document of text in two embedded fonts goes from 47.5 MB to
+  9.5 MB.
+- **Cost**, measured on that document, three runs each on one machine:
+  - exporting it takes 5–10% longer (48.3–49.8 s against 43.8–47.2 s), with
+    no measurable difference at 100 pages;
+  - the memory export adds to the VM is unchanged, about 0.9 GB at 1,000
+    pages. ROADMAP section 9 gives the method.
+
+`compress: false` on `export/2` and `save/3` writes the bytes 0.4.x wrote.
+`export/2` and `save/3` now raise on an option they do not know, as 0.4.1's
+warning announced. [Upgrading from 0.4.x](#upgrading-from-04x) says what a
+test suite will see, and what to do.
+
 ### Breaking
 
 - **`export/2` and `save/3` raise `ArgumentError` on an option they do not
-  know.** Such a key was ignored without a word before 0.4.1, so a misspelt
-  `enforce` exported the document as if nothing had been passed. 0.4.1 warned,
-  naming the key and announcing this raise ("this will raise in 0.5.0"). The
-  message names every unknown key and the known ones, and the refusal comes
-  before anything is exported: `save/3` creates neither the file nor its
-  directory.
+  know.**
+  - 0.4.1 warned (W10), naming the key and announcing this raise: "Unknown
+    options are ignored now; this will raise in 0.5.0." Before 0.4.1 such a
+    key was ignored without a word, so a misspelt `enforce` exported the
+    document as if nothing had been passed.
+  - The message names every unknown key and the known ones, `:enforce` and
+    `:compress`.
+  - The refusal comes before anything is exported: `save/3` creates neither
+    the file nor its directory.
+  - *Migration:* correct or remove the key.
+- **Every document's bytes change.** The content of almost every stream is
+  now Flate data, so `/Length` and every object offset after it move. Code
+  that compares output byte for byte, hashes it, or reads content streams,
+  appearance streams or font programs out of the file as text sees
+  different bytes. *Migration:* inflate the streams before reading them,
+  locating each stream's data by its `/Length` (compressed data can contain
+  any byte, including the bytes of `endstream`), or export with
+  `compress: false`, which writes 0.4.x's bytes.
+
+### Added
+
+- **`compress:` on `export/2` and `save/3`**, `true` by default. `false`
+  writes every stream uncompressed, byte for byte as 0.4.x wrote it. Any
+  value but `true` or `false` raises `ArgumentError`.
+- **Images in a validated example.** `archival.exs` places a PNG with
+  transparency, written with a soft mask, and a baseline JPEG, each a
+  `Figure` with alternative text. They are the corpus's first images, so
+  PDF/A-2's image dictionary rules, ISO 19005-2 clause 6.2.8 tests 1–4, now
+  have something to check. Both images were generated with FFmpeg; the
+  commands are in `examples/images/README.md`.
+
+### Changed
+
+- **Telemetry sizes are compressed sizes.** The page span's `:byte_size` is
+  the content stream's length as written, so compressed by default, and the
+  font embed span's `:byte_size` is the compressed bytes the font
+  contributed. With `compress: false` both are the uncompressed sizes, as
+  before.
 
 ### Deprecated
 
 - **An unknown option to any other public function that takes keyword
-  options warns**, once per call, naming the function, every unknown key and
-  the keys the function reads, and will raise in 0.6.0. This covers the form
-  field functions, `link/7`, `text_link/6`, `tag/4`, `sign/3`, `encrypt/2`,
-  the font registration, gradient, alpha and paragraph functions,
-  `Layout.Box`, `Layout.Table`, `Layout.Template`, `Typography` and its
-  `LineBreak`, `Hyphen` and `RichText` modules, `Font.Context.text_width/5`
-  and `PDF.Encrypt.new/1`. A key such as `checked: true` on `checkbox/6`,
-  which reads `value:`, was ignored silently and is now reported.
-  `place_form_xobject/5` already raised on an unknown key, and still does.
+  options warns (W11)**, and will raise in 0.6.0.
+  - The warning goes through `IO.warn/1`, once per call. It names the
+    function, every unknown key and the keys the function reads.
+  - Before 0.5.0 such a key was ignored without a word.
+  - A function that passes its options on to another public function passes
+    on only that function's keys, so a call warns once, under the name of
+    the function called.
+  - `place_form_xobject/5` already raised on an unknown key, and still does.
+
+  The 35 functions, by family:
+
+  - **Form fields:** `text_field/7`, `checkbox/6`, `radio_group/4` (its
+    options and each button's), `push_button/7`, `signature_field/7`,
+    `choice_field/7`. *Migration:* use the key the field reads. `checked:
+    true` on `checkbox/6` is `value: true`; it was ignored, so such a box was
+    left unchecked.
+  - **Links, structure, signing and encryption:** `link/7`, `text_link/6`,
+    `tag/4`, `sign/3`, `encrypt/2`, `PDF.Encrypt.new/1`. *Migration:*
+    correct or remove the key the warning names.
+  - **Fonts and text drawing:** `register_ttf_font/4`,
+    `register_otf_font/4`, `text_at_with_fallback/6`. *Migration:* correct
+    or remove the key.
+  - **Graphics:** `set_alpha/2`, `linear_gradient/7`, `radial_gradient/7`.
+    *Migration:* correct or remove the key.
+  - **Paragraphs and layout:** `text_paragraph/6`, `Layout.Box.flow_text/7`
+    and `flow_across_boxes/4`, `Layout.Table.render/6`, and
+    `Layout.Template`'s `new/1`, `with_header/3`, `with_footer/3`,
+    `render/4`, `render_document/4` and `render_xml_document/3`.
+    *Migration:* correct or remove the key. `:fallback_fonts`, `:bidi`,
+    `:shaping` and `:kerning` were never read by the `Layout.Box` and
+    `Layout.Template` functions, only by `text_paragraph/6`, so they now
+    warn there. `render_document/4` sets each page's number itself and
+    never read `:page_number`; `:page_number_start` is the key it reads.
+  - **Typography:** `Typography.layout_paragraph/3` and
+    `layout_paragraph_with_spill/4`, `Typography.LineBreak.break_text/5`,
+    `Typography.Hyphen.hyphenate/3`, `Typography.RichText.from_plain/2` and
+    `from_runs/2`, `Font.Context.text_width/5`. *Migration:* correct or
+    remove the key.
+
+### Upgrading from 0.4.x
+
+Running 0.4.1's own test suite against 0.5.0 shows what changes. A test
+that reads the output's bytes sees compressed data, and a test that relied
+on an unknown option being ignored sees a raise or a warning. Each kind,
+with what it sees and what to do:
+
+| What the test does | What it sees in 0.5.0 | Why | What to do |
+|---|---|---|---|
+| Matches the exported file with a regex, `=~` or `String.contains?`, looking for content operators, field appearances or font names inside streams | no match | the streams are Flate data | inflate the streams first, or export with `compress: false` |
+| Slices a stream out of the file by searching for `stream` and `endstream` | compressed bytes, or a stream cut short | the data is Flate, and Flate data can contain the bytes of `endstream` | find the data by `/Length`, then inflate it |
+| Checks a document's content streams with a parser of its own, including on committed files read from disk | Flate data where operators were | the same | inflate first, or check files built with `compress: false` |
+| Extracts an embedded font program (`FontFile2` or `FontFile3`) | Flate data | the program is compressed; `/Length1` stays the program's decoded size | inflate, and compare the result with `/Length1` |
+| Pins the output's hash or size | a different hash and a smaller size | every document's bytes change | pin again, or pin output built with `compress: false`, which is 0.4.x's |
+| Decrypts the streams of an encrypted document and reads them | Flate data after decryption | streams are compressed and then encrypted, the order ISO 32000-1 7.6.2 gives | decrypt, then inflate |
+| Calls `export/2` or `save/3` with an unknown option and expects the 0.4.1 warning, or expects the output unchanged | `ArgumentError` | 0.4.1's warning (W10) announced the raise | correct or remove the key, and assert the raise if the test is about it |
+| Calls any of the 35 functions under Deprecated with an unknown option | a warning on standard error | W11; it will raise in 0.6.0 | correct or remove the key |
 
 ## [0.4.1] — 2026-11-06
 
@@ -1459,7 +1560,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/thatsme/tincture/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/thatsme/tincture/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/thatsme/tincture/compare/v0.3.13...v0.4.0
 [0.3.13]: https://github.com/thatsme/tincture/compare/v0.3.12...v0.3.13
