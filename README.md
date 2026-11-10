@@ -53,18 +53,28 @@ are as measured at 0.5.0:
 | | `archival_form.pdf` | 153 of 153 rules, 7475 of 7475 checks |
 | | `signed_archival.pdf` | 153 of 153 rules, 2021 of 2021 checks |
 
-[PAC](https://pac.pdf-accessibility.org) 2026.1, a second and independent
-PDF/UA checker, was run as a manual audit on each PDF/UA document above, as
-committed at the commit named:
+[PAC](https://pac.pdf-accessibility.org) 2026, a second and independent
+PDF/UA checker, was run as a manual audit on 2026-11-10 on each PDF/UA
+document above, as committed at `7688995`, with its streams compressed.
+**Seven passed; `compliant.pdf` passed with two advisory Quality warnings**
+on its footnote: the `Note` is not referenced by a `Link`, and contains no
+`Lbl`. Both are best practice for footnotes rather than PDF/UA-1
+requirements, and PAC has reported them since 0.3.4. The files audited:
 
-- on 2026-10-19, on the five documents that predate 0.4.0, at `4a75f1e`:
-  **PDF/UA 0 errors, 0 warnings on all five;**
-- on 2026-11-05, on `tagged_form.pdf` and `archival_form.pdf` at `8bc00fb`:
-  PDF/UA, WCAG and Quality passed on both. PAC's AI-assisted check passed on
-  `archival_form.pdf`, and on `tagged_form.pdf` reported one heading as
-  possibly a paragraph, an advisory hint;
-- on 2026-11-05, on `signed_archival.pdf` at `56bae06`: PDF/UA, WCAG,
-  Quality and the AI-assisted check passed.
+| Document | SHA-256 |
+|---|---|
+| `compliant.pdf` | `5ed9b23e50c8e85b5394a6f98694586477550a413a0f6cd4b329ff0062a2b333` |
+| `accessible.pdf` | `3ffb96dda48195129912e6fd6c8250dd5104d21418f86cddbc71cb7aabadccb7` |
+| `archival.pdf` | `a311c7900b66d2e9adb1123889d27b7ad13a350a6b740b0c15477ab4aa9d6dac` |
+| `archival_form.pdf` | `8314f2ecc7dc215333288c0a8fcf13c627b503172be79216817360684ae713f8` |
+| `tagged_form.pdf` | `71410465cfbc28014d437d528607eafc4bbc805f26ed7e462b97918cbf19f145` |
+| `signed_archival.pdf` | `582b4058aa593d47c335a1051e8f01074e4895cc32074c290a4ab8726e56c01b` |
+| `linked/Main-report.pdf` | `7965d96014a2cfcddef7af5d7dc8aceaeabfcf197ae94f39427acf888c237153` |
+| `linked/Attached documents/Appendix-A.pdf` | `5e78fca856317a71f8fc6dd7b4e312ce026a8919a6e3e6f31fec8e8646ed0dca` |
+
+Earlier audits, of the files as they were before 0.5.0: on 2026-10-19, the
+five documents that predate 0.4.0, at `4a75f1e`; on 2026-11-05, the three
+form documents, at `8bc00fb` and `56bae06`.
 
 PAC is a Windows desktop application with no command line, so it is an audit
 at a point in time rather than a gate. What it found and what remains is in

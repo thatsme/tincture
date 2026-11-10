@@ -18,7 +18,7 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.5.0: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026.1 audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.5.0: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026 audit of all eight, 2026-11-10, on the files at `7688995`: passed on each, with two advisory Quality warnings on `compliant.pdf` ([the README](README.md#checked-against-real-validators) lists the files' hashes). On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.5.0: up to 153 of 153 rules, on three documents: a report, a form and a signed document ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` and `signed_archival.pdf` pass `openssl cms -verify` in CI on every commit, for integrity only, since their certificates are self-signed ([3](#3-digital-signatures)) |
 | Forms | every field type with its own appearance, embedded fonts in fields, tagged and archival forms; validated by veraPDF at PDF/UA-1 and PDF/A-2a, 2b and 2u in CI ([6](#6-forms-completed)) |
@@ -190,12 +190,11 @@ publicly, and it should stay that way — that parser is the seed of
 **Status:** `examples/output/accessible.pdf` passes veraPDF 1.30.2 (PDF/UA-1
 profile) in CI on every commit; at 0.5.0: 106 of 106 rules, 1698 of 1698
 checks. PAC
-2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
-warnings — for this document and the four other PDF/UA examples that
-predate 0.4.0. The three form examples 0.4.0 adds were audited with PAC
-2026.1 on 2026-11-05, with PDF/UA passed on each
-([the README](README.md#checked-against-real-validators) gives the commits
-and the findings).
+2026 audit, 2026-11-10, on the files at `7688995`: this document and the
+seven other PDF/UA examples passed, `compliant.pdf` with two advisory
+Quality warnings on its footnote
+([the README](README.md#checked-against-real-validators) gives the files'
+hashes).
 
 Reproduce it with:
 
@@ -286,8 +285,10 @@ What remains:
 
   PAC is a free Windows desktop application from axes4 with no command line
   and no Linux build, so it cannot join the automated set the way veraPDF has.
-  It has been run once, by hand. A PAC result describes the files it was run
-  on; the release checklist keeps it from silently coming to describe others.
+  It is run by hand: on 2026-10-19 and 2026-11-05 on the files before 0.5.0,
+  and on 2026-11-10 on all eight, at `7688995`, after 0.5.0 compressed their
+  streams. A PAC result describes the files it was run on; the release
+  checklist keeps it from silently coming to describe others.
 - **A tag left open across a page change.** Calling `add_page/1` or
   `set_page/2` while a content tag or an `artifact/2` block is open would write
   a marked-content sequence that begins on one page and ends on another, which
@@ -313,8 +314,8 @@ every commit; at 0.5.0: PDF/A-2b (144 of 144 rules, 3488 of 3488 checks), PDF/A-
 (146 of 146 rules, 4170 of 4170 checks) and **PDF/A-2a** (153 of 153 rules,
 4514 of 4514 checks) — and the PDF/UA-1 profile at the same time (106 of 106
 rules, 2496 of 2496 checks), since 2a is the accessible archival level and
-subsumes the tagging requirement. PAC 2026.1 audit, 2026-10-19, on the file at
-`4a75f1e`: PDF/UA 0 errors, 0 warnings. PAC does not check PDF/A.
+subsumes the tagging requirement. PAC 2026 audit, 2026-11-10, on the file at
+`7688995`: passed. PAC does not check PDF/A.
 
     verapdf --flavour 2a  examples/output/archival.pdf
     verapdf --flavour ua1 examples/output/archival.pdf

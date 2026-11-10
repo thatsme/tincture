@@ -112,16 +112,17 @@ gates, but a failure discovered after tagging costs a version number.
 
    The README, ROADMAP and `examples/README.md` cite each PAC audit by date
    and by the commit whose files it ran on. The eight PDF/UA documents were
-   audited in three groups, so compare each group at the release commit with
-   its cited commit:
+   last audited together, so compare them at the release commit with the
+   cited commit; the README also lists each file's SHA-256:
 
        git diff --stat <audited-commit> HEAD -- \
          examples/output/compliant.pdf examples/output/accessible.pdf \
-         examples/output/archival.pdf examples/output/linked/
-       git diff --stat <audited-commit> HEAD -- \
-         examples/output/tagged_form.pdf examples/output/archival_form.pdf
-       git diff --stat <audited-commit> HEAD -- \
+         examples/output/archival.pdf examples/output/linked/ \
+         examples/output/tagged_form.pdf examples/output/archival_form.pdf \
          examples/output/signed_archival.pdf
+
+   If they were audited in groups at different commits, compare each group
+   with its own.
 
    The comparison is of committed files, so a regenerated
    `signed_archival.pdf`, which differs only in its signature, does not

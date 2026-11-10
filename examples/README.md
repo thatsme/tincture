@@ -132,8 +132,8 @@ are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.5.0: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
-file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
+at 0.5.0: 106 of 106 rules, 1698 of 1698 checks. PAC 2026 audit, 2026-11-10,
+on the file at `7688995`: passed.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
 
@@ -158,10 +158,11 @@ Every heading also gets a bookmark, so the outline matches the structure.
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.5.0: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
-file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
-its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
-which are best practice rather than PDF/UA-1 requirements.
+at 0.5.0: 106 of 106 rules, 2864 of 2864 checks. PAC 2026 audit, 2026-11-10,
+on the file at `7688995`: passed, with two advisory Quality warnings on its
+footnote — the `Note` is not referenced by a `Link` and has no `Lbl` — which
+are best practice rather than PDF/UA-1 requirements, and which PAC has
+reported since 0.3.4.
 
     verapdf --flavour ua1 examples/output/compliant.pdf
 
@@ -206,8 +207,8 @@ flavours; at 0.5.0:
 | PDF/A-2a | 153 of 153 | 4514 of 4514 |
 | PDF/UA-1 | 106 of 106 | 2496 of 2496 |
 
-PAC 2026.1 audit, 2026-10-19, on the file at `4a75f1e`: PDF/UA 0 errors,
-0 warnings. PAC does not check PDF/A.
+PAC 2026 audit, 2026-11-10, on the file at `7688995`: passed. PAC does not
+check PDF/A.
 
     verapdf --flavour 2b  examples/output/archival.pdf
     verapdf --flavour 2u  examples/output/archival.pdf
@@ -259,8 +260,8 @@ four flavours; at 0.5.0:
     verapdf --flavour 2a  examples/output/archival_form.pdf
     verapdf --flavour ua1 examples/output/archival_form.pdf
 
-PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG,
-Quality and the AI-assisted check passed. PAC does not check PDF/A.
+PAC 2026 audit, 2026-11-10, on the file at `7688995`: passed. PAC does not
+check PDF/A.
 
 **Filled in and saved, it may no longer be PDF/A.** PDF/A describes the file
 Tincture writes, not the file after a viewer has filled it in: a viewer that
@@ -308,9 +309,7 @@ The script prints a checklist of each requirement and where it came from.
 at 0.5.0: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
 also traces, in the file's bytes, that every widget's `Form` element and
 `/StructParent` point at each other (`scripts/trace_widget_ownership.py`).
-PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG and
-Quality passed; PAC's AI-assisted check reported one heading as possibly a
-paragraph, an advisory hint.
+PAC 2026 audit, 2026-11-10, on the file at `7688995`: passed.
 
 In Acrobat Reader, the field highlight covers an unsigned signature field on
 screen, so its label shows in print; `signature_field/7` describes it.
@@ -387,8 +386,8 @@ four flavours; at 0.5.0:
 veraPDF's three PDF/A-2 signature rules (ISO 19005-2 clause 6.4.3) each run
 one check on it, and pass: the byte range covers the whole file but the
 signature, the signature carries the signer's certificate, and there is a
-single signer. PAC 2026.1 audit, 2026-11-05, on the file at `56bae06`:
-PDF/UA, WCAG, Quality and the AI-assisted check passed. Acrobat Reader
+single signer. PAC 2026 audit, 2026-11-10, on the file at `7688995`:
+passed. Acrobat Reader
 2026.002.22031 lists the signature and reports that the document has not
 been modified since it was signed; it reports the signer's identity as
 unknown, as it must for a self-signed certificate.
@@ -416,8 +415,8 @@ so the pair can be moved, zipped or handed over as a set and still resolve.
 Both halves are tagged, each with a bookmark per heading, and both pass
 veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.5.0:
 `Main-report.pdf` 106 of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
-3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
-errors, 0 warnings on both. A report that is accessible pointing at an
+3761 checks. PAC 2026 audit, 2026-11-10, on the files at `7688995`: passed
+on both. A report that is accessible pointing at an
 appendix that is not makes a set half-readable, with no way for a reader to
 tell before opening it.
 

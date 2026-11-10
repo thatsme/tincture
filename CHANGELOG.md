@@ -129,7 +129,11 @@ with what it sees and what to do:
 | Pins the output's hash or size | a different hash and a smaller size | every document's bytes change | pin again, or pin output built with `compress: false`, which is 0.4.x's |
 | Decrypts the streams of an encrypted document and reads them | Flate data after decryption | streams are compressed and then encrypted, the order ISO 32000-1 7.6.2 gives | decrypt, then inflate |
 | Calls `export/2` or `save/3` with an unknown option and expects the 0.4.1 warning, or expects the output unchanged | `ArgumentError` | 0.4.1's warning (W10) announced the raise | correct or remove the key, and assert the raise if the test is about it |
-| Calls any of the 35 functions under Deprecated with an unknown option | a warning on standard error | W11; it will raise in 0.6.0 | correct or remove the key |
+| Calls any of the 35 functions under Deprecated with an unknown option (not from 0.4.1's suite; see below) | a warning on standard error | W11; it will raise in 0.6.0 | correct or remove the key |
+
+Every row but the last comes from running 0.4.1's suite against 0.5.0. The
+last does not: that suite passes no unknown option to the 35 functions, so it
+never sees the warning. It is listed because code with a misspelt key does.
 
 ## [0.4.1] — 2026-11-06
 
