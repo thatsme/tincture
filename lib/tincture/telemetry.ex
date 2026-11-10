@@ -44,8 +44,10 @@ defmodule Tincture.Telemetry do
   long document is visible rather than averaged away.
 
     * measurements — `:duration` and `:byte_size` on stop. `:byte_size` is the
-      size of the content stream as written into the file, its `/Length`. The
-      stream is not compressed, so that is also its size uncompressed.
+      size of the content stream as written into the file, its `/Length`.
+      The stream is Flate-compressed by default, so this is its compressed
+      size; with `compress: false` on `Tincture.export/2` it is the
+      uncompressed size.
     * metadata — `:page_number` and `:operation_count`.
 
   ### `[:tincture, :font, :embed, :start | :stop | :exception]`
@@ -57,6 +59,8 @@ defmodule Tincture.Telemetry do
     * measurements — `:duration`, `:byte_size` (the bytes this font contributed
       to the document) and `:source_size` (the original font file) on stop.
       Comparing the two is how you tell whether subsetting actually helped.
+      The contributed bytes are compressed by default, so the comparison
+      includes compression; with `compress: false` it shows subsetting alone.
     * metadata — `:font_name`, `:format` and `:subset` (the configured mode,
       which is what was asked for rather than what was achieved: subsetting
       falls back to the whole font on malformed input, and logs when it does).

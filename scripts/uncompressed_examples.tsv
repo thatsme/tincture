@@ -1,0 +1,26 @@
+# The bytes each example writes with compress: false, checked by
+# scripts/check_uncompressed_examples.exs. Four tab-separated fields: the
+# path under examples/output, the size, the SHA-256, and the signature's
+# /Contents span ("-" in an unsigned file; the hash then covers the bytes
+# outside it).
+#
+# Every row is the file Tincture 0.4.1 committed, byte for byte, except:
+#
+# - archival.pdf, pinned to the bytes it writes since it gained a PNG and a
+#   JPEG in 0.5.0. Before that change, built with compress: false, it
+#   matched 0.4.1's 269,339 bytes, SHA-256
+#   20bc81cc2921eafc3691e92cf2b6d94fabf3a9d6925205ffee9b4b8f74e0665c.
+accessible.pdf	259122	98f6e4a90dd7c9ca4e9052c1f6575d20f806e17af5932bf88e97c6f44eca0115	-
+archival.pdf	277720	c03510a6961155cecf1d467dd43406d9b1749f901bd45813cd309edcfaed0f8f	-
+archival_form.pdf	549306	1ccccb943f680283bd8c94f085098a1a5f4925ef6370e81dacc3b85488e33aae	-
+compliant.pdf	274930	10becb09288d7d177bfc17f77a9deeaa8fd3daca2df943d70d4816e430eba1cf	-
+form.pdf	266039	e04b4915319a01a867caf9e1191f35d9eecf9d40082d0a9414943cb7aef5d193	-
+gradient.pdf	253536	7b7c4dc55ec6fd58695900b1ad4fc02c915bfea131e05958ddd06290b21ae50a	-
+invoice.pdf	271710	72abd548bf137c05e6844c463b9fa118009400309ee4dc4e79b92526f9006516	-
+linked/Attached documents/Appendix-A.pdf	275472	43cee4e59cb90570ab2c295fb2efc0b2866805f372b5e952e4d5e25345f1f4db	-
+linked/Main-report.pdf	249587	6850b805898933f2274d3911b5c867ef6ff05f1888533d50f773c0a4de2868cc	-
+signed.pdf	282028	d78e68fe7937910f08ff60230f15f0c73744c82a3eeeaacdd9481593358f580c	247147-279915
+signed_archival.pdf	288066	244ecbd77ac8a29338922d12913800566e73628322ac14d21c82737d7417503c	247281-280049
+stamp.pdf	248059	ac1669d42844df2b7d2564ef765f1e8084b6463f117aead0b88623a478f8aeea	-
+tagged_form.pdf	604496	26a35ae2d4fc6b7a0656a1a42c81f4c9325bfd3f913e83f08879f0fd7c2ee8bf	-
+telemetry.pdf	114871	5d8537e743c054ce17b24d03b0b77c049ffa405d911aac2548ac3e48d5976eb9	-

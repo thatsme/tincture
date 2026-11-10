@@ -29,17 +29,19 @@ defmodule Tincture.Test.FixtureDocuments do
   def names, do: @names
 
   @doc """
-  Builds the locked document called `name`.
+  Builds the locked document called `name`, exported with `export_opts`.
   """
-  @spec build(String.t()) :: binary()
-  def build("core_text"), do: core_text()
-  def build("optimal_typography"), do: optimal_typography()
-  def build("table_layout"), do: table_layout()
-  def build("invoice_showcase"), do: Invoice.pdf_binary()
-  def build("bank_statement_showcase"), do: BankStatement.pdf_binary()
+  @spec build(String.t(), keyword()) :: binary()
+  def build(name, export_opts \\ []), do: name |> document() |> Tincture.export(export_opts)
 
-  def build("bank_statement_joint_fee_interest_showcase"),
-    do: BankStatement.pdf_binary(:joint_fee_interest)
+  defp document("core_text"), do: core_text()
+  defp document("optimal_typography"), do: optimal_typography()
+  defp document("table_layout"), do: table_layout()
+  defp document("invoice_showcase"), do: Invoice.build_document().pdf
+  defp document("bank_statement_showcase"), do: BankStatement.build_document().pdf
+
+  defp document("bank_statement_joint_fee_interest_showcase"),
+    do: BankStatement.build_document(:joint_fee_interest).pdf
 
   defp core_text do
     Tincture.new()
@@ -48,7 +50,6 @@ defmodule Tincture.Test.FixtureDocuments do
     |> Tincture.text_at(72, 720, "Locked fixture: core text")
     |> Tincture.text_at_rotated(300, 300, 30, "Rotation")
     |> Tincture.line(72, 710, 400, 710)
-    |> Tincture.export()
   end
 
   defp optimal_typography do
@@ -72,7 +73,6 @@ defmodule Tincture.Test.FixtureDocuments do
       consecutive_hyphen_penalty: 350,
       fitness_class_penalty: 500
     )
-    |> Tincture.export()
   end
 
   defp table_layout do
@@ -95,6 +95,6 @@ defmodule Tincture.Test.FixtureDocuments do
         table_width: 280
       )
 
-    Tincture.export(pdf)
+    pdf
   end
 end

@@ -1,0 +1,22 @@
+# Example images
+
+The images `archival.exs` places, so that a validated example carries image
+streams: a PNG with an alpha channel, which Tincture writes with a soft mask,
+and a baseline JPEG, which it embeds as written.
+
+Both were generated with FFmpeg rather than taken from elsewhere, and are
+distributed under the same licence as Tincture.
+
+| file | what it is | made with |
+|---|---|---|
+| `seal.png` | 160 × 160 RGBA: an opaque ring, a transparent gap, and a disc at alpha 160 | the first command below |
+| `colour-bars.jpg` | 320 × 180 baseline JPEG of the SMPTE HD colour-bar test pattern | the second command below |
+
+```sh
+ffmpeg -f lavfi -i "color=c=0x0F598C:s=160x160,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lt(hypot(X-79.5,Y-79.5),78),if(gt(hypot(X-79.5,Y-79.5),62),255,if(lt(hypot(X-79.5,Y-79.5),46),160,0)),0)'" -frames:v 1 -pix_fmt rgba seal.png
+ffmpeg -f lavfi -i "smptehdbars=s=320x180" -frames:v 1 -q:v 3 -pix_fmt yuvj420p colour-bars.jpg
+```
+
+Regenerating them with another FFmpeg build can produce different bytes, and
+so a different `archival.pdf`. The committed files are the ones the committed
+example was built from.

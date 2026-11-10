@@ -61,6 +61,10 @@ defmodule Tincture.PDF.FontEmbed do
 
     pdf = embed_whole(pdf, Keyword.get(opts, :whole, MapSet.new()))
 
+    # Off unless the serialiser asks: build_embedded_font_objects/3, the
+    # published entry point, writes the streams as it always has.
+    compress? = Keyword.get(opts, :compress, false)
+
     used_char_codes_by_font = used_char_codes_by_font(streams)
     used_cids_by_font = used_cids_by_font(streams)
     scalar_codepoints_by_font = scalar_codepoints_by_font(streams)
@@ -104,7 +108,7 @@ defmodule Tincture.PDF.FontEmbed do
             Telemetry.span([:tincture, :font, :embed], font_metadata, fn ->
               result =
                 build_embedded_font_family_objects(
-                  embedded_font,
+                  Map.put(embedded_font, :compress?, compress?),
                   next_id,
                   used_char_codes,
                   used_cids,
@@ -386,15 +390,22 @@ defmodule Tincture.PDF.FontEmbed do
     {Map.put(embedded_font, :subset_program?, data != Map.fetch!(embedded_font, :data)), data}
   end
 
-  defp embedded_font_file_object(embedded_font, data) do
-    length = byte_size(data)
+  # /Length1 is the program's size "after it has been decoded using the
+  # filters specified by the stream's Filter entry" (ISO 32000-1 Table 127),
+  # so compressed, /Length and /Length1 differ.
+  defp embedded_font_file_object(embedded_font, program) do
+    length1 = byte_size(program)
+    {data, filter} = Object.flate(program, Map.fetch!(embedded_font, :compress?))
+    length = IO.iodata_length(data)
 
     case Map.fetch!(embedded_font, :format) do
       :ttf ->
-        {:stream, "<< /Length #{length} /Length1 #{length} >>\nstream\n", data}
+        {:stream, "<< /Length #{length} /Length1 #{length1}#{filter} >>\nstream\n", data}
 
       :otf ->
-        {:stream, "<< /Length #{length} /Length1 #{length} /Subtype /OpenType >>\nstream\n", data}
+        {:stream,
+         "<< /Length #{length} /Length1 #{length1} /Subtype /OpenType#{filter} >>\nstream\n",
+         data}
     end
   end
 
@@ -1827,7 +1838,7 @@ defmodule Tincture.PDF.FontEmbed do
             variation_sequences,
             cid_to_gid_map_ref
           ),
-          to_unicode_cmap_object(to_unicode_mappings),
+          to_unicode_cmap_object(to_unicode_mappings, Map.fetch!(embedded_font, :compress?)),
           embedded_type0_font_object(embedded_font, cid_font_id, to_unicode_id)
         ]
         |> Enum.reject(&is_nil/1)
@@ -1849,7 +1860,7 @@ defmodule Tincture.PDF.FontEmbed do
             variation_sequences,
             cid_to_gid_map_ref
           ),
-          to_unicode_cmap_object(to_unicode_mappings),
+          to_unicode_cmap_object(to_unicode_mappings, Map.fetch!(embedded_font, :compress?)),
           embedded_type0_font_object(embedded_font, cid_font_id, to_unicode_id)
         ]
         |> Enum.reject(&is_nil/1)
@@ -2071,7 +2082,7 @@ defmodule Tincture.PDF.FontEmbed do
     "<< /Type /Font /Subtype /Type0 /BaseFont /#{font_name} /Encoding /Identity-H /DescendantFonts [#{cid_font_id} 0 R] /ToUnicode #{to_unicode_id} 0 R >>"
   end
 
-  defp to_unicode_cmap_object(used_mappings) do
+  defp to_unicode_cmap_object(used_mappings, compress?) do
     mappings = normalize_to_unicode_mappings(used_mappings)
     codespace_ranges = to_unicode_codespace_ranges(mappings)
     {bfrange_entries, bfchar_entries} = compact_to_unicode_mappings(mappings)
@@ -2120,8 +2131,9 @@ defmodule Tincture.PDF.FontEmbed do
       "end\n"
     ]
 
+    {cmap_stream, filter} = Object.flate(cmap_stream, compress?)
     length = IO.iodata_length(cmap_stream)
-    {:stream, "<< /Length #{length} >>\nstream\n", cmap_stream}
+    {:stream, "<< /Length #{length}#{filter} >>\nstream\n", cmap_stream}
   end
 
   defp normalize_to_unicode_mappings(used_mappings) do

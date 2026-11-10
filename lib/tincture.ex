@@ -2247,6 +2247,14 @@ defmodule Tincture do
       claims: a PDF/A level declared with `set_pdf_a/2`, or the PDF/UA
       structure a tagged document claims. Defaults to `true`. A document that
       declares no level and is not tagged is not checked.
+    * `:compress` — whether to Flate-compress the document's streams: page
+      content, form XObjects and widget appearances, embedded font programs,
+      ToUnicode maps and the ICC output profile. Defaults to `true`. The XMP
+      metadata is never compressed, so tools that are not PDF-aware can read
+      it, and images keep the filters they always have. `compress: false`
+      writes the bytes 0.4.1 wrote, which is useful for reading a document's
+      content streams as text. Any value but `true` or `false` raises
+      `ArgumentError`.
 
   Any other key is ignored, and warns once per call, naming every unknown key
   and the known ones. It will raise in 0.5.0.
@@ -2303,6 +2311,7 @@ defmodule Tincture do
     PDF.refuse_in_form_xobject!(pdf, caller)
     refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
+    compress? = compress_option!(opts, caller)
 
     # A path nothing painted on the current page is refused; a page left with
     # one was refused when it was left. No enforce: escape - it is invalid
@@ -2312,11 +2321,22 @@ defmodule Tincture do
     pdf
     |> check_archival(enforce?)
     |> check_accessibility(enforce?)
-    |> Serialize.export()
+    |> Serialize.export(compress?)
   end
 
   # The options export/2 reads, in the order its documentation gives them.
-  @export_options [:enforce]
+  @export_options [:enforce, :compress]
+
+  defp compress_option!(opts, caller) do
+    case Keyword.get(opts, :compress, true) do
+      compress? when is_boolean(compress?) ->
+        compress?
+
+      other ->
+        raise ArgumentError,
+              "#{caller} expects :compress to be true or false, got: #{inspect(other)}"
+    end
+  end
 
   # W10. A misspelt option, such as `compres: false`, was ignored without a
   # word: the document was exported as if it had not been passed.

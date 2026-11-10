@@ -1,3 +1,4 @@
+Code.require_file("support/checks.exs", __DIR__)
 Code.require_file("support/fonts.exs", __DIR__)
 
 # A realistic invoice — run with: mix run examples/invoice.exs
@@ -242,11 +243,15 @@ pdf =
   |> Tincture.text_at(margin, 60, "Northgate Instruments Ltd · Registered in England 04471902 · VAT GB 812 4471 02")
   |> Tincture.text_at(margin, 48, "Bank: Lloyds · Sort 30-96-14 · Account 41780255 · IBAN GB29 LOYD 3096 1441 7802 55")
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("invoice.pdf")
 File.write!(path, binary)
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 IO.puts("table height: #{Float.round(table.height, 1)}pt over #{table.rows} rows")
 IO.puts("embedded fonts subsetted: #{Regex.scan(~r|/BaseFont /([A-Z]{6})\+(\w+)|, binary) |> Enum.map(&Enum.at(&1, 2)) |> inspect()}")
 IO.puts("link present: #{binary =~ "/Subtype /Link"}")

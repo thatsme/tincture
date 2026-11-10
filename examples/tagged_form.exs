@@ -250,11 +250,15 @@ pdf =
     end)
   end)
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("tagged_form.pdf")
 File.write!(path, binary)
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 checks =
   Examples.Checks.form_rows(binary, widgets: 10, fields: 8, headings: 5) ++

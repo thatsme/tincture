@@ -259,11 +259,18 @@ pdf =
     end)
   end)
 
-binary = if embedded?, do: Tincture.export(pdf), else: Tincture.export(pdf, enforce: false)
+binary =
+  if embedded?,
+    do: Tincture.export(pdf, compress: Examples.Fonts.compress?()),
+    else: Tincture.export(pdf, enforce: false, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("archival_form.pdf")
 File.write!(path, binary)
 
-IO.puts("wrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("wrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 # The font programs, by name: the whole-font embed carries no subset tag.
 sans_size = if embedded?, do: File.stat!(Examples.Fonts.sans()).size, else: 0

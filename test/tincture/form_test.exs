@@ -403,8 +403,9 @@ defmodule Tincture.FormTest do
     # dictionary, and only for a form, so a document without one keeps its
     # 0.3.10 bytes. Metadata, structure and an info dictionary are the objects
     # written next to them. The hash is 0.3.10's output for this document.
+    # The 0.4.x hash, kept under compress: false; the default is pinned too.
     test "leave a document without form fields byte-identical" do
-      binary =
+      pdf =
         Tincture.new()
         |> Tincture.set_metadata(title: "No fields", author: "Tincture")
         |> Tincture.set_language("en-GB")
@@ -416,11 +417,15 @@ defmodule Tincture.FormTest do
           end)
         end)
         |> Tincture.add_bookmark("Start", 1)
-        |> export()
 
-      assert :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) ==
+      assert pdf |> Tincture.export(compress: false) |> sha256() ==
                "142be673da79531f691691403d538dd1a491ad4bf8220a655ac8d576766a05a8"
+
+      assert pdf |> export() |> sha256() ==
+               "997cb81296dd8c1cb1c8936f84ff3ac49b7db94b2ee0fb4c21970587eb13639f"
     end
+
+    defp sha256(binary), do: :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower)
   end
 
   describe "the push-button caption" do

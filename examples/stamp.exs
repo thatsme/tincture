@@ -112,11 +112,15 @@ pdf =
   |> Tincture.text_at(margin, page_h - 130, "Received complete and undamaged.")
   |> Tincture.place_form_xobject(:approved, page_w - margin - 200, page_h - 220)
 
-binary = Tincture.export(pdf)
+binary = Tincture.export(pdf, compress: Examples.Fonts.compress?())
 path = Examples.Fonts.output_path("stamp.pdf")
 File.write!(path, binary)
 
-IO.puts("\nwrote #{Path.relative_to_cwd(path)} — #{byte_size(binary)} bytes")
+# The checks read the streams inflated; the size is the file's.
+file_size = byte_size(binary)
+binary = Examples.Checks.inflated(binary)
+
+IO.puts("\nwrote #{Path.relative_to_cwd(path)} — #{file_size} bytes")
 
 count = fn pattern -> binary |> String.split(pattern) |> length() |> Kernel.-(1) end
 

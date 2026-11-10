@@ -101,11 +101,22 @@ defmodule Examples.Fonts do
   def resolve(name, _embedded?), do: name
 
   @doc """
+  The value each example passes as `export/2`'s `:compress`: `true`, the
+  default, unless TINCTURE_EXAMPLES_UNCOMPRESSED is set. CI sets it to build
+  every example uncompressed and compare it with the bytes the release before
+  compression wrote (`scripts/check_uncompressed_examples.exs`).
+  """
+  def compress?, do: System.get_env("TINCTURE_EXAMPLES_UNCOMPRESSED") in [nil, "", "0"]
+
+  @doc """
   Where an example writes its result. Committed, so the repository shows what
-  each script produces without anyone having to run it.
+  each script produces without anyone having to run it. Built uncompressed,
+  the examples are written under `tmp/examples-uncompressed/` instead, leaving
+  the committed files alone.
   """
   def output_path(filename) do
-    dir = Path.join(__DIR__, "../output") |> Path.expand()
+    output = if compress?(), do: "../output", else: "../../tmp/examples-uncompressed"
+    dir = Path.join(__DIR__, output) |> Path.expand()
     path = Path.join(dir, filename)
     # The parent rather than the output directory itself, so an example that
     # writes a tree - remote_links.exs writes a main document and a folder of
