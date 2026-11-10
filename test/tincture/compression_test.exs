@@ -182,7 +182,7 @@ defmodule Tincture.CompressionTest do
       |> Tincture.image_png(130, 600, 40, 40, png!(dir))
       |> Tincture.text_field(72, 540, 200, 20, "name", value: "Ada")
       |> Tincture.choice_field(72, 510, 200, 20, "currency", options: ["GBP", "EUR"])
-      |> Tincture.checkbox(72, 480, 12, "agree", checked: true)
+      |> Tincture.checkbox(72, 480, 12, "agree", value: true)
       |> Tincture.radio_group("contact", [
         [value: "email", x: 72, y: 450, size: 12],
         [value: "post", x: 92, y: 450, size: 12]
