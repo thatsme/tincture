@@ -17,6 +17,17 @@ defmodule Tincture.Typography.LineBreak do
   def break_text(text, font_name, font_size, max_width, opts \\ [])
       when is_binary(text) and is_binary(font_name) and is_number(font_size) and font_size > 0 and
              is_number(max_width) and max_width > 0 and is_list(opts) do
+    # Any key but these warns (W11). The hyphenation keys are read only for a
+    # word that does not fit.
+    Tincture.Options.warn_unknown(opts, "Tincture.Typography.LineBreak.break_text/5", [
+      :context,
+      :hyphenate,
+      :locale_resolver,
+      :locale,
+      :hyphen_left_min,
+      :hyphen_right_min
+    ])
+
     words = String.split(text, ~r/\s+/, trim: true)
     context = Keyword.get(opts, :context) || Context.new()
 

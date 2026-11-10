@@ -28,6 +28,22 @@ defmodule Tincture.Layout.Table do
   alias Tincture.PDF
   alias Tincture.PDF.Ops
 
+  # The keys render/6 reads; any other warns (W11). :min_col_width and
+  # :table_width are read only for an :auto column spec.
+  @render_options [
+    :padding,
+    :font_size,
+    :row_height,
+    :border,
+    :valign,
+    :font,
+    :header_font,
+    :header_rows,
+    :tag,
+    :min_col_width,
+    :table_width
+  ]
+
   @type row :: [term()]
 
   @type option ::
@@ -100,6 +116,7 @@ defmodule Tincture.Layout.Table do
           {PDF.t(), RenderResult.t()}
   def render(%PDF{} = pdf, x, y, column_spec, rows, opts \\ [])
       when is_number(x) and is_number(y) and is_list(rows) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Table.render/6", @render_options)
     Ops.check_missing_glyphs(fn -> draw_table(pdf, x, y, column_spec, rows, opts) end)
   end
 

@@ -44,6 +44,26 @@ defmodule Tincture.Typography do
   alias Tincture.Typography.RichText.Break
   alias Tincture.Typography.RichText.Space
 
+  # The keys layout_paragraph/3 reads; any other warns (W11). The penalties and
+  # the cost model are read only when line_break is :optimal.
+  @layout_options [
+    :align,
+    :line_break,
+    :justify_max_space_multiplier,
+    :justify_min_space_multiplier,
+    :line_height,
+    :widow_penalty,
+    :orphan_penalty,
+    :hyphen_penalty,
+    :fitness_class_penalty,
+    :consecutive_hyphen_penalty,
+    :optimal_cost_model
+  ]
+
+  @doc false
+  @spec layout_options() :: [atom()]
+  def layout_options, do: @layout_options
+
   @type align :: :left | :center | :right | :justified
   @type line_break_mode :: :greedy | :optimal
   @type optimal_cost_model :: :quadratic | :box_glue
@@ -159,6 +179,12 @@ defmodule Tincture.Typography do
   @spec layout_paragraph(RichText.t(), number(), [option()]) :: [Line.t()]
   def layout_paragraph(%RichText{} = rich, max_width, opts \\ [])
       when is_number(max_width) and max_width > 0 and is_list(opts) do
+    Tincture.Options.warn_unknown(
+      opts,
+      "Tincture.Typography.layout_paragraph/3",
+      @layout_options
+    )
+
     ensure_measured!(rich)
     align = Keyword.get(opts, :align, :left)
     line_break = normalize_line_break(Keyword.get(opts, :line_break, :greedy))
@@ -687,7 +713,13 @@ defmodule Tincture.Typography do
   def layout_paragraph_with_spill(%RichText{} = rich, max_width, max_lines, opts \\ [])
       when is_number(max_width) and max_width > 0 and is_integer(max_lines) and max_lines > 0 and
              is_list(opts) do
-    lines = layout_paragraph(rich, max_width, opts)
+    Tincture.Options.warn_unknown(
+      opts,
+      "Tincture.Typography.layout_paragraph_with_spill/4",
+      @layout_options
+    )
+
+    lines = layout_paragraph(rich, max_width, Tincture.Options.known(opts, @layout_options))
     {visible, spill} = Enum.split(lines, max_lines)
 
     %LayoutResult{

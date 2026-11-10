@@ -40,6 +40,18 @@ defmodule Tincture.Layout.Template do
   alias Tincture.PDF.Page
   alias Tincture.Typography.RichText
 
+  # The keys each function reads; any other warns (W11). render/4 reads its
+  # page keys and passes the rest to Box.flow_across_boxes/4; render_document/4
+  # reads its own and sets render/4's page keys itself, so a :page_number it
+  # is given is never read.
+  @new_options [:page_size, :margins, :columns, :gutter, :header_height, :footer_height]
+  @slot_options [:font, :size, :height]
+
+  defp render_options, do: [:page_number, :page_total | Box.flow_options()]
+
+  defp document_options,
+    do: [:page_number_start, :max_pages, :page_total | Box.flow_options()]
+
   @type margin_tuple :: {number(), number(), number(), number()}
   @type box :: {float(), float(), float(), float()}
 
@@ -167,6 +179,7 @@ defmodule Tincture.Layout.Template do
   """
   @spec new([option()]) :: t()
   def new(opts \\ []) when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Template.new/1", @new_options)
     page_size = Keyword.get(opts, :page_size, :letter)
     margins = normalize_margins(Keyword.get(opts, :margins, {50, 50, 50, 50}))
     columns = normalize_columns(Keyword.get(opts, :columns, 1))
@@ -204,6 +217,8 @@ defmodule Tincture.Layout.Template do
   @spec with_header(t(), String.t(), [slot_option()]) :: t()
   def with_header(%__MODULE__{} = template, text, opts \\ [])
       when is_binary(text) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Template.with_header/3", @slot_options)
+
     slot = %Slot{
       text: text,
       font: Keyword.get(opts, :font, "Helvetica-Bold"),
@@ -235,6 +250,8 @@ defmodule Tincture.Layout.Template do
   @spec with_footer(t(), String.t(), [slot_option()]) :: t()
   def with_footer(%__MODULE__{} = template, text, opts \\ [])
       when is_binary(text) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Template.with_footer/3", @slot_options)
+
     slot = %Slot{
       text: text,
       font: Keyword.get(opts, :font, "Helvetica"),
@@ -271,6 +288,7 @@ defmodule Tincture.Layout.Template do
   @spec render(PDF.t(), t(), RichText.t(), [Box.option()]) :: {PDF.t(), RenderResult.t()}
   def render(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Template.render/4", render_options())
     Ops.check_missing_glyphs(fn -> draw_page(pdf, template, rich_text, opts) end)
   end
 
@@ -281,7 +299,7 @@ defmodule Tincture.Layout.Template do
     page_total =
       normalize_positive_integer(Keyword.get(opts, :page_total, page_number), :page_total)
 
-    flow_opts = Keyword.drop(opts, [:page_number, :page_total])
+    flow_opts = Tincture.Options.known(opts, Box.flow_options())
 
     {page_width, page_height} = Page.media_box(template.page_size)
     _ = page_width
@@ -378,6 +396,12 @@ defmodule Tincture.Layout.Template do
           {PDF.t(), DocumentResult.t()}
   def render_document(%PDF{} = pdf, %__MODULE__{} = template, %RichText{} = rich_text, opts \\ [])
       when is_list(opts) do
+    Tincture.Options.warn_unknown(
+      opts,
+      "Tincture.Layout.Template.render_document/4",
+      document_options()
+    )
+
     Ops.check_missing_glyphs(fn -> draw_document(pdf, template, rich_text, opts) end)
   end
 
@@ -402,6 +426,7 @@ defmodule Tincture.Layout.Template do
 
         render_opts =
           opts
+          |> Tincture.Options.known(Box.flow_options())
           |> Keyword.put(:page_number, page_number)
           |> Keyword.put(:page_total, normalize_page_total(page_total, page_number))
 
@@ -466,6 +491,14 @@ defmodule Tincture.Layout.Template do
   @spec render_xml_document(PDF.t(), String.t(), [document_option()]) ::
           {:ok, PDF.t(), DocumentResult.t()} | {:error, xml_error()}
   def render_xml_document(%PDF{} = pdf, xml, opts \\ []) when is_binary(xml) and is_list(opts) do
+    Tincture.Options.warn_unknown(
+      opts,
+      "Tincture.Layout.Template.render_xml_document/3",
+      document_options()
+    )
+
+    opts = Tincture.Options.known(opts, document_options())
+
     with {:ok, template, body} <- parse_xml(xml) do
       {rendered_pdf, result} = render_document(pdf, template, body, opts)
       {:ok, rendered_pdf, result}

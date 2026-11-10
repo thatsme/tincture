@@ -101,6 +101,10 @@ defmodule Tincture.Font.Context do
   def text_width(%__MODULE__{} = context, font_name, size, text, opts)
       when is_binary(font_name) and is_number(size) and size > 0 and is_binary(text) and
              is_list(opts) do
+    # Any key but :on_unknown warns (W11); it is read only for a font that is
+    # not a standard one.
+    Tincture.Options.warn_unknown(opts, "Tincture.Font.Context.text_width/5", [:on_unknown])
+
     if Font.font_available?(font_name) do
       Font.text_width(font_name, size, text)
     else

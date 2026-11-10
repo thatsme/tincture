@@ -77,6 +77,11 @@ defmodule Tincture.Layout.Box do
               spill_text: ""
   end
 
+  @doc false
+  # The keys flow_text/7 reads: its own, and the layout keys it passes on.
+  @spec flow_options() :: [atom()]
+  def flow_options, do: [:rotate, :tag, :tag_as | Typography.layout_options()]
+
   @doc """
   Lay out rich text inside one box and draw the lines that fit.
 
@@ -103,6 +108,7 @@ defmodule Tincture.Layout.Box do
   def flow_text(%PDF{} = pdf, x, y, width, height, %RichText{} = rich_text, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and width > 0 and is_number(height) and
              height > 0 and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Box.flow_text/7", flow_options())
     Ops.check_missing_glyphs(fn -> draw_flow_text(pdf, x, y, width, height, rich_text, opts) end)
   end
 
@@ -116,7 +122,7 @@ defmodule Tincture.Layout.Box do
 
     tagging? = resolve_tagging(opts, pdf)
     tag = Keyword.get(opts, :tag_as, :p)
-    layout_opts = Keyword.drop(opts, [:rotate, :tag, :tag_as])
+    layout_opts = Tincture.Options.known(opts, Typography.layout_options())
 
     # Widths were measured when the rich text was built, which may have been
     # before this document existed - and embedded font metrics live on the
@@ -185,6 +191,8 @@ defmodule Tincture.Layout.Box do
   @spec flow_across_boxes(PDF.t(), RichText.t(), [box()], [option()]) :: {PDF.t(), FlowResult.t()}
   def flow_across_boxes(%PDF{} = pdf, %RichText{} = rich_text, boxes, opts \\ [])
       when is_list(boxes) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Layout.Box.flow_across_boxes/4", flow_options())
+    opts = Tincture.Options.known(opts, flow_options())
     Ops.check_missing_glyphs(fn -> draw_flow_across_boxes(pdf, rich_text, boxes, opts) end)
   end
 
