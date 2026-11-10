@@ -2447,9 +2447,16 @@ defmodule Tincture.PDF.FontEmbed do
 
   defp take_mapping_run([], _prev, acc), do: {acc, []}
 
+  # A bfrange line stays within one 256-code block of its source codes, whose
+  # bytes other than the last may not differ (Adobe TN 5411 1.4.1), and the
+  # last byte of its destination, the UTF-16BE string as written, may not pass
+  # 255 (ISO 32000-1 9.10.3). Acrobat Reader discards the whole ToUnicode map
+  # when one line breaks either. So a run ends where the next source code or
+  # the next destination would start a new block of 256.
   defp take_mapping_run([next | rest] = remaining, prev, acc) do
     if next.hex_len == prev.hex_len and next.source_int == prev.source_int + 1 and
-         next.destination_int == prev.destination_int + 1 do
+         next.destination_int == prev.destination_int + 1 and
+         rem(next.source_int, 256) != 0 and rem(next.destination_int, 256) != 0 do
       take_mapping_run(rest, next, [next | acc])
     else
       {acc, remaining}

@@ -1333,6 +1333,49 @@ defmodule TinctureTest do
     File.rm(path)
   end
 
+  test "register_ttf_font/3 splits a non-BMP ToUnicode range where its surrogate's last byte would pass 255" do
+    # U+1F4FE-U+1F501 are four consecutive code points, written as the
+    # surrogate pairs D83D DCFE to D83D DD01. As one line, the source would
+    # cross a first-byte boundary (TN 5411 1.4.1) and the destination's last
+    # byte would pass 255 (ISO 32000-1 9.10.3), and Acrobat Reader would
+    # discard the whole map. Split at the block, each line keeps both.
+    path = Path.join(System.tmp_dir!(), "tincture_test_#{System.unique_integer([:positive])}.ttf")
+
+    font =
+      build_ttf([
+        {"head", <<0::size(18)-unit(8), 1000::16-big, 0::size(34)-unit(8)>>},
+        {"hhea", <<0::32-big, 0::size(30)-unit(8), 2::16-big>>},
+        {"maxp", <<0x0001_0000::32-big, 6::16-big>>},
+        {"hmtx",
+         <<500::16-big, 0::16-signed-big, 700::16-big, 0::16-signed-big, 0::16-signed-big,
+           0::16-signed-big, 0::16-signed-big, 0::16-signed-big, 0::16-signed-big,
+           0::16-signed-big, 0::16-signed-big, 0::16-signed-big>>},
+        {"cmap", cmap_format12([{0x1F4FE, 0x1F501, 1}])}
+      ])
+
+    :ok = File.write(path, font)
+
+    # The four share the high surrogate D83D, so the CIDToGIDMap falls back
+    # to /Identity and says so; that is not what this test is about.
+    capture_log(fn ->
+      pdf_binary =
+        Tincture.new()
+        |> Tincture.register_ttf_font("DemoUnicodeNonBMPBlock", path)
+        |> Tincture.set_font("DemoUnicodeNonBMPBlock", 12)
+        |> Tincture.text_at(50, 700, "\u{1F4FE}\u{1F4FF}\u{1F500}\u{1F501}")
+        |> Tincture.export()
+
+      send(self(), {:pdf, pdf_binary})
+    end)
+
+    assert_received {:pdf, pdf_binary}
+
+    assert pdf_binary =~ "<D83DDCFE> <D83DDCFF> <D83DDCFE>\n<D83DDD00> <D83DDD01> <D83DDD00>"
+    refute pdf_binary =~ "<D83DDCFE> <D83DDD01>"
+
+    File.rm(path)
+  end
+
   test "text_at/4 refuses unmapped contiguous characters rather than writing their widths in range form" do
     path = write_test_ttf_with_cmap!()
 
