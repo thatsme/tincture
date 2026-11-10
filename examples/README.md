@@ -116,7 +116,7 @@ are marked with `Tincture.artifact/2`, so a reader skips them instead of
 announcing them as content.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.4.2: 106 of 106 rules, 1698 of 1698 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings.
 
     verapdf --flavour ua1 examples/output/accessible.pdf
@@ -142,7 +142,7 @@ Every heading also gets a bookmark, so the outline matches the structure.
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
+at 0.4.2: 106 of 106 rules, 2864 of 2864 checks. PAC 2026.1 audit, 2026-10-19, on the
 file at `4a75f1e`: PDF/UA 0 errors, 0 warnings, with two Quality warnings on
 its footnote — the `Note` is not referenced by a `Link` and has no `Lbl` —
 which are best practice rather than PDF/UA-1 requirements.
@@ -174,7 +174,7 @@ ICC profile carries no creation date — so an archived file can be checked
 against a rebuild.
 
 **Validated.** Passes veraPDF 1.30.2 in CI on every commit at four
-flavours; at 0.4.1:
+flavours; at 0.4.2:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -222,7 +222,7 @@ Shows:
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
-four flavours; at 0.4.1:
+four flavours; at 0.4.2:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -282,7 +282,7 @@ Shows:
 The script prints a checklist of each requirement and where it came from.
 
 **Validated.** Passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit;
-at 0.4.1: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
+at 0.4.2: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
 also traces, in the file's bytes, that every widget's `Form` element and
 `/StructParent` point at each other (`scripts/trace_widget_ownership.py`).
 PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG and
@@ -347,7 +347,7 @@ verifies the signature with openssl, as it does `signed.pdf`'s, and traces
 the widget's ownership in the file's bytes.
 
 **Validated.** New in 0.4.0. Passes veraPDF 1.30.2 in CI on every commit at
-four flavours; at 0.4.1:
+four flavours; at 0.4.2:
 
 | Profile | Rules | Checks |
 |---|---|---|
@@ -391,7 +391,7 @@ action whose path the reader resolves against the document carrying the link,
 so the pair can be moved, zipped or handed over as a set and still resolve.
 
 Both halves are tagged, each with a bookmark per heading, and both pass
-veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.1:
+veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.2:
 `Main-report.pdf` 106 of 106 rules, 830 of 830 checks; `Appendix-A.pdf` 106 of 106 rules, 3761 of
 3761 checks. PAC 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0
 errors, 0 warnings on both. A report that is accessible pointing at an

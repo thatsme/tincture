@@ -50,7 +50,7 @@ examples/README.md	1	archival_form-2b	| PDF/A-2b | {rules} | {checks} |
 examples/README.md	1	archival_form-2u	| PDF/A-2u | {rules} | {checks} |
 examples/README.md	1	archival_form-2a	| PDF/A-2a | {rules} | {checks} |
 examples/README.md	1	archival_form-ua1	| PDF/UA-1 | {rules} | {checks} |
-examples/README.md	1	tagged_form-ua1	at 0.4.1: {rules} rules, {checks} checks. New in 0.4.0.
+examples/README.md	1	tagged_form-ua1	at 0.4.2: {rules} rules, {checks} checks. New in 0.4.0.
 examples/README.md	1	signed_archival-2b	| PDF/A-2b | {rules} | {checks} |
 examples/README.md	1	signed_archival-2u	| PDF/A-2u | {rules} | {checks} |
 examples/README.md	1	signed_archival-2a	| PDF/A-2a | {rules} | {checks} |

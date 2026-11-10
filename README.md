@@ -31,9 +31,9 @@ measured on.
 [veraPDF](https://verapdf.org) 1.30.2 runs in CI on every commit, against
 these documents as the examples regenerate them; the same job fails if any of
 them differs from its committed bytes. Each passes on every commit; the counts
-are as measured at 0.4.1:
+are as measured at 0.4.2:
 
-| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.4.1 |
+| Standard | Document | Passes veraPDF 1.30.2 in CI on every commit; at 0.4.2 |
 |---|---|---|
 | **PDF/UA-1** (accessibility, ISO 14289-1) | `compliant.pdf` | 106 of 106 rules, 2864 of 2864 checks |
 | | `accessible.pdf` | 106 of 106 rules, 1698 of 1698 checks |
@@ -146,7 +146,7 @@ shrink.
 
 ```elixir
 # mix.exs
-{:tincture, "~> 0.4.1"}
+{:tincture, "~> 0.4.2"}
 ```
 
 Upgrading from 0.3.x: 0.4.0 turns the 0.3.x deprecation warnings into
@@ -158,7 +158,7 @@ and what to do instead.
 is mature and the standards output is checked by the validators above, but the
 API under this name is new and may still move before 1.0.
 
-At 0.4.1: 1,883 tests · coverage: CI fails below 80%; 91.8% in CI at 0.4.1
+At 0.4.2: 1,887 tests · coverage: CI fails below 80%; 91.8% in CI at 0.4.2
 · Credo `--strict` clean,
 with pre-existing findings in `lib/` exempted inline one by one and `test/` and
 `scripts/` exempt from the structural checks · Dialyzer clean · CI on Elixir

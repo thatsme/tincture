@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-11-DD
+
+**In Acrobat Reader, text in some embedded fonts could not be copied,
+searched or read aloud, and form field values were not extracted.** This
+affected:
+
+- a font embedded whole: `subset: :none`, or `full_font: true` on a form
+  field;
+- a subset whose text used consecutive characters across a multiple of 256,
+  such as U+00FF and U+0100.
+
+The font's ToUnicode map, which tells a reader which character each glyph
+is, then held a line that crossed a block of 256 codes, and Acrobat Reader
+discards the **whole** map when one line does. Copied text came out as
+private-use characters, U+100000 plus each character's code.
+
+- **Since:** every release from 0.1.0.
+- **Not detected by** veraPDF or PAC. pypdf, PDFium, pdf.js and mutool read
+  such a map as intended.
+- **In the committed examples:** 0.4.0 and 0.4.1's `archival_form.pdf`,
+  which claims PDF/A-2a, PDF/A-2u and PDF/UA-1, was affected: in Acrobat
+  Reader its page text did not copy, and its field values did not extract.
+  `tagged_form.pdf`'s field font held the same lines.
+
+Regenerate the affected documents. Every character maps to what it did
+before; only the map's lines are split. A document whose font has no such
+line is byte-identical to 0.4.1.
+
+### Fixed
+
+- **A ToUnicode `bfrange` line no longer crosses a block of 256.** A run of
+  consecutive mappings ends where:
+  - the next source code would start a new block, its bytes other than the
+    last differing, which Adobe Technical Note 5411 §1.4.1 does not allow;
+  - or the last byte of the destination, the UTF-16BE string, would pass
+    255, which ISO 32000-1 9.10.3 leaves undefined.
+
+  This covers non-BMP characters too, whose destination is a surrogate pair.
+  `examples/output/tagged_form.pdf` and `archival_form.pdf` change, in their
+  ToUnicode streams only. A test now checks every `bfrange` line of every
+  committed example, and of documents built to straddle U+00FF/U+0100,
+  U+03FF/U+0400 and U+1DFF/U+1E00, against both rules. Another checks that
+  every code maps to what it did in 0.4.1.
+
 ## [0.4.1] — 2026-11-06
 
 **In an encrypted document, images, form XObjects and form-field appearances
@@ -1436,7 +1480,8 @@ the public API under this name is new and may still move before 1.0.
 - Dialyzer passing, with a documented ignore file for defensive clauses that
   keep functions total.
 
-[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/thatsme/tincture/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/thatsme/tincture/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/thatsme/tincture/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/thatsme/tincture/compare/v0.3.13...v0.4.0
 [0.3.13]: https://github.com/thatsme/tincture/compare/v0.3.12...v0.3.13
