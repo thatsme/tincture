@@ -236,8 +236,8 @@ four flavours; at 0.4.2:
     verapdf --flavour 2a  examples/output/archival_form.pdf
     verapdf --flavour ua1 examples/output/archival_form.pdf
 
-PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG,
-Quality and the AI-assisted check passed. PAC does not check PDF/A.
+PAC 2026 audit, 2026-11-10, on the file at `b96af28`: passed, with no
+warnings and no failures. PAC does not check PDF/A.
 
 **Filled in and saved, it may no longer be PDF/A.** PDF/A describes the file
 Tincture writes, not the file after a viewer has filled it in: a viewer that
@@ -285,9 +285,8 @@ The script prints a checklist of each requirement and where it came from.
 at 0.4.2: 106 of 106 rules, 1411 of 1411 checks. New in 0.4.0. A CI step
 also traces, in the file's bytes, that every widget's `Form` element and
 `/StructParent` point at each other (`scripts/trace_widget_ownership.py`).
-PAC 2026.1 audit, 2026-11-05, on the file at `8bc00fb`: PDF/UA, WCAG and
-Quality passed; PAC's AI-assisted check reported one heading as possibly a
-paragraph, an advisory hint.
+PAC 2026 audit, 2026-11-10, on the file at `b96af28`: passed, with no
+warnings and no failures.
 
 In Acrobat Reader, the field highlight covers an unsigned signature field on
 screen, so its label shows in print; `signature_field/7` describes it.

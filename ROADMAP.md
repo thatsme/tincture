@@ -18,7 +18,7 @@ covered by the test suite only)
 
 | | |
 |---|---|
-| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.2: 106 of 106 rules on each of eight documents, three of them forms. PAC 2026.1 audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
+| Accessibility — PDF/UA-1 | passes veraPDF 1.30.2 (PDF/UA-1 profile) in CI on every commit; at 0.4.2: 106 of 106 rules on each of eight documents, three of them forms. PAC audits of all eight, on the files at the commits [the README](README.md#checked-against-real-validators) names, the two forms 0.4.2 changed audited again: PDF/UA passed on each. On a corpus that exercises 20 of 38 structure types ([1](#1-accessibility--tagged-pdf-pdfua), [coverage](README.md#what-the-validated-documents-actually-exercise)) |
 | Archival — PDF/A-2b, 2u, 2a | passes veraPDF 1.30.2 in CI on every commit; at 0.4.2: up to 153 of 153 rules, on three documents: a report, a form and a signed document ([2](#2-archival--pdfa)) |
 | Digital signatures | SHA-256, SHA-384 and SHA-512 verified by an independent verifier in the test suite; `signed.pdf` and `signed_archival.pdf` pass `openssl cms -verify` in CI on every commit, for integrity only, since their certificates are self-signed ([3](#3-digital-signatures)) |
 | Forms | every field type with its own appearance, embedded fonts in fields, tagged and archival forms; validated by veraPDF at PDF/UA-1 and PDF/A-2a, 2b and 2u in CI ([6](#6-forms-completed)) |
@@ -186,9 +186,11 @@ checks. PAC
 2026.1 audit, 2026-10-19, on the files at `4a75f1e`: PDF/UA 0 errors, 0
 warnings — for this document and the four other PDF/UA examples that
 predate 0.4.0. The three form examples 0.4.0 adds were audited with PAC
-2026.1 on 2026-11-05, with PDF/UA passed on each
-([the README](README.md#checked-against-real-validators) gives the commits
-and the findings).
+2026.1 on 2026-11-05, with PDF/UA passed on each, and `tagged_form.pdf` and
+`archival_form.pdf` again on 2026-11-10, with PAC 2026, after 0.4.2 changed
+their ToUnicode maps: passed on both, with no warnings and no failures
+([the README](README.md#checked-against-real-validators) gives the commits,
+the files' hashes and the findings).
 
 Reproduce it with:
 
@@ -279,8 +281,8 @@ What remains:
 
   PAC is a free Windows desktop application from axes4 with no command line
   and no Linux build, so it cannot join the automated set the way veraPDF has.
-  It has been run once, by hand. A PAC result describes the files it was run
-  on; the release checklist keeps it from silently coming to describe others.
+  It is run by hand. A PAC result describes the files it was run on; the
+  release checklist keeps it from silently coming to describe others.
 - **A tag left open across a page change.** Calling `add_page/1` or
   `set_page/2` while a content tag or an `artifact/2` block is open would write
   a marked-content sequence that begins on one page and ends on another, which

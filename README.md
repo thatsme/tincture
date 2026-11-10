@@ -53,18 +53,25 @@ are as measured at 0.4.2:
 | | `archival_form.pdf` | 153 of 153 rules, 7391 of 7391 checks |
 | | `signed_archival.pdf` | 153 of 153 rules, 1997 of 1997 checks |
 
-[PAC](https://pac.pdf-accessibility.org) 2026.1, a second and independent
-PDF/UA checker, was run as a manual audit on each PDF/UA document above, as
+[PAC](https://pac.pdf-accessibility.org), a second and independent PDF/UA
+checker, was run as a manual audit on each PDF/UA document above, as
 committed at the commit named:
 
-- on 2026-10-19, on the five documents that predate 0.4.0, at `4a75f1e`:
-  **PDF/UA 0 errors, 0 warnings on all five;**
-- on 2026-11-05, on `tagged_form.pdf` and `archival_form.pdf` at `8bc00fb`:
-  PDF/UA, WCAG and Quality passed on both. PAC's AI-assisted check passed on
-  `archival_form.pdf`, and on `tagged_form.pdf` reported one heading as
-  possibly a paragraph, an advisory hint;
-- on 2026-11-05, on `signed_archival.pdf` at `56bae06`: PDF/UA, WCAG,
-  Quality and the AI-assisted check passed.
+- on 2026-10-19, with PAC 2026.1, on the five documents that predate 0.4.0,
+  at `4a75f1e`: **PDF/UA 0 errors, 0 warnings on all five;**
+- on 2026-11-05, with PAC 2026.1, on `signed_archival.pdf` at `56bae06`:
+  PDF/UA, WCAG, Quality and the AI-assisted check passed;
+- on 2026-11-10, with PAC 2026, on `tagged_form.pdf` and `archival_form.pdf`
+  at `b96af28`, after 0.4.2 changed their ToUnicode maps: **passed on both,
+  with no warnings and no failures.** The files audited:
+
+  | Document | SHA-256 |
+  |---|---|
+  | `tagged_form.pdf` | `8e12171d71a9fd1685b459fcfa23c265e040f01a20216a2552e90637bd1d605d` |
+  | `archival_form.pdf` | `b91ad8afd4c3b1f3781f979e041ceeda3c88c35a98584f6d5029be120d8569ac` |
+
+  The two were audited before as well, on 2026-11-05 with PAC 2026.1, at
+  `8bc00fb`.
 
 PAC is a Windows desktop application with no command line, so it is an audit
 at a point in time rather than a gate. What it found and what remains is in
