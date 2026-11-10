@@ -63,6 +63,13 @@ defmodule Tincture.PDF.Encrypt do
           | :assemble
           | :print_high_quality
 
+  # The keys new/1 reads; any other warns (W11).
+  @options [:user_password, :owner_password, :permissions, :encrypt_metadata]
+
+  @doc false
+  @spec options() :: [atom()]
+  def options, do: @options
+
   # Permission bits, PDF specification table 22. Bit numbering there is
   # 1-based, so "bit 3" is 1 <<< 2.
   @permission_bits %{
@@ -96,6 +103,7 @@ defmodule Tincture.PDF.Encrypt do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
+    Tincture.Options.warn_unknown(opts, "Tincture.PDF.Encrypt.new/1", @options)
     user_password = normalize_password(Keyword.get(opts, :user_password, ""), :user_password)
 
     owner_password =

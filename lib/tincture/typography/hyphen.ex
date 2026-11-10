@@ -39,15 +39,23 @@ defmodule Tincture.Typography.Hyphen do
   the VM.
   """
   @spec hyphenate(String.t(), locale(), [option()]) :: [String.t()]
-  def hyphenate(word, locale \\ :en_gb, opts \\ [])
+  def hyphenate(word, locale \\ :en_gb, opts \\ []) do
+    # Any key but these warns (W11), whatever the word.
+    Tincture.Options.warn_unknown(opts, "Tincture.Typography.Hyphen.hyphenate/3", [
+      :left_min,
+      :right_min
+    ])
 
-  def hyphenate(word, _locale, _opts) when not is_binary(word), do: [word]
-  def hyphenate(word, _locale, _opts) when byte_size(word) <= 4, do: [word]
+    do_hyphenate(word, locale, opts)
+  end
 
-  def hyphenate(_word, _locale, opts) when not is_list(opts),
+  defp do_hyphenate(word, _locale, _opts) when not is_binary(word), do: [word]
+  defp do_hyphenate(word, _locale, _opts) when byte_size(word) <= 4, do: [word]
+
+  defp do_hyphenate(_word, _locale, opts) when not is_list(opts),
     do: raise(ArgumentError, "hyphen options must be a keyword list")
 
-  def hyphenate(word, locale, opts) do
+  defp do_hyphenate(word, locale, opts) do
     left_min =
       normalize_hyphen_min(Keyword.get(opts, :left_min, default_left_min(locale)), :left_min)
 

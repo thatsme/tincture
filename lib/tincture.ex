@@ -83,6 +83,61 @@ defmodule Tincture do
   alias Tincture.Typography.RichText.Word
   alias Tincture.Unicode
 
+  # The keys each function's options are read for, from the code that reads
+  # them. Any other key warns (W11) through Tincture.Options; see there.
+  @link_options [:border, :contents, :new_window, :page]
+  # Every form field reads these, whatever its type: some are refused on the
+  # types they do not apply to, which is reading them too.
+  @field_options [
+    :page,
+    :value,
+    :font,
+    :size,
+    :border,
+    :max_length,
+    :tooltip,
+    :options,
+    :action,
+    :label,
+    :full_font,
+    :align,
+    :invisible,
+    :read_only,
+    :required,
+    :no_export
+  ]
+  @text_field_options @field_options ++ [:multiline, :password]
+  @choice_field_options @field_options ++ [:dropdown, :editable, :sort]
+  @radio_group_options [
+    :selected,
+    :read_only,
+    :required,
+    :no_export,
+    :allow_deselect,
+    :font,
+    :size,
+    :border,
+    :tooltip,
+    :page
+  ]
+  @radio_button_options [:value, :x, :y, :size, :page]
+  @font_options [:subset, :enforce_embedding_permissions]
+  @tag_options [:alt, :actual_text, :lang, :title, :scope, :id, :bbox]
+  @sign_options [
+    :private_key,
+    :certificate,
+    :chain,
+    :digest,
+    :signing_time,
+    :reserved_bytes,
+    :name,
+    :reason,
+    :location,
+    :contact
+  ]
+  # text_paragraph/6's own; the rest are Typography.layout_paragraph/3's.
+  @paragraph_options [:rotate, :fallback_fonts, :bidi, :shaping, :kerning]
+
   @type page_size :: :a4 | :letter | :legal | {number(), number()}
   @typedoc "How a shape is painted. See `rectangle/6`."
   @type paint :: PDF.paint()
@@ -310,6 +365,7 @@ defmodule Tincture do
   def link(%PDF{} = pdf, x, y, width, height, target, opts)
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.link/7", @link_options)
     PDF.refuse_in_form_xobject!(pdf, "Tincture.link/7")
     PDF.add_link(pdf, {x, y, x + width, y + height}, target, opts)
   end
@@ -381,6 +437,7 @@ defmodule Tincture do
         ) :: PDF.t()
   def text_link(%PDF{} = pdf, x, y, text, target, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.text_link/6", [:color | @link_options])
     PDF.refuse_in_form_xobject!(pdf, "Tincture.text_link/6")
     Ops.refuse_open_path(pdf, "Tincture.text_link/6", "the text")
     Ops.check_missing_glyphs(fn -> draw_text_link(pdf, x, y, text, target, opts) end)
@@ -421,6 +478,7 @@ defmodule Tincture do
           {drawn, rest}
       end
 
+    link_opts = Tincture.Options.known(link_opts, @link_options)
     link(drawn, x, y - descent, width, ascent + descent, target, link_opts)
   end
 
@@ -556,6 +614,7 @@ defmodule Tincture do
   def text_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_binary(name) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.text_field/7", @text_field_options)
     PDF.add_form_field(pdf, :text, name, {x, y, x + width, y + height}, opts)
   end
 
@@ -582,6 +641,7 @@ defmodule Tincture do
   def checkbox(%PDF{} = pdf, x, y, size, name, opts \\ [])
       when is_number(x) and is_number(y) and is_number(size) and is_binary(name) and
              is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.checkbox/6", @field_options)
     PDF.add_form_field(pdf, :checkbox, name, {x, y, x + size, y + size}, opts)
   end
 
@@ -626,6 +686,11 @@ defmodule Tincture do
   @spec radio_group(PDF.t(), String.t(), [keyword()], keyword()) :: PDF.t()
   def radio_group(%PDF{} = pdf, name, buttons, opts \\ [])
       when is_binary(name) and is_list(buttons) and is_list(opts) do
+    Tincture.Options.warn_unknown("Tincture.radio_group/4", [
+      {"option", opts, @radio_group_options},
+      {"button option", Enum.flat_map(buttons, &List.wrap/1), @radio_button_options}
+    ])
+
     PDF.add_radio_group(pdf, name, buttons, opts)
   end
 
@@ -714,6 +779,7 @@ defmodule Tincture do
   def push_button(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_binary(name) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.push_button/7", @field_options)
     PDF.add_form_field(pdf, :push_button, name, {x, y, x + width, y + height}, opts)
   end
 
@@ -779,6 +845,7 @@ defmodule Tincture do
   def signature_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_binary(name) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.signature_field/7", @field_options)
     PDF.add_form_field(pdf, :signature, name, {x, y, x + width, y + height}, opts)
   end
 
@@ -839,6 +906,7 @@ defmodule Tincture do
   def choice_field(%PDF{} = pdf, x, y, width, height, name, opts \\ [])
       when is_number(x) and is_number(y) and is_number(width) and is_number(height) and
              is_binary(name) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.choice_field/7", @choice_field_options)
     PDF.add_form_field(pdf, :choice, name, {x, y, x + width, y + height}, opts)
   end
 
@@ -895,8 +963,10 @@ defmodule Tincture do
   """
   @spec encrypt(PDF.t(), keyword()) :: PDF.t()
   def encrypt(%PDF{} = pdf, opts) when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.encrypt/2", Tincture.PDF.Encrypt.options())
     PDF.refuse_in_form_xobject!(pdf, "Tincture.encrypt/2")
     PDF.refuse_encrypting_signed!(pdf, "Tincture.encrypt/2")
+    opts = Tincture.Options.known(opts, Tincture.PDF.Encrypt.options())
     %PDF{pdf | encryption: Tincture.PDF.Encrypt.new(opts)}
   end
 
@@ -977,6 +1047,7 @@ defmodule Tincture do
   """
   @spec register_ttf_font(PDF.t(), String.t(), Path.t(), keyword()) :: PDF.t()
   def register_ttf_font(%PDF{} = pdf, font_name, path, opts) when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.register_ttf_font/4", @font_options)
     PDF.register_ttf_font(pdf, font_name, path, opts)
   end
 
@@ -1005,6 +1076,7 @@ defmodule Tincture do
   """
   @spec register_otf_font(PDF.t(), String.t(), Path.t(), keyword()) :: PDF.t()
   def register_otf_font(%PDF{} = pdf, font_name, path, opts) when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.register_otf_font/4", @font_options)
     PDF.register_otf_font(pdf, font_name, path, opts)
   end
 
@@ -1075,6 +1147,7 @@ defmodule Tincture do
   def text_at_with_fallback(%PDF{} = pdf, x, y, text, fallback_fonts, opts)
       when is_number(x) and is_number(y) and is_binary(text) and is_list(fallback_fonts) and
              is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.text_at_with_fallback/6", [:shaping, :kerning])
     Ops.refuse_open_path(pdf, "Tincture.text_at_with_fallback/6", "the text")
     Ops.check_missing_glyphs(fn -> draw_fallback_text(pdf, x, y, text, fallback_fonts, opts) end)
   end
@@ -1528,6 +1601,7 @@ defmodule Tincture do
   end
 
   def set_alpha(%PDF{} = pdf, opts) when is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.set_alpha/2", [:fill, :stroke])
     Ops.set_alpha(pdf, Keyword.get(opts, :fill, 1.0), Keyword.get(opts, :stroke, 1.0))
   end
 
@@ -1581,6 +1655,7 @@ defmodule Tincture do
           keyword()
         ) :: PDF.t()
   def linear_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
+    Tincture.Options.warn_unknown(opts, "Tincture.linear_gradient/7", [:direction, :extend])
     Ops.refuse_open_path(pdf, "Tincture.linear_gradient/7", "the gradient")
 
     coords =
@@ -1636,6 +1711,13 @@ defmodule Tincture do
           keyword()
         ) :: PDF.t()
   def radial_gradient(%PDF{} = pdf, x, y, width, height, stops, opts \\ []) do
+    Tincture.Options.warn_unknown(opts, "Tincture.radial_gradient/7", [
+      :center,
+      :radius,
+      :inner_radius,
+      :extend
+    ])
+
     Ops.refuse_open_path(pdf, "Tincture.radial_gradient/7", "the gradient")
     {cx, cy} = Keyword.get(opts, :center, {x + width / 2, y + height / 2})
     outer = Keyword.get(opts, :radius, max(width, height) / 2)
@@ -1880,6 +1962,7 @@ defmodule Tincture do
     # Refused inside a form XObject before anything else, so a call made
     # there is refused for that. Only a content tag writes marked content
     # (BDC) into the stream.
+    Tincture.Options.warn_unknown(opts, "Tincture.tag/4", @tag_options)
     PDF.refuse_in_form_xobject!(pdf, "Tincture.tag/4")
 
     if Structure.content?(tag),
@@ -2148,6 +2231,7 @@ defmodule Tincture do
   """
   @spec sign(PDF.t(), String.t(), keyword()) :: PDF.t()
   def sign(%PDF{} = pdf, field_name, opts) when is_binary(field_name) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.sign/3", @sign_options)
     PDF.refuse_in_form_xobject!(pdf, "Tincture.sign/3")
     PDF.refuse_signing_encrypted!(pdf, "Tincture.sign/3")
     PDF.set_signature(pdf, field_name, opts)
@@ -2248,8 +2332,9 @@ defmodule Tincture do
       structure a tagged document claims. Defaults to `true`. A document that
       declares no level and is not tagged is not checked.
 
-  Any other key is ignored, and warns once per call, naming every unknown key
-  and the known ones. It will raise in 0.5.0.
+  Any other key raises `ArgumentError`, naming every unknown key and the known
+  ones, before anything is exported. Before 0.4.1 an unknown key was ignored
+  silently, and 0.4.1 warned.
 
   A conformance claim is written into the file's metadata, so exporting a
   document that declares PDF/A and violates it produces a file that lies about
@@ -2299,7 +2384,7 @@ defmodule Tincture do
   def export(%PDF{} = pdf), do: export(pdf, [], "Tincture.export/1")
 
   defp export(%PDF{} = pdf, opts, caller) do
-    warn_unknown_export_options(opts)
+    refuse_unknown_export_options!(opts)
     PDF.refuse_in_form_xobject!(pdf, caller)
     refuse_signed_and_encrypted!(pdf, caller)
     enforce? = Keyword.get(opts, :enforce, true)
@@ -2318,31 +2403,18 @@ defmodule Tincture do
   # The options export/2 reads, in the order its documentation gives them.
   @export_options [:enforce]
 
-  # W10. A misspelt option, such as `compres: false`, was ignored without a
-  # word: the document was exported as if it had not been passed.
-  defp warn_unknown_export_options(opts) do
-    case opts |> Enum.flat_map(&unknown_export_option/1) |> Enum.uniq() do
+  # W10 warned on a misspelt option, such as `compres: false`, which was
+  # ignored without a word, and announced the raise. Refused before anything
+  # is built or written.
+  defp refuse_unknown_export_options!(opts) do
+    case Tincture.Options.unknown(opts, @export_options) do
       [] ->
         :ok
 
       unknown ->
-        IO.warn(
-          "export/2 got the unknown #{option_list(unknown)}. Known options: " <>
-            "#{Enum.map_join(@export_options, ", ", &inspect/1)}. Unknown options are " <>
-            "ignored now; this will raise in 0.5.0."
-        )
+        raise ArgumentError,
+              Tincture.Options.message("export/2", [{"option", unknown, @export_options}])
     end
-  end
-
-  defp unknown_export_option({key, _value}) when key in @export_options, do: []
-  defp unknown_export_option({key, _value}), do: [key]
-  defp unknown_export_option(_other), do: []
-
-  defp option_list([key]), do: "option #{inspect(key)}"
-
-  defp option_list(keys) do
-    {init, [last]} = Enum.split(keys, -1)
-    "options #{Enum.map_join(init, ", ", &inspect/1)} and #{inspect(last)}"
   end
 
   # sign/3 and encrypt/2 refuse the combination, but the struct's fields can
@@ -2440,6 +2512,7 @@ defmodule Tincture do
   @spec save(PDF.t(), Path.t(), keyword()) :: :ok | {:error, term()}
   def save(%PDF{} = pdf, path, opts \\ []) when is_binary(path) and is_list(opts) do
     PDF.refuse_in_form_xobject!(pdf, "Tincture.save/3")
+    refuse_unknown_export_options!(opts)
 
     with :ok <- File.mkdir_p(Path.dirname(path)) do
       File.write(path, export(pdf, opts))
@@ -2458,6 +2531,12 @@ defmodule Tincture do
   def text_paragraph(%PDF{} = pdf, x, y, %RichText{} = rich_text, max_width, opts \\ [])
       when is_number(x) and is_number(y) and is_number(max_width) and max_width > 0 and
              is_list(opts) do
+    Tincture.Options.warn_unknown(
+      opts,
+      "Tincture.text_paragraph/6",
+      @paragraph_options ++ Typography.layout_options()
+    )
+
     Ops.refuse_open_path(pdf, "Tincture.text_paragraph/6", "the text")
     rotate = Keyword.get(opts, :rotate)
     fallback_fonts = Keyword.get(opts, :fallback_fonts, [])
@@ -2477,7 +2556,7 @@ defmodule Tincture do
     shaping = normalize_shaping_option(shaping)
     kerning = normalize_kerning_option(kerning)
 
-    layout_opts = Keyword.drop(opts, [:rotate, :fallback_fonts, :bidi, :shaping, :kerning])
+    layout_opts = Tincture.Options.known(opts, Typography.layout_options())
 
     # Token widths are baked in at construction, where an embedded font cannot
     # be resolved - its metrics live on this document. Re-measure before layout.

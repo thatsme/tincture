@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`export/2` and `save/3` raise `ArgumentError` on an option they do not
+  know.** Such a key was ignored without a word before 0.4.1, so a misspelt
+  `enforce` exported the document as if nothing had been passed. 0.4.1 warned,
+  naming the key and announcing this raise ("this will raise in 0.5.0"). The
+  message names every unknown key and the known ones, and the refusal comes
+  before anything is exported: `save/3` creates neither the file nor its
+  directory.
+
+### Deprecated
+
+- **An unknown option to any other public function that takes keyword
+  options warns**, once per call, naming the function, every unknown key and
+  the keys the function reads, and will raise in 0.6.0. This covers the form
+  field functions, `link/7`, `text_link/6`, `tag/4`, `sign/3`, `encrypt/2`,
+  the font registration, gradient, alpha and paragraph functions,
+  `Layout.Box`, `Layout.Table`, `Layout.Template`, `Typography` and its
+  `LineBreak`, `Hyphen` and `RichText` modules, `Font.Context.text_width/5`
+  and `PDF.Encrypt.new/1`. A key such as `checked: true` on `checkbox/6`,
+  which reads `value:`, was ignored silently and is now reported.
+  `place_form_xobject/5` already raised on an unknown key, and still does.
+
 ## [0.4.1] — 2026-11-06
 
 **In an encrypted document, images, form XObjects and form-field appearances

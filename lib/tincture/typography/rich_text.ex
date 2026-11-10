@@ -140,6 +140,13 @@ defmodule Tincture.Typography.RichText do
   """
   @spec from_plain(String.t(), keyword()) :: t()
   def from_plain(text, opts \\ []) when is_binary(text) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Typography.RichText.from_plain/2", [
+      :font,
+      :size,
+      :style,
+      :context
+    ])
+
     run = %Run{
       text: text,
       font: Keyword.get(opts, :font, "Helvetica"),
@@ -147,7 +154,7 @@ defmodule Tincture.Typography.RichText do
       style: Keyword.get(opts, :style)
     }
 
-    from_runs([run], opts)
+    from_runs([run], Tincture.Options.known(opts, [:context]))
   end
 
   @doc """
@@ -157,6 +164,8 @@ defmodule Tincture.Typography.RichText do
   """
   @spec from_runs([Run.t()], keyword()) :: t()
   def from_runs(runs, opts \\ []) when is_list(runs) and is_list(opts) do
+    Tincture.Options.warn_unknown(opts, "Tincture.Typography.RichText.from_runs/2", [:context])
+
     normalized =
       runs
       |> Enum.map(fn
