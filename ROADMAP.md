@@ -187,7 +187,7 @@ checks. PAC
 warnings — for this document and the four other PDF/UA examples that
 predate 0.4.0. The three form examples 0.4.0 adds were audited with PAC
 2026.1 on 2026-11-05, with PDF/UA passed on each, and `tagged_form.pdf` and
-`archival_form.pdf` again on 2026-11-10, with PAC 2026, after 0.4.2 changed
+`archival_form.pdf` again on 2026-11-10, with PAC 2026.1, after 0.4.2 changed
 their ToUnicode maps: passed on both, with no warnings and no failures
 ([the README](README.md#checked-against-real-validators) gives the commits,
 the files' hashes and the findings).

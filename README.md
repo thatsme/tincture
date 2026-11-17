@@ -61,7 +61,7 @@ committed at the commit named:
   at `4a75f1e`: **PDF/UA 0 errors, 0 warnings on all five;**
 - on 2026-11-05, with PAC 2026.1, on `signed_archival.pdf` at `56bae06`:
   PDF/UA, WCAG, Quality and the AI-assisted check passed;
-- on 2026-11-10, with PAC 2026, on `tagged_form.pdf` and `archival_form.pdf`
+- on 2026-11-10, with PAC 2026.1, on `tagged_form.pdf` and `archival_form.pdf`
   at `b96af28`, after 0.4.2 changed their ToUnicode maps: **passed on both,
   with no warnings and no failures.** The files audited:
 
